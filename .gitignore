@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+.vs/
+.vscode/
+.idea/
+TestResults/
+coverage/
+.env
+.env.*
+!.env.example
+**/appsettings.*.local.json
+*.pfx
+*.pem
+*.key
+*.user
+.DS_Store

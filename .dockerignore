@@ -1,0 +1,9 @@
+.git
+.github
+**/bin
+**/obj
+**/.vs
+**/TestResults
+.env
+.env.*
+!*.env.example

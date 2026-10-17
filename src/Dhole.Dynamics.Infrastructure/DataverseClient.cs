@@ -78,7 +78,15 @@ public sealed class DataverseClient(HttpClient httpClient, DataverseTokenProvide
         var root = document.RootElement;
         var identity = root.TryGetProperty("UserId", out var element) && Guid.TryParse(element.GetString(), out var id)
             ? id : throw new InvalidOperationException("Dataverse WhoAmI did not return a valid UserId.");
-        return new DataverseHealth(true, identity);
+        // Read-only permission probe: WhoAmI alone does NOT prove app-role assignment.
+        using var probe = new HttpRequestMessage(HttpMethod.Get,
+            $"{url}/api/data/v9.2/quotes?$select=quoteid&$top=1");
+        probe.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            await tokens.AcquireAsync(connection, ct));
+        using var permission = await httpClient.SendAsync(probe, ct);
+        if (permission.StatusCode != System.Net.HttpStatusCode.Forbidden)
+            permission.EnsureSuccessStatusCode();
+        return new DataverseHealth(true, identity, permission.IsSuccessStatusCode);
     }
 
     public static Dictionary<string, object> CreatePayload(QuoteCreateRequest input, Guid currencyId)

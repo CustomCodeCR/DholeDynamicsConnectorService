@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 
 type Session = { authenticated: boolean; actor: string; securityAdmin: boolean; csrfToken: string }
 type Connection = { id: string; code: string; dataverseUrl: string; tenantId: string; clientId: string }
+type OAuthClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
+type Grant = { id: string; clientId: string; connectionId: string; entitySet: string; operation: string; allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 
 const { t } = useI18n()
 const session = ref<Session | null>(null)
@@ -11,6 +13,8 @@ const status = ref<'loading' | 'unauthenticated' | 'ready'>('loading')
 const busy = ref(false)
 const notice = ref('')
 const connections = ref<Connection[]>([])
+const clients = ref<OAuthClient[]>([])
+const grants = ref<Grant[]>([])
 const connection = ref({ code: '', dataverseUrl: '', tenantId: '', clientId: '', clientSecret: '', defaultCurrencyId: '' })
 const rotate = ref({ code: '', clientSecret: '' })
 const client = ref({ issuer: '', clientId: '', displayName: '', enabled: true })
@@ -37,6 +41,10 @@ async function reload() {
     if (!response.ok) { status.value = 'unauthenticated'; return }
     session.value = await response.json() as Session
     connections.value = await api('/api/admin/v1/connections') as Connection[]
+    if (session.value?.securityAdmin) {
+      clients.value = await api('/api/admin/v1/clients') as OAuthClient[]
+      grants.value = await api('/api/admin/v1/grants') as Grant[]
+    }
     status.value = 'ready'
   } catch {
     status.value = 'unauthenticated'
@@ -48,7 +56,13 @@ async function action(task: () => Promise<unknown>, result: string) {
   try {
     await task()
     notice.value = result
-    if (session.value) connections.value = await api('/api/admin/v1/connections') as Connection[]
+    if (session.value) {
+      connections.value = await api('/api/admin/v1/connections') as Connection[]
+      if (session.value.securityAdmin) {
+        clients.value = await api('/api/admin/v1/clients') as OAuthClient[]
+        grants.value = await api('/api/admin/v1/grants') as Grant[]
+      }
+    }
   } catch (error) {
     notice.value = error instanceof Error ? error.message : t('error')
   } finally { busy.value = false }
@@ -69,11 +83,11 @@ async function rotateSecret() {
 async function check(code: string) {
   await action(async () => {
     const result = await api(`/api/admin/v1/connections/${encodeURIComponent(code)}/test`, 'POST')
-    notice.value = `WhoAmI: ${result.applicationUserId}`
+    notice.value = `WhoAmI: ${result.applicationUserId} · quotes.read: ${result.canReadQuotes}`
   }, t('connected'))
 }
 async function registerClient() {
-  const record = await api('/api/admin/v1/clients', 'POST', client.value)
+  const record = await api('/api/admin/v1/clients', 'POST', client.value) as OAuthClient
   grant.value.clientId = record.id
   notice.value = `${t('registered')}: ${record.id}`
 }
@@ -133,6 +147,26 @@ onMounted(() => { void reload() })
         <button :disabled="busy" class="rounded bg-slate-900 px-4 py-2 text-white sm:col-span-2">{{ t('rotateSecret') }}</button>
       </form>
       <template v-if="session?.securityAdmin">
+        <section class="rounded-xl border bg-white p-6">
+          <h3 class="text-lg font-semibold">{{ t('registerM2M') }}</h3>
+          <ul class="mt-3 space-y-2 text-sm">
+            <li v-for="item in clients" :key="item.id" class="rounded border p-3">
+              <strong>{{ item.displayName }}</strong> — {{ item.enabled ? t('enabled') : t('disabled') }}
+              <p class="break-all text-xs text-slate-600">{{ item.id }}</p>
+              <p class="break-all text-xs text-slate-600">{{ item.clientId }}</p>
+            </li>
+          </ul>
+        </section>
+        <section class="rounded-xl border bg-white p-6">
+          <h3 class="text-lg font-semibold">{{ t('grantPermissions') }}</h3>
+          <ul class="mt-3 space-y-2 text-sm">
+            <li v-for="item in grants" :key="item.id" class="rounded border p-3">
+              <strong>{{ item.entitySet }} — {{ item.operation }}</strong>
+              <p>{{ item.allowedFields.join(', ') }}</p>
+              <p class="break-all text-xs text-slate-600">{{ item.clientId }} · {{ item.connectionId }} · {{ item.maxRequestsPerMinute }}/min</p>
+            </li>
+          </ul>
+        </section>
         <form class="grid gap-3 rounded-xl border bg-white p-6 sm:grid-cols-2" @submit.prevent="action(registerClient, t('registered'))">
           <h3 class="text-lg font-semibold sm:col-span-2">{{ t('registerM2M') }}</h3>
           <label class="text-sm">OAuth issuer<input v-model="client.issuer" required class="mt-1 w-full rounded border p-2" placeholder="https://login.microsoftonline.com/{tenant}/v2.0" /></label>
@@ -143,8 +177,18 @@ onMounted(() => { void reload() })
         </form>
         <form class="grid gap-3 rounded-xl border bg-white p-6 sm:grid-cols-2" @submit.prevent="action(saveGrant, t('saved'))">
           <h3 class="text-lg font-semibold sm:col-span-2">{{ t('grantPermissions') }}</h3>
-          <label class="text-sm">Registered client record UUID<input v-model="grant.clientId" required class="mt-1 w-full rounded border p-2" /></label>
-          <label class="text-sm">{{ t('code') }}<input v-model="grant.connectionCode" required class="mt-1 w-full rounded border p-2" /></label>
+          <label class="text-sm">Registered client
+            <select v-model="grant.clientId" required class="mt-1 w-full rounded border p-2">
+              <option value="" disabled>{{ t('selectClient') }}</option>
+              <option v-for="item in clients" :key="item.id" :value="item.id">{{ item.displayName }} ({{ item.clientId }})</option>
+            </select>
+          </label>
+          <label class="text-sm">{{ t('code') }}
+            <select v-model="grant.connectionCode" required class="mt-1 w-full rounded border p-2">
+              <option value="" disabled>{{ t('selectConnection') }}</option>
+              <option v-for="item in connections" :key="item.id" :value="item.code">{{ item.code }}</option>
+            </select>
+          </label>
           <label class="text-sm">Entity set<input v-model="grant.entitySet" readonly class="mt-1 w-full rounded border bg-slate-100 p-2" /></label>
           <label class="text-sm">{{ t('operation') }}<select v-model="grant.operation" class="mt-1 w-full rounded border p-2"><option value="read">read</option><option value="create">create</option></select></label>
           <label class="text-sm sm:col-span-2">{{ t('fields') }}<textarea v-model="grant.allowedFields" required class="mt-1 w-full rounded border p-2" rows="3"></textarea></label>

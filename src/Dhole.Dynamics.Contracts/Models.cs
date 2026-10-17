@@ -55,4 +55,4 @@ public sealed record DataverseCreateResult(Guid QuoteId);
 
 public sealed record ConnectionQuery(string? ConnectionCode);
 
-public sealed record DataverseHealth(bool Connected, Guid ApplicationUserId);
+public sealed record DataverseHealth(bool Connected, Guid ApplicationUserId, bool CanReadQuotes);

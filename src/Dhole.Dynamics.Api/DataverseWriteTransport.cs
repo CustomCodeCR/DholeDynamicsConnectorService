@@ -67,17 +67,24 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
     public async Task<DateTimeOffset?> CreatedAtAsync(WritePolicy policy, Guid id, CancellationToken ct)
     {
         var path = "/api/data/v9.2/" + policy.Table.EntitySetName +
-            "(" + id.ToString("D") + ")?$select=createdon";
-        using var request = new HttpRequestMessage(HttpMethod.Get, Validate(policy, path, false));
+            "(" + id.ToString("D") + ")";
+        var validated = Validate(policy, path, false);
+        // Only the server-generated constant projection is appended after host/path validation.
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            new Uri(validated.AbsoluteUri + "?$select=createdon"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
             await tokens.AcquireAsync(policy.Connection, ct));
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) return null;
         await response.Content.LoadIntoBufferAsync(32 * 1024, ct);
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        return doc.RootElement.TryGetProperty("createdon", out var value) &&
-            value.ValueKind == JsonValueKind.String &&
-            DateTimeOffset.TryParse(value.GetString(), out var parsed) ? parsed : null;
+        try
+        {
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            return doc.RootElement.TryGetProperty("createdon", out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                DateTimeOffset.TryParse(value.GetString(), out var parsed) ? parsed : null;
+        }
+        catch (JsonException) { return null; }
     }
 
     public async Task<WriteTransportOutcome> SendBatchAsync(IReadOnlyList<WriteCommand> commands, CancellationToken ct)

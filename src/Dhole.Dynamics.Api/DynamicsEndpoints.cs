@@ -130,6 +130,42 @@ public static class DynamicsEndpoints
                 return ApiProblems.Create(http, 403, "grant_entity_denied", "Entity is not enabled in metadata.");
             }
         }
+        if (request.Operation is "create" or "update" or "upsert" or "delete"
+            && !(request.EntitySet == "quotes" && request.Operation == "create"))
+        {
+            try
+            {
+                var writer = http.RequestServices.GetRequiredService<WriteAccessService>();
+                var candidate = await writer.ResolveAsync(request.ConnectionCode, request.EntitySet, ct);
+                if (request.Operation == "delete")
+                {
+                    var deletion = http.RequestServices.GetRequiredService<DeletePolicyRepository>();
+                    var policy = await deletion.GetAsync(candidate.Connection.Id, request.EntitySet, ct);
+                    if (!policy.Enabled || request.AllowedFields.Length != 1 ||
+                        request.AllowedFields[0] != candidate.Table.PrimaryIdAttribute)
+                        return ApiProblems.Create(http, 403, "delete_grant_denied", "Enable explicit deletion policy first.");
+                }
+                else
+                {
+                    foreach (var field in request.AllowedFields)
+                    {
+                        var col = candidate.Table.Columns.FirstOrDefault(c => c.LogicalName == field);
+                        var enabled = candidate.Permissions.Fields.FirstOrDefault(p =>
+                            p.EntityName == request.EntitySet && p.FieldName == field);
+                        if (col is null || enabled is null || !enabled.Enabled || col.IsCalculated ||
+                            enabled.MetadataFingerprint != MetadataRepository.Fingerprint(col) ||
+                            (request.Operation is "create" or "upsert") && (!col.CanCreate || !enabled.CanCreate) ||
+                            (request.Operation is "update" or "upsert") && (!col.CanUpdate || !enabled.CanUpdate))
+                            return ApiProblems.Create(http, 403, "write_grant_fields_denied",
+                                "Grant contains fields not approved for the write operation.");
+                    }
+                }
+            }
+            catch (ReadRejected)
+            {
+                return ApiProblems.Create(http, 403, "write_grant_entity_denied", "Entity not approved.");
+            }
+        }
         var grant = await repository.UpsertGrantAsync(request, ScopeSecurity.ActorId(actor), ct);
         return grant is null
             ? ApiProblems.Create(http, 404, "client_or_connection_not_found", "Client or connection not found.")

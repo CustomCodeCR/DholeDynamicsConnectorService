@@ -34,3 +34,8 @@ CREATE TABLE IF NOT EXISTS dynamics.delete_policies (
     FOREIGN KEY(connection_id,entity_name)
       REFERENCES dynamics.metadata_allowed_entities(connection_id, logical_name) ON DELETE CASCADE
 );
+
+-- Upgrade the previous read/create/update/delete grant whitelist for Phase 06 upsert.
+ALTER TABLE dynamics.api_grants DROP CONSTRAINT IF EXISTS chk_grant_operation;
+ALTER TABLE dynamics.api_grants ADD CONSTRAINT chk_grant_operation
+ CHECK (operation IN ('create','read','update','delete','upsert'));

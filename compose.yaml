@@ -1,19 +1,31 @@
-# Local developer environment only. Staging/production deployments belong to Phase 12.
+# Local developer environment only. No production deploy or shared Dhole databases.
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: dhole_dynamics
+      POSTGRES_DB: dhole_dynamics_connector
       POSTGRES_USER: connector_app
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     volumes:
       - connector_db:/var/lib/postgresql/data
-      - ./sql/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    ports:
+      - "127.0.0.1:55432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U connector_app -d dhole_dynamics"]
+      test: ["CMD-SHELL", "pg_isready -U connector_app -d dhole_dynamics_connector"]
       interval: 5s
       timeout: 3s
       retries: 15
+    networks: [connector_internal]
+  migrate:
+    build:
+      context: .
+      dockerfile: src/Dhole.Dynamics.Tools/Dockerfile
+    environment:
+      ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [connector_internal]
   api:
     build:
@@ -21,14 +33,16 @@ services:
       dockerfile: src/Dhole.Dynamics.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
+      ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
       Jwt__Issuer: "${JWT_ISSUER:-dhole-dynamics-local}"
       Jwt__Audience: "${JWT_AUDIENCE:-dhole-dynamics-consumer-local}"
       Jwt__SecretKey: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY}"
       DYNAMICS_ENCRYPTION_KEY_BASE64: "${DYNAMICS_ENCRYPTION_KEY_BASE64:?Set DYNAMICS_ENCRYPTION_KEY_BASE64}"
+      DYNAMICS_ENCRYPTION_KEYS_JSON: "${DYNAMICS_ENCRYPTION_KEYS_JSON:-}"
+      DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION: "${DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION:-1}"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8080:8080"
     networks: [connector_internal]

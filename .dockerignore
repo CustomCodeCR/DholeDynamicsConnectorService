@@ -2,8 +2,13 @@
 .github
 **/bin
 **/obj
+**/node_modules
+**/dist
 **/.vs
 **/TestResults
 .env
 .env.*
 !*.env.example
+**/*.pfx
+**/*.pem
+**/*.key

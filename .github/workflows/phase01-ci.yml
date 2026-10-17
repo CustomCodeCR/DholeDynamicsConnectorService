@@ -1,0 +1,75 @@
+name: phase01-ci
+
+on:
+  push:
+    branches: [main, develop, master]
+  pull_request:
+    branches: [main, develop, master]
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore DholeDynamicsConnectorService.slnx
+      - run: dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
+      - run: dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build --collect:"XPlat Code Coverage"
+      - name: Vulnerable NuGet dependencies
+        run: dotnet list src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj package --vulnerable --include-transitive
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.14.0'
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/package.json
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm audit --prod --audit-level high
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan working tree for committed secrets
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 dir /repo --no-banner --redact
+  docker-smoke:
+    runs-on: ubuntu-latest
+    needs: [dotnet, frontend, secrets]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create ephemeral local-only credentials
+        run: |
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "DYNAMICS_ENCRYPTION_KEY_BASE64=$(openssl rand -base64 32 | tr -d '\n')" >> "$GITHUB_ENV"
+      - run: docker compose up --build -d
+      - name: Smoke API, DB, and frontend
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:8080/health/ready >/dev/null &&
+               curl -fsS http://127.0.0.1:8081/ >/dev/null; then exit 0; fi
+            sleep 3
+          done
+          docker compose ps
+          docker compose logs --tail=100
+          exit 1
+      - if: always()
+        run: docker compose down -v

@@ -25,6 +25,7 @@ function changeLanguage(event: Event) {
             <RouterLink to="/architecture" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('architecture') }}</RouterLink>
             <RouterLink to="/admin" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('admin') }}</RouterLink>
             <RouterLink to="/metadata" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('metadataTitle') }}</RouterLink>
+            <RouterLink to="/saved-queries" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('savedQueries') }}</RouterLink>
           </nav>
           <label class="sr-only" for="language">Language</label>
           <select id="language" :value="locale" class="rounded border border-slate-500 bg-slate-800 p-2 text-sm" @change="changeLanguage">

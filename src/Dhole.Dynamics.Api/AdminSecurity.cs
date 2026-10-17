@@ -9,8 +9,7 @@ public static class AdminSecurity
 {
     public static IEndpointRouteBuilder MapAdminAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/auth/login", (IOptionsMonitor<Microsoft.AspNetCore.Authentication.AuthenticationOptions> auth,
-            IConfiguration config) =>
+        app.MapGet("/auth/login", (IConfiguration config) =>
         {
             if (string.IsNullOrWhiteSpace(config["AdminOidc:Authority"])
                 || string.IsNullOrWhiteSpace(config["AdminOidc:ClientId"])

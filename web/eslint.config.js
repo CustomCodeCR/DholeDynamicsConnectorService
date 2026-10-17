@@ -7,7 +7,7 @@ export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'node_modules/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...eslintPluginVue.configs['flat/recommended'],
+  ...eslintPluginVue.configs['flat/essential'],
   {
     files: ['**/*.vue'],
     languageOptions: {

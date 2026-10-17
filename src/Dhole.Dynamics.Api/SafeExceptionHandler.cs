@@ -7,7 +7,8 @@ public sealed class SafeExceptionHandler(ILogger<SafeExceptionHandler> logger) :
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken ct)
     {
-        logger.LogError(exception, "Unhandled request failure; correlation {CorrelationId}", context.TraceIdentifier);
+        logger.LogError("Unhandled request failure; correlation {CorrelationId}; type {ExceptionType}",
+            context.TraceIdentifier, exception.GetType().Name);
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
         {

@@ -11,8 +11,7 @@ public sealed record DynamicsConnection(
     byte[] SecretCiphertext,
     byte[] SecretTag,
     int SecretKeyVersion,
-    DateTimeOffset UpdatedAt)
-;
+    DateTimeOffset UpdatedAt);
 
 public sealed record QuoteLink(
     Guid Id,

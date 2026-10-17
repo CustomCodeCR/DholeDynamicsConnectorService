@@ -12,7 +12,7 @@ public sealed class QuoteApplicationTests
     private static QuoteCreateRequest Request() => new(
         "test", RateId, "Quote", Guid.NewGuid(), Guid.NewGuid(),
         null, null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null, null);
+        null, null, null, null, null, null, null, null, null, null);
 
     [Fact]
     public async Task MissingConnectionDoesNotCallDataverse()

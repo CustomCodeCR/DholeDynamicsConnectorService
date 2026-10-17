@@ -215,6 +215,7 @@ public static class ServiceRegistration
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<QuoteApplicationService>();
         services.AddSingleton<DataverseTokenProvider>();
+        services.AddSingleton<IDataverseAccessTokenProvider>(sp => sp.GetRequiredService<DataverseTokenProvider>());
         services.AddHttpClient<IDataverseClient, DataverseClient>(http => http.Timeout = TimeSpan.FromSeconds(60))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {

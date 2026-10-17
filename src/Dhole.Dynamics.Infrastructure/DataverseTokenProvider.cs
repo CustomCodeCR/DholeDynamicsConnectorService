@@ -7,7 +7,12 @@ using Microsoft.Identity.Client;
 namespace Dhole.Dynamics.Infrastructure;
 
 /// <summary>Reuse MSAL confidential clients and their in-memory token caches per credential generation.</summary>
-public sealed class DataverseTokenProvider(ISecretProtector encryption)
+public interface IDataverseAccessTokenProvider
+{
+    Task<string> AcquireAsync(DynamicsConnection connection, CancellationToken ct);
+}
+
+public sealed class DataverseTokenProvider(ISecretProtector encryption) : IDataverseAccessTokenProvider
 {
     private readonly MemoryCache _apps = new(new MemoryCacheOptions { SizeLimit = 128 });
     private readonly object _sync = new();

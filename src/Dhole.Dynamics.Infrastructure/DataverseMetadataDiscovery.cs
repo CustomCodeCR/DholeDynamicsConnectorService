@@ -11,7 +11,7 @@ namespace Dhole.Dynamics.Infrastructure;
 /// Dataverse v9.2 metadata reader. Fixed resource paths and pinned HTTPS host; not an HTTP proxy.
 /// No source metadata is trusted to create a request URL without a strict logical-name check.
 /// </summary>
-public sealed class DataverseMetadataDiscovery(HttpClient http, DataverseTokenProvider tokens)
+public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccessTokenProvider tokens)
     : IMetadataDiscoveryClient
 {
     private const string ApiPath = "/api/data/v9.2/EntityDefinitions";

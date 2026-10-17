@@ -30,6 +30,7 @@ app.MapHealthEndpoints();
 app.MapAdminAuthEndpoints();
 app.MapDynamicsEndpoints();
 app.MapMetadataEndpoints();
+app.MapReadEndpoints();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();

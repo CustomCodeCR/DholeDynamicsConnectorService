@@ -17,6 +17,11 @@ public sealed record ReadPolicy(DynamicsConnection Connection, MetadataSnapshot 
 public sealed class ReadAccessRepository(IConnectionRepository connections,
     MetadataRepository metadata, ClientAccessRepository clients)
 {
+    public async Task<Dhole.Dynamics.Domain.DynamicsConnection> ConnectionAsync(
+        string connectionCode, CancellationToken ct) =>
+        await connections.FindAsync(connectionCode, ct) ??
+            throw new ReadRejected(403, "connection_denied");
+
     public async Task<ReadPolicy> ResolveAsync(string connectionCode, string entity, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(connectionCode) || connectionCode.Length > 64

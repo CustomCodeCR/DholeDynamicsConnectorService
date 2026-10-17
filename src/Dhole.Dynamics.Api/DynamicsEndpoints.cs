@@ -111,12 +111,25 @@ public static class DynamicsEndpoints
     }
 
     private static async Task<IResult> UpsertGrant(GrantRequest request,
-        ClientAccessRepository repository, ClaimsPrincipal actor, HttpContext http, CancellationToken ct)
+        ClientAccessRepository repository, ReadAccessRepository readPolicy, ClaimsPrincipal actor, HttpContext http, CancellationToken ct)
     {
         if (request.ClientId == Guid.Empty || string.IsNullOrWhiteSpace(request.ConnectionCode)
             || request.ConnectionCode.Length > 64 || request.AllowedFields is null
             || !GrantRules.ValidGrant(request.EntitySet, request.Operation, request.AllowedFields, request.MaxRequestsPerMinute))
             return ApiProblems.Create(http, 400, "invalid_m2m_grant", "Invalid connection or field grant.");
+        if (request.Operation == "read" && request.EntitySet != "quotes")
+        {
+            try
+            {
+                var approved = await readPolicy.ResolveAsync(request.ConnectionCode, request.EntitySet, ct);
+                if (request.AllowedFields.Any(f => !approved.Allowed.Contains(f)))
+                    return ApiProblems.Create(http, 403, "grant_fields_denied", "Fields are not enabled in metadata.");
+            }
+            catch (ReadRejected)
+            {
+                return ApiProblems.Create(http, 403, "grant_entity_denied", "Entity is not enabled in metadata.");
+            }
+        }
         var grant = await repository.UpsertGrantAsync(request, ScopeSecurity.ActorId(actor), ct);
         return grant is null
             ? ApiProblems.Create(http, 404, "client_or_connection_not_found", "Client or connection not found.")

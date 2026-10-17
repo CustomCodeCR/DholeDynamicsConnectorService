@@ -209,6 +209,11 @@ public static class ServiceRegistration
         services.AddScoped<IQuoteRepository, QuoteRepository>();
         services.AddScoped<ClientAccessRepository>();
         services.AddScoped<MetadataRepository>();
+        services.AddScoped<ReadAccessRepository>();
+        services.AddScoped<SavedQueryRepository>();
+        services.AddSingleton<ReadCursorProtector>();
+        services.AddHttpClient<ReadSearchService>(h => h.Timeout = TimeSpan.FromSeconds(45))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<MetadataRefreshService>();
         services.AddHostedService<MetadataScheduler>();
         services.AddHttpClient<IMetadataDiscoveryClient, DataverseMetadataDiscovery>(h => h.Timeout = TimeSpan.FromSeconds(60))

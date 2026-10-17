@@ -147,10 +147,14 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
 
     private async Task<JsonDocument> GetAsync(string host, string token, string relative, CancellationToken ct)
     {
+        // Root-relative paths must be resolved against the authorized HTTPS host.
+        // On Unix, Uri.TryCreate("/api/...", Absolute) can otherwise produce file://.
         Uri url;
-        if (Uri.TryCreate(relative, UriKind.Absolute, out var absolute))
+        if (relative.StartsWith("/", StringComparison.Ordinal))
+            url = new Uri(new Uri(host), relative);
+        else if (Uri.TryCreate(relative, UriKind.Absolute, out var absolute))
             url = absolute;
-        else url = new Uri(new Uri(host), relative);
+        else throw new InvalidOperationException("Unsupported Dataverse metadata URL.");
         var expected = new Uri(host);
         if (url.Scheme != "https" || url.Host != expected.Host || url.Port != 443
             || url.UserInfo.Length > 0 || url.Fragment.Length > 0

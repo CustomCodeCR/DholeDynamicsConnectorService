@@ -101,9 +101,8 @@ public sealed class Phase05ReadTests
         Assert.Equal(id,protectedCursor.Open(token).ConnectionId);
         var bytes=token.ToCharArray();bytes[30]=bytes[30]=='A'?'B':'A';
         Assert.Throws<ReadRejected>(()=>protectedCursor.Open(new string(bytes)));
-        Assert.Throws<ReadRejected>(()=>protectedCursor.Seal(payload with
-        { ExpiresAt=DateTimeOffset.UtcNow.AddMinutes(-1) }) is string expired
-            ? protectedCursor.Open(expired) : throw new Exception());
+        var expired = protectedCursor.Seal(payload with { ExpiresAt=DateTimeOffset.UtcNow.AddMinutes(-1) });
+        Assert.Throws<ReadRejected>(() => protectedCursor.Open(expired));
     }
 
     [Fact]

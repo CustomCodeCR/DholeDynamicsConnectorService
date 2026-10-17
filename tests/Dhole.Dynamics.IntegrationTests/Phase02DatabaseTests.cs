@@ -9,6 +9,7 @@ using Xunit;
 namespace Dhole.Dynamics.IntegrationTests;
 
 /// <summary>Runs against disposable CI PostgreSQL only when an explicit connection is provided.</summary>
+[Collection("ConnectorApiHost")]
 public sealed class Phase02DatabaseTests
 {
     private static string? TestDatabase => Environment.GetEnvironmentVariable("PHASE2_TEST_DB_CONNECTION");

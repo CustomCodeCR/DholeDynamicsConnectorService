@@ -76,6 +76,24 @@ public sealed class Phase04MetadataTests
                 new MetadataFieldToggle(true,true,true,false), "ci", CancellationToken.None));
             Assert.True(await catalog.SetFieldAsync(id, "account", "name",
                 new MetadataFieldToggle(true,true,false,false), "ci", CancellationToken.None));
+            // Scheduled work is opt-in per connection, claimed once even with multiple app instances.
+            await catalog.SetScheduleAsync(id, new MetadataSchedule(true, 60, null), "ci", CancellationToken.None);
+            Assert.True((await catalog.GetScheduleAsync(id, CancellationToken.None)).Enabled);
+            Assert.DoesNotContain("phase04-" + id.ToString("N"),
+                await catalog.ClaimDueAsync(CancellationToken.None));
+            await using (var makeDue = new NpgsqlCommand("""
+                UPDATE dynamics.metadata_refresh_schedules
+                SET next_run_at=now() - interval '1 minute' WHERE connection_id=@id
+                """, conn))
+            {
+                makeDue.Parameters.AddWithValue("id", id);
+                await makeDue.ExecuteNonQueryAsync();
+            }
+            Assert.Contains("phase04-" + id.ToString("N"),
+                await catalog.ClaimDueAsync(CancellationToken.None));
+            Assert.DoesNotContain("phase04-" + id.ToString("N"),
+                await catalog.ClaimDueAsync(CancellationToken.None));
+
             var removed = await catalog.SaveAsync(id, Fixture(false, false), "manual", "ci", CancellationToken.None);
             Assert.Contains("new_shipment", removed.Diff.RemovedEntities);
             Assert.False((await catalog.PoliciesAsync(id, CancellationToken.None)).Entities

@@ -1,24 +1,23 @@
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Dhole.Dynamics.IntegrationTests;
 
 public sealed class ApiSmokeTests
 {
-    private static WebApplicationFactory<Program> Factory() => new WebApplicationFactory<Program>()
-        .WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Jwt:Issuer"] = "phase1-tests",
-                ["Jwt:Audience"] = "phase1-tests",
-                ["Jwt:SecretKey"] = new string('s', 64),
-                ["ConnectionStrings:Dynamics"] = "Host=localhost;Database=notused;Username=tests;Password=notused",
-                ["DYNAMICS_ENCRYPTION_KEY_BASE64"] = Convert.ToBase64String(new byte[32])
-            });
-        }));
+    private static WebApplicationFactory<Program> Factory()
+    {
+        // Set before WebApplication.CreateBuilder runs. WebApplicationFactory's
+        // ConfigureAppConfiguration callback happens too late for top-level required settings.
+        Environment.SetEnvironmentVariable("Jwt__Issuer", "phase1-tests");
+        Environment.SetEnvironmentVariable("Jwt__Audience", "phase1-tests");
+        Environment.SetEnvironmentVariable("Jwt__SecretKey", new string('s', 64));
+        Environment.SetEnvironmentVariable("ConnectionStrings__Dynamics",
+            "Host=127.0.0.1;Port=1;Timeout=1;Database=notused;Username=tests;Password=notused");
+        Environment.SetEnvironmentVariable("DYNAMICS_ENCRYPTION_KEY_BASE64",
+            Convert.ToBase64String(new byte[32]));
+        return new WebApplicationFactory<Program>();
+    }
 
     [Fact]
     public async Task LivenessAndCorrelationDoNotRequireDatabase()

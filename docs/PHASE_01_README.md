@@ -18,7 +18,7 @@ dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
 dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build
 
 cd web
-pnpm install --no-frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm lint && pnpm test && pnpm build
 ```
 
@@ -35,7 +35,7 @@ Para Compose, crear `.env` local desde `.env.example` **sin secretos de producci
 - Los valores Choice y `quotes` en el cliente existente siguen siendo prototipo pendiente de migrar a configuración en las fases 04–07.
 - Las credenciales comprometidas del legado necesitan revocación y evidencia del dueño de Entra conforme a F00.
 - `Workers` es un proyecto reservado, no ejecuta sincronizaciones ni jobs hasta la fase 11.
-- El archivo `web/pnpm-lock.yaml` no se genera automáticamente aquí; antes del cierre de F01 debería fijarse y verificar su resolución. CI usa `--no-frozen-lockfile` de manera transitoria.
+- Se versiona `web/pnpm-lock.yaml` generado mediante pnpm 10.14.0; CI y Docker usan `--frozen-lockfile`.
 
 ## Evidencia pendiente
 Esta modificación se preparó sin SDK .NET ni red de paquetes en el entorno de autoría: **no afirmar que build, tests, pnpm ni Docker hayan pasado hasta verificar resultados CI**. La F01 no debe marcarse completa mientras falle alguna validación crítica. No iniciar F02 automáticamente.

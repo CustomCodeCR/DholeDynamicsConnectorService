@@ -16,5 +16,6 @@
     <Content Include="../../sql/002_secret_rotation.sql" Link="migrations/002_secret_rotation.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/003_api_access.sql" Link="migrations/003_api_access.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/004_metadata_catalog.sql" Link="migrations/004_metadata_catalog.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../sql/005_saved_queries.sql" Link="migrations/005_saved_queries.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

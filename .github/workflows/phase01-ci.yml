@@ -78,10 +78,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Real PostgreSQL key rotation and migration tests
-        env:
-          PHASE2_TEST_DB_CONNECTION: "Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${{ env.POSTGRES_PASSWORD }}"
-          PHASE2_SQL_DIR: "${{ github.workspace }}/sql"
-        run: dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release --filter FullyQualifiedName~Phase02DatabaseTests
+        run: |
+          export PHASE2_TEST_DB_CONNECTION="Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD}"
+          export PHASE2_SQL_DIR="$GITHUB_WORKSPACE/sql"
+          dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release --filter FullyQualifiedName~Phase02DatabaseTests
       - name: Install backup and encryption tooling
         run: |
           sudo apt-get update -qq
@@ -91,9 +91,10 @@ jobs:
           PGHOST: 127.0.0.1
           PGPORT: '55432'
           PGUSER: connector_app
-          PGPASSWORD: "${{ env.POSTGRES_PASSWORD }}"
+          PGPASSWORD: ""
         run: |
           set -euo pipefail
+          export PGPASSWORD="$POSTGRES_PASSWORD"
           age-keygen -o "$RUNNER_TEMP/age-test-identity" >/dev/null 2>&1
           export AGE_RECIPIENT="$(age-keygen -y "$RUNNER_TEMP/age-test-identity")"
           export AGE_IDENTITY_FILE="$RUNNER_TEMP/age-test-identity"

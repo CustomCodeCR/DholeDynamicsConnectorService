@@ -30,13 +30,9 @@ public static class ReadSavedQueryBinder
             if (node.Children is { Count: > 0 })
                 return node with { Children = node.Children.Select(n => BindNode(n, depth+1)).ToArray() };
             if (node.Parameter is null) return node;
-            if (node.Value is not null || !schema.TryGetValue(node.Parameter, out var definition) ||
-                !used.Add(node.Parameter) && !validateOnly)
-            {
-                // A named parameter may be reused in a query, provided its declared type is unchanged.
-                if (node.Value is not null || !schema.ContainsKey(node.Parameter))
-                    throw new ArgumentException("Invalid query parameter binding.");
-            }
+            if (node.Value is not null || !schema.TryGetValue(node.Parameter, out var definition))
+                throw new ArgumentException("Invalid query parameter binding.");
+            // Reusing the same named parameter in multiple filters is safe.
             used.Add(node.Parameter);
             JsonElement supplied;
             if (values.TryGetValue(node.Parameter, out var actual))

@@ -125,6 +125,23 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
         return new(current, diff);
     }
 
+    public async Task<MetadataDiff?> CompareLatestAsync(Guid connectionId, CancellationToken ct)
+    {
+        await using var db = await database.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT version, catalog::text FROM dynamics.metadata_snapshots
+            WHERE connection_id=@id ORDER BY version DESC LIMIT 2
+            """, db);
+        cmd.Parameters.AddWithValue("id", connectionId);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        if (!await r.ReadAsync(ct)) return null;
+        var version = r.GetInt32(0);
+        var latest = JsonSerializer.Deserialize<MetadataCatalog>(r.GetString(1), Json)!;
+        if (!await r.ReadAsync(ct)) return Diff(null, latest, null, version);
+        return Diff(JsonSerializer.Deserialize<MetadataCatalog>(r.GetString(1), Json),
+            latest, r.GetInt32(0), version);
+    }
+
     public async Task<MetadataPolicies> PoliciesAsync(Guid connectionId, CancellationToken ct)
     {
         var entities = new List<MetadataEntityPolicy>();

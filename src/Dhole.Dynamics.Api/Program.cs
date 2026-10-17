@@ -29,6 +29,7 @@ app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapAdminAuthEndpoints();
 app.MapDynamicsEndpoints();
+app.MapMetadataEndpoints();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();

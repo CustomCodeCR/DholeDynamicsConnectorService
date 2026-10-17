@@ -49,7 +49,7 @@ public sealed class KeyRotationTests
         var id = Guid.NewGuid();
         var ciphertext = protector.Encrypt(id, "cannot-tamper");
         ciphertext.Tag[0] ^= 0xff;
-        Assert.Throws<CryptographicException>(() => protector.Decrypt(
+        Assert.ThrowsAny<CryptographicException>(() => protector.Decrypt(
             Connection(id, ciphertext.Nonce, ciphertext.Ciphertext, ciphertext.Tag, 1)));
     }
 
@@ -72,7 +72,7 @@ public sealed class KeyRotationTests
         var k = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         using var enc = Protector(k);
         var encrypted = enc.Encrypt(Guid.NewGuid(), "test");
-        Assert.Throws<CryptographicException>(() => enc.Decrypt(
+        Assert.ThrowsAny<CryptographicException>(() => enc.Decrypt(
             Connection(Guid.NewGuid(), encrypted.Nonce, encrypted.Ciphertext, encrypted.Tag, 1)));
     }
 

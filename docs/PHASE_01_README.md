@@ -37,5 +37,13 @@ Para Compose, crear `.env` local desde `.env.example` **sin secretos de producci
 - `Workers` es un proyecto reservado, no ejecuta sincronizaciones ni jobs hasta la fase 11.
 - Se versiona `web/pnpm-lock.yaml` generado mediante pnpm 10.14.0; CI y Docker usan `--frozen-lockfile`.
 
-## Evidencia pendiente
-Esta modificación se preparó sin SDK .NET ni red de paquetes en el entorno de autoría: **no afirmar que build, tests, pnpm ni Docker hayan pasado hasta verificar resultados CI**. La F01 no debe marcarse completa mientras falle alguna validación crítica. No iniciar F02 automáticamente.
+## Evidencia de verificación — 2026-10-17
+CI ejecutada en GitHub Actions con aprobación de los cuatro jobs en **ambas ramas** para el commit `eb5343167856bdbbad835980bea12a8b4a189ebf`:
+- [Develop — ejecución validada](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39062537527)
+- [Master — ejecución validada](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39062540201)
+- **.NET 10:** restore y build exitosos; 10 unit tests y 3 integration smoke tests aprobados; no se informaron vulnerabilidades NuGet en el proyecto API.
+- **Frontend:** `pnpm install --frozen-lockfile`, eslint, 2 tests Vitest, `pnpm build` y auditoría de dependencias de producción exitosas.
+- **Seguridad:** escaneo gitleaks del árbol versionado exitoso. No sustituye una revisión de secretos históricos/rotación de Fase 00.
+- **Docker:** compilación de imágenes API/Frontend; `docker compose up` local con PostgreSQL y verificaciones HTTP `/health/ready` y UI aprobadas. Los volúmenes fueron descartados al finalizar CI.
+
+**Fase 01 — criterios técnicos de aceptación verificados.** No desplegado a staging ni producción; pruebas Dataverse reales no forman parte de Fase 01. No iniciar F02 automáticamente. Siguen abiertos los controles organizativos de revocación de credenciales históricas y aprobación arquitectónica documentados en Fase 00.

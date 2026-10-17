@@ -81,7 +81,7 @@ jobs:
           export PHASE2_TEST_DB_CONNECTION="Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD}"
           export PHASE2_SQL_DIR="$GITHUB_WORKSPACE/sql"
           dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release \
-            --filter 'FullyQualifiedName~Phase02DatabaseTests|FullyQualifiedName~Phase03GrantTests' \
+            --filter 'FullyQualifiedName~Phase02DatabaseTests|FullyQualifiedName~Phase03GrantTests|FullyQualifiedName~Phase04MetadataTests' \
             --logger 'console;verbosity=normal'
       - name: Install backup and encryption tooling
         run: |

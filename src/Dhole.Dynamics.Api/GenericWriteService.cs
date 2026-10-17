@@ -118,7 +118,9 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
                     IfMatch: item.Operation == "update" ? item.ETag : null);
             }
             // A single changeset must not combine unrelated targets or duplicate create intent.
-            if (!declared.Add(command.Operation + ":" + command.Path))
+            // Multiple POST creates to one entity are legitimate independent batch entries.
+            // Prevent collisions only for keyed or identified updates/upserts/deletes.
+            if (command.Operation != "create" && !declared.Add(command.Operation + ":" + command.Path))
                 throw new ReadRejected(400, "duplicate_batch_target");
             items.Add(command);
         }

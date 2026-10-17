@@ -41,6 +41,11 @@ public sealed class Phase06WriteTests
             Calls++;
             Assert.Equal("ci.crm.dynamics.com",req.RequestUri!.Host);
             if(Timeout)throw new TaskCanceledException("response lost after send");
+            if(req.RequestUri!.AbsolutePath.EndsWith("/$batch",StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                    Content = new StringContent("HTTP/1.1 201 Created\r\nHTTP/1.1 201 Created",
+                        Encoding.UTF8,"multipart/mixed")
+                });
             var result=new HttpResponseMessage(Status);
             if(req.Method==HttpMethod.Post && Status==HttpStatusCode.Created)
                 result.Content=new StringContent("""{"new_shipmentid":"93c39236-5309-4281-9d92-2fdf7edb1a1f"}""",
@@ -163,6 +168,15 @@ public sealed class Phase06WriteTests
             Assert.Equal(412,replay.HttpStatus);
 
             handler.Status=HttpStatusCode.NoContent;
+            var many=await service.BatchAsync(principal,
+                new GenericBatchRequest(a.Code,[
+                    new GenericBatchItem("create","new_shipment",null,null,
+                        new Dictionary<string,JsonElement>{{"new_name",V("Shipment A")}}),
+                    new GenericBatchItem("create","new_shipment",null,null,
+                        new Dictionary<string,JsonElement>{{"new_name",V("Shipment B")}})
+                ]),"batch-test-00000001",CancellationToken.None);
+            Assert.Equal("succeeded",many.State);
+            Assert.Equal(200,many.HttpStatus);
             var upsert=await service.UpsertAsync(principal,"new_shipment",
                 new GenericUpsertRequest(a.Code,
                     new Dictionary<string,JsonElement>{{"new_name",V("PO-4455")}},

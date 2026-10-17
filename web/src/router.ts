@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import ArchitectureView from './views/ArchitectureView.vue'
 import AdminView from './views/AdminView.vue'
+import MetadataView from './views/MetadataView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -9,6 +10,7 @@ export const router = createRouter({
     { path: '/', component: DashboardView, name: 'dashboard' },
     { path: '/architecture', component: ArchitectureView, name: 'architecture' },
     { path: '/admin', component: AdminView, name: 'admin' },
+    { path: '/metadata', component: MetadataView, name: 'metadata' },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

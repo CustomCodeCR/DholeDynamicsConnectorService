@@ -124,13 +124,31 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                     relations.Add(new MetadataRelationship(schema, relKind,
                         Str(rel, "ReferencedEntity") ?? Str(rel, "Entity1LogicalName"),
                         Str(rel, "ReferencingEntity") ?? Str(rel, "Entity2LogicalName"),
-                        Str(rel, "ReferencedAttribute"), Str(rel, "ReferencingAttribute")));
+                        Str(rel, "ReferencedAttribute"), Str(rel, "ReferencingAttribute"),
+                        Str(rel, "ReferencingEntityNavigationPropertyName"),
+                        Str(rel, "ReferencedEntityNavigationPropertyName")));
                 }
             }
+            var keys = new List<MetadataAlternateKey>();
+            var declaredKeys = await CollectionAsync(host, token, basePath + "/Keys?$select=LogicalName,KeyAttributes", ct);
+            foreach (var key in declaredKeys)
+            {
+                var keyName = Str(key, "LogicalName");
+                if (keyName is null || !SafeName(keyName) ||
+                    !TryGet(key, "KeyAttributes", out var keyFields) ||
+                    keyFields.ValueKind != JsonValueKind.Array) continue;
+                var attrs = keyFields.EnumerateArray()
+                    .Where(f => f.ValueKind == JsonValueKind.String)
+                    .Select(f => f.GetString()!).ToArray();
+                if (attrs.Length > 0 && attrs.Length <= 3 &&
+                    attrs.All(f => SafeName(f) && columns.Any(c => c.LogicalName == f)))
+                    keys.Add(new MetadataAlternateKey(keyName, attrs));
+            }
+            keys.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
             columns.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
             relations.Sort((a, b) => StringComparer.Ordinal.Compare(a.SchemaName, b.SchemaName));
             tables.Add(new MetadataTable(name!, set!, primary!, Str(table, "PrimaryNameAttribute"),
-                Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations));
+                Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations, keys));
         }
         tables.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
         return new MetadataCatalog(tables);

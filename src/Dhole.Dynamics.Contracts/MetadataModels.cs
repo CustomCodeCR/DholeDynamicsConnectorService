@@ -6,7 +6,8 @@ public sealed record MetadataTable(
     string LogicalName, string EntitySetName, string PrimaryIdAttribute,
     string? PrimaryNameAttribute, bool IsCustom,
     IReadOnlyDictionary<int, string> Labels,
-    IReadOnlyList<MetadataColumn> Columns, IReadOnlyList<MetadataRelationship> Relationships);
+    IReadOnlyList<MetadataColumn> Columns, IReadOnlyList<MetadataRelationship> Relationships,
+    IReadOnlyList<MetadataAlternateKey>? AlternateKeys = null);
 
 public sealed record MetadataColumn(
     string LogicalName, string Type, bool CanRead, bool CanCreate, bool CanUpdate,
@@ -19,7 +20,8 @@ public sealed record MetadataChoice(int Value, IReadOnlyDictionary<int, string> 
 
 public sealed record MetadataRelationship(
     string SchemaName, string Kind, string? ReferencedEntity,
-    string? ReferencingEntity, string? ReferencedAttribute, string? ReferencingAttribute);
+    string? ReferencingEntity, string? ReferencedAttribute, string? ReferencingAttribute,
+    string? ReferencingNavigation = null, string? ReferencedNavigation = null);
 
 public sealed record MetadataSnapshot(Guid Id, Guid ConnectionId, int Version,
     DateTimeOffset CapturedAt, string Checksum, string Source, MetadataCatalog Catalog);
@@ -42,3 +44,5 @@ public sealed record MetadataPolicies(IReadOnlyList<MetadataEntityPolicy> Entiti
 public sealed record MetadataToggle(bool Enabled);
 public sealed record MetadataFieldToggle(bool Enabled, bool CanRead, bool CanCreate, bool CanUpdate);
 public sealed record MetadataSchedule(bool Enabled, int IntervalMinutes, DateTimeOffset? NextRunAt);
+
+public sealed record MetadataAlternateKey(string LogicalName, IReadOnlyList<string> Attributes);

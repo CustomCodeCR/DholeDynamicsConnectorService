@@ -69,6 +69,8 @@ public sealed class Phase04DiscoveryTests
                 var p when p.EndsWith("/Attributes(LogicalName='name')/Microsoft.Dynamics.CRM.StringAttributeMetadata", StringComparison.Ordinal)
                     || p.EndsWith("/Attributes(LogicalName='new_name')/Microsoft.Dynamics.CRM.StringAttributeMetadata", StringComparison.Ordinal) =>
                     """{"LogicalName":"name"}""",
+                _ when uri.AbsolutePath.EndsWith("/Keys", StringComparison.Ordinal) =>
+                    """{"value":[]}""",
                 _ when uri.AbsolutePath.EndsWith("Relationships", StringComparison.Ordinal) =>
                     """{"value":[]}""",
                 _ => throw new InvalidOperationException("Unexpected metadata query: " + uri.AbsolutePath)

@@ -72,7 +72,7 @@ jobs:
       - name: Verify migration replay
         run: |
           docker compose run --rm migrate
-          test "$(docker compose exec -T postgres psql -U connector_app -d dhole_dynamics_connector -Atc 'SELECT count(*) FROM dynamics.schema_migrations')" = "3"
+          test "$(docker compose exec -T postgres psql -U connector_app -d dhole_dynamics_connector -Atc 'SELECT count(*) FROM dynamics.schema_migrations')" = "4"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -107,7 +107,7 @@ jobs:
           export RESTORE_DB_NAME=dhole_dynamics_connector_restore_ci
           export ALLOW_SANDBOX_RESTORE=YES
           bash scripts/restore-sandbox.sh
-          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.schema_migrations')" = "3"
+          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.schema_migrations')" = "4"
           test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.secret_rotation_runs')" -ge 1
           if bash scripts/restore-sandbox.sh; then echo 'Unsafe repeated restore accepted'; exit 1; fi
           rm -f "$BACKUP_FILE" "$AGE_IDENTITY_FILE"

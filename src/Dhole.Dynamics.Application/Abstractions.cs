@@ -33,3 +33,8 @@ public interface ISecretProtector
     string Decrypt(DynamicsConnection connection);
     (byte[] Nonce, byte[] Ciphertext, byte[] Tag) Reencrypt(DynamicsConnection connection);
 }
+
+public interface IMetadataDiscoveryClient
+{
+    Task<MetadataCatalog> DiscoverAsync(DynamicsConnection connection, CancellationToken ct);
+}

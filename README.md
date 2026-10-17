@@ -1,6 +1,6 @@
 # DholeDynamicsConnectorService
 
-Servicio independiente para integrar Dynamics 365 / Dataverse. **Fases 01 y 02 implementadas y validadas técnicamente en CI**; no son un despliegue de producción.
+Servicio independiente para integrar Dynamics 365 / Dataverse. **Fases 01 y 02 validadas; Fase 03 implementada para validación de identidad y permisos.** No es un despliegue a producción.
 
 ## Capas
 La solución .NET 10 separa `Api`, `Application`, `Domain`, `Contracts`, `Infrastructure`, `Persistence`, `Workers` y las herramientas de mantenimiento `Dhole.Dynamics.Tools`. El dashboard Vue 3 + TypeScript permite consultar el estado real del servicio sin simular funciones administrativas.
@@ -25,7 +25,8 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [Fase 00: auditoría y 88 endpoints del legado](docs/PHASE_00_README.md)
 - [Fase 01: plataforma .NET/Vue y CI](docs/PHASE_01_README.md)
 - [Fase 02: migraciones, secretos, backup/restore y pruebas reales](docs/PHASE_02_README.md)
+- [Fase 03: OIDC Admin, OAuth M2M, RBAC, grants y aislamiento por conexión](docs/PHASE_03_README.md)
 - [Modelo de amenazas](docs/security/THREAT_MODEL.md)
 - [CI Fase 02 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063682728) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063679477)
 
-Los 4 jobs CI se aprobaron en las dos ramas. No se inició Fase 03 (OIDC/M2M y autorización por conexión) ni se desplegó. Antes de conectar información real se deben aprobar controles pendientes de F00, especialmente la **revocación de credenciales históricas** del repositorio legacy; no se han usado ni revocado desde aquí.
+Las fases anteriores tienen CI aprobado. Fase 03 agrega una consola administrativa OIDC, registro de consumidores OAuth y autorización mínima por organización, operación y campos; las pruebas de CI y la validación externa IAM/Dataverse deben completarse antes del uso en producción. No se inició Fase 04 ni se desplegó. Antes de conectar información real se deben aprobar controles pendientes de F00, especialmente la **revocación de credenciales históricas** del repositorio legacy; no se han usado ni revocado desde aquí.

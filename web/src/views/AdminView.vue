@@ -55,7 +55,7 @@ async function action(task: () => Promise<unknown>, result: string) {
   notice.value = ''
   try {
     await task()
-    notice.value = result
+    if (!notice.value) notice.value = result
     if (session.value) {
       connections.value = await api('/api/admin/v1/connections') as Connection[]
       if (session.value.securityAdmin) {

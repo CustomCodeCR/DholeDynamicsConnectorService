@@ -18,7 +18,7 @@ public sealed record ReadSpec(
 public sealed record ReadSearchRequest(string ConnectionCode, ReadSpec? Query = null, string? Cursor = null);
 public sealed record ReadRecordResponse(string Entity, JsonElement Item, string? ETag, int MetadataVersion);
 public sealed record ReadSearchResponse(string Entity, IReadOnlyList<JsonElement> Items, string? NextCursor,
-    long? Count, int Page, int MetadataVersion);
+    long? Count, int Page, int MetadataVersion, bool Truncated = false);
 
 public sealed record ReadParamDefinition(string Name, string Type, bool Required = true);
 public sealed record SavedQueryWrite(string Name, string EntityName, ReadSpec Query,
@@ -28,3 +28,6 @@ public sealed record SavedQuerySummary(Guid Id, string Name, string EntityName, 
 public sealed record SavedQueryEnabled(bool Enabled);
 public sealed record ExecuteSavedQueryRequest(string ConnectionCode, IReadOnlyDictionary<string, JsonElement> Parameters,
     string? Cursor = null);
+
+public sealed record ReadAlternateKeyRequest(string ConnectionCode, IReadOnlyDictionary<string, JsonElement> Keys,
+    IReadOnlyList<string> Select);

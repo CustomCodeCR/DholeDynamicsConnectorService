@@ -85,6 +85,12 @@ public sealed class WriteAccessService(IConnectionRepository connections, Metada
         if (!ScopeSecurity.HasScope(user, "dynamics.records.read") ||
             string.IsNullOrEmpty(actorId) || string.IsNullOrEmpty(oauthClient))
             throw new ReadRejected(403, "lookup_target_denied");
+        var identity = target.Table.Columns.FirstOrDefault(c => c.LogicalName == target.Table.PrimaryIdAttribute);
+        var permitted = target.Permissions.Fields.FirstOrDefault(f =>
+            f.EntityName == target.Table.LogicalName && f.FieldName == target.Table.PrimaryIdAttribute);
+        if (identity is null || permitted is null || !permitted.Enabled || !permitted.CanRead ||
+            !identity.CanRead || permitted.MetadataFingerprint != MetadataRepository.Fingerprint(identity))
+            throw new ReadRejected(403, "lookup_target_fields_denied");
         var result = await clients.AuthorizeAsync(actorId, oauthClient, source.Connection.Code,
             target.Table.LogicalName, "read", [target.Table.PrimaryIdAttribute], ct);
         if (result == GrantDecision.QuotaExceeded) throw new ReadRejected(429, "write_quota_exceeded");
@@ -175,8 +181,8 @@ public static class WriteValueCompiler
                 if (v.ValueKind != JsonValueKind.String ||
                     !DateTimeOffset.TryParse(v.GetString(), CultureInfo.InvariantCulture,
                         DateTimeStyles.RoundtripKind, out var date) ||
-                    !v.GetString()!.EndsWith("Z", StringComparison.OrdinalIgnoreCase) &&
-                    !v.GetString()!.Contains("+", StringComparison.Ordinal))
+                    !System.Text.RegularExpressions.Regex.IsMatch(v.GetString()!,
+                        @"(?:Z|[+-][0-9]{2}:[0-9]{2})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                     throw new ReadRejected(400, "invalid_timestamp");
                 return date.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
             case "Uniqueidentifier":

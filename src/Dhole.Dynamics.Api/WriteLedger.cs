@@ -135,11 +135,14 @@ public sealed class WriteLedger(NpgsqlDataSource data)
         await using var tx = await db.BeginTransactionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
             UPDATE dynamics.write_operations SET status='reconciled',record_id=@record,
+                response=CAST(@response AS jsonb),
                 finished_at=now(),updated_at=now()
             WHERE id=@id AND connection_id=@conn AND status IN ('reserved','ambiguous')
             RETURNING id
             """, db, tx);
         cmd.Parameters.AddWithValue("record", (object?)recordId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("response", JsonSerializer.Serialize(
+            new WriteResult(id, "reconciled", null, recordId, null, request.Reason), Options));
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("conn", conn);
         var found = await cmd.ExecuteScalarAsync(ct);

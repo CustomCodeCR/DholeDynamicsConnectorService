@@ -1,4 +1,4 @@
-name: phase01-ci
+name: connector-ci
 
 on:
   push:
@@ -65,11 +65,49 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 35); do
             if curl -fsS http://127.0.0.1:8080/health/ready >/dev/null &&
-               curl -fsS http://127.0.0.1:8081/ >/dev/null; then exit 0; fi
+               curl -fsS http://127.0.0.1:8081/ >/dev/null; then break; fi
             sleep 3
           done
-          docker compose ps
-          docker compose logs --tail=100
-          exit 1
+          curl -fsS http://127.0.0.1:8080/health/ready
+          curl -fsS http://127.0.0.1:8081/ >/dev/null
+      - name: Verify migration replay
+        run: |
+          docker compose run --rm migrate
+          test "$(docker compose exec -T postgres psql -U connector_app -d dhole_dynamics_connector -Atc 'SELECT count(*) FROM dynamics.schema_migrations')" = "2"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Real PostgreSQL key rotation and migration tests
+        env:
+          PHASE2_TEST_DB_CONNECTION: "Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${{ env.POSTGRES_PASSWORD }}"
+          PHASE2_SQL_DIR: "${{ github.workspace }}/sql"
+        run: dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release --filter FullyQualifiedName~Phase02DatabaseTests
+      - name: Install backup and encryption tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y age postgresql-client
+      - name: Encrypted backup and sandbox restore drill
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '55432'
+          PGUSER: connector_app
+          PGPASSWORD: "${{ env.POSTGRES_PASSWORD }}"
+        run: |
+          set -euo pipefail
+          age-keygen -o "$RUNNER_TEMP/age-test-identity" >/dev/null 2>&1
+          export AGE_RECIPIENT="$(age-keygen -y "$RUNNER_TEMP/age-test-identity")"
+          export AGE_IDENTITY_FILE="$RUNNER_TEMP/age-test-identity"
+          export BACKUP_FILE="$RUNNER_TEMP/connector-ci.dump.age"
+          bash scripts/backup-encrypted.sh
+          test -s "$BACKUP_FILE"
+          ! grep -a -q 'phase2-fixture-encrypted-secret' "$BACKUP_FILE"
+          psql -X -v ON_ERROR_STOP=1 -d postgres -c 'CREATE DATABASE dhole_dynamics_connector_restore_ci'
+          export RESTORE_DB_NAME=dhole_dynamics_connector_restore_ci
+          export ALLOW_SANDBOX_RESTORE=YES
+          bash scripts/restore-sandbox.sh
+          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.schema_migrations')" = "2"
+          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.secret_rotation_runs')" -ge 1
+          if bash scripts/restore-sandbox.sh; then echo 'Unsafe repeated restore accepted'; exit 1; fi
+          rm -f "$BACKUP_FILE" "$AGE_IDENTITY_FILE"
       - if: always()
         run: docker compose down -v

@@ -32,15 +32,20 @@ public sealed class Phase04DiscoveryTests
                 throw new InvalidOperationException("Unsafe metadata URL");
             var json = uri.AbsolutePath switch
             {
-                "/api/data/v9.2/EntityDefinitions" => """
+                "/api/data/v9.2/EntityDefinitions" => includeCustom ? """
+                    {"value":[
+                      {"LogicalName":"account","EntitySetName":"accounts",
+                       "PrimaryIdAttribute":"accountid","PrimaryNameAttribute":"name",
+                       "IsCustomEntity":false,"DisplayName":{"LocalizedLabels":[{"LanguageCode":1033,"Label":"Account"}]}},
+                      {"LogicalName":"new_shipments","EntitySetName":"new_shipments",
+                       "PrimaryIdAttribute":"new_shipmentid","PrimaryNameAttribute":"new_name",
+                       "IsCustomEntity":true}
+                    ]}
+                    """ : """
                     {"value":[{"LogicalName":"account","EntitySetName":"accounts",
                       "PrimaryIdAttribute":"accountid","PrimaryNameAttribute":"name",
-                      "IsCustomEntity":false,"DisplayName":{"LocalizedLabels":[{"LanguageCode":1033,"Label":"Account"}]}}
-                    ]}
-                    """.Replace("]}\n", includeCustom
-                        ? """,{"LogicalName":"new_shipments","EntitySetName":"new_shipments",
-                        "PrimaryIdAttribute":"new_shipmentid","PrimaryNameAttribute":"new_name",
-                        "IsCustomEntity":true}]}\n""" : "]}\n"),
+                      "IsCustomEntity":false,"DisplayName":{"LocalizedLabels":[{"LanguageCode":1033,"Label":"Account"}]}}]}
+                    """,
                 "/api/data/v9.2/EntityDefinitions(LogicalName='account')/Attributes" => """
                     {"value":[{"LogicalName":"name","AttributeType":"String",
                     "IsValidForRead":true,"IsValidForCreate":true,"IsValidForUpdate":true,

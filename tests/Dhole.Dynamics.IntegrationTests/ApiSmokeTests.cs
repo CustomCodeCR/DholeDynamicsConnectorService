@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Dhole.Dynamics.IntegrationTests;
 
+[Collection("ConnectorApiHost")]
 public sealed class ApiSmokeTests
 {
     private static WebApplicationFactory<Program> Factory()

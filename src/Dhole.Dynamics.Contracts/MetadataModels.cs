@@ -12,7 +12,8 @@ public sealed record MetadataColumn(
     string LogicalName, string Type, bool CanRead, bool CanCreate, bool CanUpdate,
     bool IsCalculated, string? RequiredLevel, int? Precision,
     string? DefaultValue, IReadOnlyList<string> LookupTargets,
-    IReadOnlyDictionary<int, string> Labels, IReadOnlyList<MetadataChoice> Choices);
+    IReadOnlyDictionary<int, string> Labels, IReadOnlyList<MetadataChoice> Choices,
+    int? CurrencyPrecisionSource = null);
 
 public sealed record MetadataChoice(int Value, IReadOnlyDictionary<int, string> Labels);
 

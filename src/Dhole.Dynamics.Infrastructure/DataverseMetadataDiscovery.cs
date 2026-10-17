@@ -52,6 +52,8 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 var calculated = logical || (Int(item, "SourceType") is int kind && kind != 0);
                 var opts = new List<MetadataChoice>();
                 int? precision = null;
+                int? currencyPrecisionSource = null;
+                var targets = new List<string>();
                 string? defaultValue = null;
                 var kindName = type switch
                 {
@@ -66,6 +68,9 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                     "Integer" => "IntegerAttributeMetadata",
                     "String" => "StringAttributeMetadata",
                     "DateTime" => "DateTimeAttributeMetadata",
+                    "Lookup" => "LookupAttributeMetadata",
+                    "Customer" => "CustomerAttributeMetadata",
+                    "Owner" => "OwnerAttributeMetadata",
                     _ => null
                 };
                 if (kindName is not null)
@@ -73,12 +78,18 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                     // Derived types expose properties absent from AttributeMetadata.
                     var query = type is "Picklist" or "MultiSelectPicklist" or "State" or "Status" or "Boolean"
                         ? "?$expand=OptionSet,GlobalOptionSet"
-                        : "?$select=LogicalName" + (type is "Decimal" or "Double" or "Money" ? ",Precision" : "");
+                        : "?$select=LogicalName" + (type is "Decimal" or "Double" or "Money" ? ",Precision" : "")
+                            + (type is "Lookup" or "Customer" or "Owner" ? ",Targets" : "")
+                            + (type is "Money" ? ",PrecisionSource" : "");
                     using var details = await GetAsync(host, token,
                         basePath + "/Attributes(LogicalName='" + fieldName + "')" +
                         "/Microsoft.Dynamics.CRM." + kindName + query, ct);
                     var derived = details.RootElement;
                     precision = Int(derived, "Precision");
+                    currencyPrecisionSource = Int(derived, "PrecisionSource");
+                    if (TryGet(derived, "Targets", out var lookupTargets) && lookupTargets.ValueKind == JsonValueKind.Array)
+                        targets.AddRange(lookupTargets.EnumerateArray().Where(n => n.ValueKind == JsonValueKind.String)
+                            .Select(n => n.GetString()!).Where(SafeName));
                     defaultValue = Raw(derived, "DefaultFormValue") ?? Raw(derived, "DefaultValue");
                     if (TryGet(derived, "OptionSet", out var optionSet) || TryGet(derived, "GlobalOptionSet", out optionSet))
                     {
@@ -92,7 +103,6 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                                 opts.Add(new MetadataChoice(value, Labels(option, "Label")));
                     }
                 }
-                var targets = new List<string>();
                 if (TryGet(item, "Targets", out var names) && names.ValueKind == JsonValueKind.Array)
                     targets.AddRange(names.EnumerateArray().Where(n => n.ValueKind == JsonValueKind.String)
                         .Select(n => n.GetString()!).Where(SafeName));
@@ -101,7 +111,7 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 var update = Flag(item, "IsValidForUpdate") && !calculated;
                 columns.Add(new MetadataColumn(fieldName, type, read, create, update, calculated,
                     NestedString(item, "RequiredLevel", "Value"), precision, defaultValue, targets,
-                    Labels(item, "DisplayName"), opts));
+                    Labels(item, "DisplayName"), opts, currencyPrecisionSource));
             }
             var relations = new List<MetadataRelationship>();
             foreach (var relKind in new[] { "OneToManyRelationships", "ManyToOneRelationships", "ManyToManyRelationships" })

@@ -33,6 +33,7 @@ services:
       dockerfile: src/Dhole.Dynamics.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      Metadata__SchedulerEnabled: "${METADATA_SCHEDULER_ENABLED:-true}"
       ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
       # Local auth remains disabled without a real external OIDC/OAuth provider.
       AdminOidc__Authority: "${ADMIN_OIDC_AUTHORITY:-}"

@@ -26,7 +26,8 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [Fase 01: plataforma .NET/Vue y CI](docs/PHASE_01_README.md)
 - [Fase 02: migraciones, secretos, backup/restore y pruebas reales](docs/PHASE_02_README.md)
 - [Fase 03: OIDC Admin, OAuth M2M, RBAC, grants y aislamiento por conexión](docs/PHASE_03_README.md)
+- [Fase 04: metadatos Dataverse, snapshots, Choice, relaciones y allowlists](docs/PHASE_04_README.md)
 - [Modelo de amenazas](docs/security/THREAT_MODEL.md)
 - [CI Fase 02 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063682728) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063679477)
 
-Las fases anteriores tienen CI aprobado. Fase 03 agrega una consola administrativa OIDC, registro de consumidores OAuth y autorización mínima por organización, operación y campos; las pruebas de CI y la validación externa IAM/Dataverse deben completarse antes del uso en producción. No se inició Fase 04 ni se desplegó. Antes de conectar información real se deben aprobar controles pendientes de F00, especialmente la **revocación de credenciales históricas** del repositorio legacy; no se han usado ni revocado desde aquí.
+Las fases anteriores tienen CI aprobado. Fase 03 agrega una consola administrativa OIDC, registro de consumidores OAuth y autorización mínima por organización, operación y campos; las pruebas de CI y la validación externa IAM/Dataverse deben completarse antes del uso en producción. Fase 04 implementa el catálogo dinámico y la aprobación explícita de entidades/campos; no se inició Fase 05 ni se desplegó. Antes de conectar información real se deben aprobar controles pendientes de F00, especialmente la **revocación de credenciales históricas** del repositorio legacy; no se han usado ni revocado desde aquí.

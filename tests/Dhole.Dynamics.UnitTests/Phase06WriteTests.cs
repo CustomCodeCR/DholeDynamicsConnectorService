@@ -153,4 +153,51 @@ public sealed class Phase06WriteTests
                 new Dictionary<string,object?>{{"new_name","once"}}),CancellationToken.None));
         Assert.Equal(1,handler.Calls);
     }
+    private sealed class BatchHandler(string payload) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {
+            Calls++;
+            Assert.Equal("/api/data/v9.2/$batch", request.RequestUri!.AbsolutePath);
+            Assert.StartsWith("multipart/mixed",request.Content!.Headers.ContentType!.MediaType);
+            var sent=await request.Content.ReadAsStringAsync(ct);
+            Assert.Contains("Content-Transfer-Encoding: binary",sent);
+            Assert.Contains("If-Match: W/\"202\"",sent);
+            Assert.Contains("changeset_",sent);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+                {Content=new StringContent(payload,Encoding.UTF8,"multipart/mixed")};
+        }
+    }
+
+    [Fact]
+    public async Task BatchInspectsEachSubResponseInsteadOfTrustingOuterHttp200()
+    {
+        var policy=Fixture();
+        var updatePath=GenericWriteService.ById(policy,Guid.NewGuid());
+        var commands=new WriteCommand[]{
+            new("create",policy,GenericWriteService.BasePath(policy),
+                new Dictionary<string,object?>{{"new_name","New"}}),
+            new("update",policy,updatePath,
+                new Dictionary<string,object?>{{"new_status",1001}},IfMatch:"W/\"202\"")
+        };
+        const string success="HTTP/1.1 201 Created\r\n\r\nHTTP/1.1 204 No Content";
+        var accepted=new BatchHandler(success);
+        var result=await new DataverseWriteTransport(new HttpClient(accepted),new Tokens())
+            .SendBatchAsync(commands,CancellationToken.None);
+        Assert.Equal(200,result.HttpStatus);
+        Assert.False(result.Ambiguous);
+        Assert.Equal(1,accepted.Calls);
+
+        var rejected=new BatchHandler("HTTP/1.1 412 Precondition Failed\r\nHTTP/1.1 204 No Content");
+        var failed=await new DataverseWriteTransport(new HttpClient(rejected),new Tokens())
+            .SendBatchAsync(commands,CancellationToken.None);
+        Assert.Equal(412,failed.HttpStatus);
+
+        var truncated=new BatchHandler("HTTP/1.1 200 OK");
+        var uncertain=await new DataverseWriteTransport(new HttpClient(truncated),new Tokens())
+            .SendBatchAsync(commands,CancellationToken.None);
+        Assert.True(uncertain.Ambiguous);
+    }
+
 }

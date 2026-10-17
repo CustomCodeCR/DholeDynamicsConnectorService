@@ -208,6 +208,11 @@ public static class ServiceRegistration
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<IQuoteRepository, QuoteRepository>();
         services.AddScoped<ClientAccessRepository>();
+        services.AddScoped<MetadataRepository>();
+        services.AddScoped<MetadataRefreshService>();
+        services.AddHostedService<MetadataScheduler>();
+        services.AddHttpClient<IMetadataDiscoveryClient, DataverseMetadataDiscovery>(h => h.Timeout = TimeSpan.FromSeconds(60))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<QuoteApplicationService>();
         services.AddSingleton<DataverseTokenProvider>();
         services.AddHttpClient<IDataverseClient, DataverseClient>(http => http.Timeout = TimeSpan.FromSeconds(60))

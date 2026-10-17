@@ -23,6 +23,7 @@ public interface IDataverseClient
 {
     Task<DataverseCreateResult> CreateQuoteAsync(DynamicsConnection connection, QuoteCreateRequest request, CancellationToken ct);
     Task<string> GetQuoteAsync(DynamicsConnection connection, Guid id, CancellationToken ct);
+    Task<DataverseHealth> TestConnectionAsync(DynamicsConnection connection, CancellationToken ct);
 }
 
 public interface ISecretProtector

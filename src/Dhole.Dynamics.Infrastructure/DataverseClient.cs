@@ -2,14 +2,14 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Identity.Client;
+
 using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Contracts;
 using Dhole.Dynamics.Domain;
 
 namespace Dhole.Dynamics.Infrastructure;
 
-public sealed class DataverseClient(HttpClient httpClient, ISecretProtector encryption) : IDataverseClient
+public sealed class DataverseClient(HttpClient httpClient, DataverseTokenProvider tokens) : IDataverseClient
 {
     public async Task<DataverseCreateResult> CreateQuoteAsync(
         DynamicsConnection connection, QuoteCreateRequest request, CancellationToken ct)
@@ -27,7 +27,7 @@ public sealed class DataverseClient(HttpClient httpClient, ISecretProtector encr
         httpRequest.Headers.TryAddWithoutValidation("OData-Version", "4.0");
         httpRequest.Headers.TryAddWithoutValidation("Prefer", "return=representation");
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer", await AcquireTokenAsync(connection, ct));
+            "Bearer", await tokens.AcquireAsync(connection, ct));
 
         using var response = await httpClient.SendAsync(httpRequest, ct);
         response.EnsureSuccessStatusCode();
@@ -59,25 +59,26 @@ public sealed class DataverseClient(HttpClient httpClient, ISecretProtector encr
             "?$select=quoteid,quotenumber,name,new_pol,new_poe,new_pod,effectivefrom,expireson,new_flete,new_origen,new_destino");
         request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
         request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer", await AcquireTokenAsync(connection, ct));
+            "Bearer", await tokens.AcquireAsync(connection, ct));
         using var response = await httpClient.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(ct);
     }
 
-    private async Task<string> AcquireTokenAsync(DynamicsConnection connection, CancellationToken ct)
+    public async Task<DataverseHealth> TestConnectionAsync(DynamicsConnection connection, CancellationToken ct)
     {
         if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var url))
-            throw new InvalidOperationException("Disallowed Dataverse host.");
-
-        var app = ConfidentialClientApplicationBuilder
-            .Create(connection.ClientId.ToString("D"))
-            .WithAuthority($"https://login.microsoftonline.com/{connection.TenantId:D}")
-            .WithClientSecret(encryption.Decrypt(connection))
-            .Build();
-
-        var token = await app.AcquireTokenForClient([$"{url}/.default"]).ExecuteAsync(ct);
-        return token.AccessToken;
+            throw new InvalidOperationException("Dataverse host is not trusted.");
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{url}/api/data/v9.2/WhoAmI()");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.AcquireAsync(connection, ct));
+        request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
+        using var response = await httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var root = document.RootElement;
+        var identity = root.TryGetProperty("UserId", out var element) && Guid.TryParse(element.GetString(), out var id)
+            ? id : throw new InvalidOperationException("Dataverse WhoAmI did not return a valid UserId.");
+        return new DataverseHealth(true, identity);
     }
 
     public static Dictionary<string, object> CreatePayload(QuoteCreateRequest input, Guid currencyId)

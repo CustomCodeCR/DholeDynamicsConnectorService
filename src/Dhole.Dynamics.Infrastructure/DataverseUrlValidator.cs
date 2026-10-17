@@ -11,7 +11,9 @@ public static class DataverseUrlValidator
             || uri.UserInfo.Length != 0
             || uri.Query.Length != 0
             || uri.Fragment.Length != 0
-            || !uri.Host.EndsWith(".dynamics.com", StringComparison.OrdinalIgnoreCase))
+            || uri.AbsolutePath != "/"
+            || !System.Text.RegularExpressions.Regex.IsMatch(uri.IdnHost,
+                @"^[a-z0-9-]+\.crm[0-9]*\.dynamics\.com$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             return false;
         normalized = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
         return true;

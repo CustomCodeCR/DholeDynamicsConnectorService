@@ -54,3 +54,5 @@ public sealed record QuoteCreatedResult(
 public sealed record DataverseCreateResult(Guid QuoteId);
 
 public sealed record ConnectionQuery(string? ConnectionCode);
+
+public sealed record DataverseHealth(bool Connected, Guid ApplicationUserId);

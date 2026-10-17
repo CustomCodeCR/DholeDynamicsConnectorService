@@ -104,8 +104,8 @@ public sealed class WriteLedger(NpgsqlDataSource data)
             SELECT id,entity_name,operation,status,http_status,record_id,started_at,finished_at,
                    response::text
             FROM dynamics.write_operations WHERE connection_id=@connection AND id=@id
-              AND (@issuer IS NULL OR issuer=@issuer)
-              AND (@client IS NULL OR oauth_client_id=@client)
+              AND (CAST(@issuer AS text) IS NULL OR issuer=CAST(@issuer AS text))
+              AND (CAST(@client AS text) IS NULL OR oauth_client_id=CAST(@client AS text))
             """, db);
         cmd.Parameters.AddWithValue("connection", connection);
         cmd.Parameters.AddWithValue("id", id);

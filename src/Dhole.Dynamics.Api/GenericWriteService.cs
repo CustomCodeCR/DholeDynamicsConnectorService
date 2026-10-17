@@ -122,7 +122,11 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
                 throw new ReadRejected(400, "duplicate_batch_target");
             items.Add(command);
         }
-        return await DispatchAsync(actor, items[0].Policy, "batch", key, items, ct);
+        // Confirmation/reason are part of the idempotency intent, even when
+        // DELETE has no HTTP body inside the Dataverse changeset.
+        var confirmations = JsonSerializer.Serialize(request.Items.Select(item =>
+            new { item.ConfirmDelete, item.DeleteReason }).ToArray());
+        return await DispatchAsync(actor, items[0].Policy, "batch", key, items, ct, confirmations);
     }
 
     private async Task<(Dictionary<string, object?> Payload, string[] Fields)> ValuesAsync(

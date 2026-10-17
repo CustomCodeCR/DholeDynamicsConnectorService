@@ -70,7 +70,7 @@ public static class WriteEndpoints
         });
 
     private static async Task<IResult> GetDeletePolicy(string code, string entity,
-        ReadAccessRepository access, DeletePolicyRepository repository,
+        WriteAccessService access, DeletePolicyRepository repository,
         HttpContext http, CancellationToken ct) =>
         await Guard(http, async () =>
         {

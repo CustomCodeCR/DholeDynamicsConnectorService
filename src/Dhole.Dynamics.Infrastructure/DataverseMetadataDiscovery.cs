@@ -173,9 +173,12 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
         name[0] is >= 'a' and <= 'z' &&
         name.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '_');
 
-    private static bool TryGet(JsonElement e, string name, out JsonElement value) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out value)
+    private static bool TryGet(JsonElement e, string name, out JsonElement value)
+    {
+        value = default;
+        return e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out value)
             && value.ValueKind != JsonValueKind.Null && value.ValueKind != JsonValueKind.Undefined;
+    }
 
     private static string? Str(JsonElement e, string name) =>
         TryGet(e, name, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() : null;

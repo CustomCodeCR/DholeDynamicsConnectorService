@@ -62,6 +62,7 @@ public sealed class WriteLedger(NpgsqlDataSource data)
             throw new ReadRejected(409, "idempotency_payload_mismatch");
         var result = new WriteReservation(reader.GetGuid(0), false, reader.GetString(2),
             reader.IsDBNull(3) ? null : JsonSerializer.Deserialize<WriteResult>(reader.GetString(3), Options));
+        await reader.DisposeAsync();
         await tx.CommitAsync(ct);
         return result;
     }

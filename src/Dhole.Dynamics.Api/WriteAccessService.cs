@@ -113,7 +113,7 @@ public static class WriteValueCompiler
                     r.Kind == "ManyToOneRelationships" && r.ReferencingNavigation == nav
                     && r.ReferencingEntity == policy.Table.LogicalName);
                 if (rel?.ReferencingAttribute is null || rel.ReferencedEntity is null ||
-                    !DataverseMetadataDiscovery.SafeName(nav) || value.ValueKind != JsonValueKind.String)
+                    !System.Text.RegularExpressions.Regex.IsMatch(nav, @"^[a-zA-Z_][a-zA-Z0-9_]{0,127}$") || value.ValueKind != JsonValueKind.String)
                     throw new ReadRejected(400, "invalid_lookup_binding");
                 var targetTable = policy.Snapshot.Catalog.Tables.FirstOrDefault(t => t.LogicalName == rel.ReferencedEntity)
                     ?? throw new ReadRejected(403, "lookup_target_missing");

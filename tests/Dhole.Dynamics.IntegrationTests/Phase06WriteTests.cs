@@ -169,9 +169,10 @@ public sealed class Phase06WriteTests
                     new Dictionary<string,JsonElement>{{"new_status",V(10)}}),
                 "upsert-test-000001",CancellationToken.None);
             Assert.Equal("succeeded",upsert.State);
+            var currentSnapshot = (await metadata.LatestAsync(a.Id,CancellationToken.None))!;
+            var currentPolicies = await metadata.PoliciesAsync(a.Id,CancellationToken.None);
             Assert.Throws<ReadRejected>(()=>GenericWriteService.AlternativeKey(
-                new WritePolicy(a,(await metadata.LatestAsync(a.Id,CancellationToken.None))!,
-                    Catalog().Tables[0],(await metadata.PoliciesAsync(a.Id,CancellationToken.None))),
+                new WritePolicy(a,currentSnapshot,Catalog().Tables[0],currentPolicies),
                 new Dictionary<string,JsonElement>{{"evil",V("x")}}));
 
             // Two instances sharing PostgreSQL may reserve one intent only once.

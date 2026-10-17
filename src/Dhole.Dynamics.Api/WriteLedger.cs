@@ -68,11 +68,11 @@ public sealed class WriteLedger(NpgsqlDataSource data)
 
     public async Task<WriteResult> CompleteAsync(Guid id, Guid connection, string client,
         string status, int? httpStatus, Guid? recordId, string? etag, string? reference,
-        CancellationToken ct)
+        CancellationToken ct, int? retryAfterSeconds = null)
     {
         if (status is not ("succeeded" or "rejected" or "ambiguous"))
             throw new ArgumentException("Invalid operation status.");
-        var result = new WriteResult(id, status, httpStatus, recordId, etag, reference);
+        var result = new WriteResult(id, status, httpStatus, recordId, etag, reference, RetryAfterSeconds: retryAfterSeconds);
         await using var db = await data.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
@@ -95,16 +95,21 @@ public sealed class WriteLedger(NpgsqlDataSource data)
         return result;
     }
 
-    public async Task<WriteOperationDetail?> FindAsync(Guid connection, Guid id, CancellationToken ct)
+    public async Task<WriteOperationDetail?> FindAsync(Guid connection, Guid id, CancellationToken ct,
+        string? issuer = null, string? client = null)
     {
         await using var db = await data.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
             SELECT id,entity_name,operation,status,http_status,record_id,started_at,finished_at,
                    response::text
             FROM dynamics.write_operations WHERE connection_id=@connection AND id=@id
+              AND (@issuer IS NULL OR issuer=@issuer)
+              AND (@client IS NULL OR oauth_client_id=@client)
             """, db);
         cmd.Parameters.AddWithValue("connection", connection);
         cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("issuer", (object?)issuer ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("client", (object?)client ?? DBNull.Value);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         if (!await r.ReadAsync(ct)) return null;
         string? reference = null;

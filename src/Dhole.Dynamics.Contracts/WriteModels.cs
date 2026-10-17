@@ -8,7 +8,7 @@ public sealed record GenericUpsertRequest(string ConnectionCode, IReadOnlyDictio
 public sealed record GenericDeleteRequest(string ConnectionCode, bool Confirm, string Reason);
 public sealed record GenericBatchItem(string Operation, string Entity, Guid? RecordId,
     IReadOnlyDictionary<string, JsonElement>? Keys, IReadOnlyDictionary<string, JsonElement>? Values,
-    string? ETag = null);
+    string? ETag = null, bool ConfirmDelete = false, string? DeleteReason = null);
 public sealed record GenericBatchRequest(string ConnectionCode, IReadOnlyList<GenericBatchItem> Items);
 public sealed record WriteResult(Guid OperationId, string State, int? HttpStatus,
     Guid? RecordId, string? ETag, string? Reference, bool Replay = false, int? RetryAfterSeconds = null);

@@ -90,8 +90,10 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
             if (item.Operation == "delete")
             {
                 var retention = await deletes.GetAsync(policy.Connection.Id, item.Entity, ct);
-                if (!retention.Enabled || retention.MinAgeDays > 0)
-                    throw new ReadRejected(403, "delete_batch_requires_single_operation");
+                if (!retention.Enabled || retention.MinAgeDays > 0 ||
+                    !item.ConfirmDelete || string.IsNullOrWhiteSpace(item.DeleteReason) ||
+                    item.DeleteReason.Length is < 10 or > 500)
+                    throw new ReadRejected(403, "delete_batch_requires_explicit_confirmation");
                 if (item.RecordId is not Guid id || id == Guid.Empty)
                     throw new ReadRejected(400, "invalid_batch_record_id");
                 RequireEtag(item.ETag);
@@ -208,7 +210,7 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
     public static void RequireEtag(string? etag)
     {
         if (string.IsNullOrWhiteSpace(etag) || etag.Length > 100 ||
-            !Regex.IsMatch(etag, "^(?:W/)?\\"[0-9a-zA-Z_-]{1,80}\\"$", RegexOptions.CultureInvariant))
+            !Regex.IsMatch(etag, """^(?:W/)?"[0-9a-zA-Z_-]{1,80}"$""", RegexOptions.CultureInvariant))
             throw new ReadRejected(428, "etag_required");
     }
 }

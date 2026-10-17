@@ -9,9 +9,7 @@ public sealed class ApiSmokeTests
     {
         // Set before WebApplication.CreateBuilder runs. WebApplicationFactory's
         // ConfigureAppConfiguration callback happens too late for top-level required settings.
-        Environment.SetEnvironmentVariable("Jwt__Issuer", "phase1-tests");
-        Environment.SetEnvironmentVariable("Jwt__Audience", "phase1-tests");
-        Environment.SetEnvironmentVariable("Jwt__SecretKey", new string('s', 64));
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
         Environment.SetEnvironmentVariable("ConnectionStrings__Dynamics",
             "Host=127.0.0.1;Port=1;Timeout=1;Database=dhole_dynamics_connector_test;Username=tests;Password=notused");
         Environment.SetEnvironmentVariable("DYNAMICS_ENCRYPTION_KEY_BASE64",
@@ -45,5 +43,23 @@ public sealed class ApiSmokeTests
         using var client = factory.CreateClient();
         using var response = await client.GetAsync("/api/admin/v1/connections");
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnonymousM2MEndpointIsProtected()
+    {
+        using var factory = Factory();
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/api/v1/quotes/" + Guid.NewGuid() + "?connectionCode=test");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MachineTokenCannotLogIntoAdminWhenProviderNotConfigured()
+    {
+        using var factory = Factory();
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/auth/login");
+        Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 }

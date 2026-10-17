@@ -18,5 +18,6 @@
     <ProjectReference Include="../../src/Dhole.Dynamics.Domain/Dhole.Dynamics.Domain.csproj" />
     <ProjectReference Include="../../src/Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
     <ProjectReference Include="../../src/Dhole.Dynamics.Infrastructure/Dhole.Dynamics.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj" />
   </ItemGroup>
 </Project>

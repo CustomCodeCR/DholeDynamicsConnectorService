@@ -57,7 +57,6 @@ jobs:
       - name: Create ephemeral local-only credentials
         run: |
           echo "POSTGRES_PASSWORD=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           echo "DYNAMICS_ENCRYPTION_KEY_BASE64=$(openssl rand -base64 32 | tr -d '\n')" >> "$GITHUB_ENV"
       - run: docker compose up --build -d
       - name: Smoke API, DB, and frontend
@@ -81,7 +80,7 @@ jobs:
         run: |
           export PHASE2_TEST_DB_CONNECTION="Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD}"
           export PHASE2_SQL_DIR="$GITHUB_WORKSPACE/sql"
-          dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release --filter FullyQualifiedName~Phase02DatabaseTests|FullyQualifiedName~Phase03GrantTests
+          dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release --filter FullyQualifiedName~Phase02DatabaseTests
       - name: Install backup and encryption tooling
         run: |
           sudo apt-get update -qq

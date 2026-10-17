@@ -34,9 +34,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
-      Jwt__Issuer: "${JWT_ISSUER:-dhole-dynamics-local}"
-      Jwt__Audience: "${JWT_AUDIENCE:-dhole-dynamics-consumer-local}"
-      Jwt__SecretKey: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY}"
+      # Local auth remains disabled without a real external OIDC/OAuth provider.
+      AdminOidc__Authority: "${ADMIN_OIDC_AUTHORITY:-}"
+      AdminOidc__ClientId: "${ADMIN_OIDC_CLIENT_ID:-}"
+      AdminOidc__ClientSecret: "${ADMIN_OIDC_CLIENT_SECRET:-}"
+      M2m__Authority: "${M2M_AUTHORITY:-}"
+      M2m__Audience: "${M2M_AUDIENCE:-}"
       DYNAMICS_ENCRYPTION_KEY_BASE64: "${DYNAMICS_ENCRYPTION_KEY_BASE64:?Set DYNAMICS_ENCRYPTION_KEY_BASE64}"
       DYNAMICS_ENCRYPTION_KEYS_JSON: "${DYNAMICS_ENCRYPTION_KEYS_JSON:-}"
       DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION: "${DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION:-1}"

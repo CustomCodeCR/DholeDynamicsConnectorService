@@ -30,4 +30,5 @@ public interface ISecretProtector
     int KeyVersion { get; }
     (byte[] Nonce, byte[] Ciphertext, byte[] Tag) Encrypt(Guid connectionId, string value);
     string Decrypt(DynamicsConnection connection);
+    (byte[] Nonce, byte[] Ciphertext, byte[] Tag) Reencrypt(DynamicsConnection connection);
 }

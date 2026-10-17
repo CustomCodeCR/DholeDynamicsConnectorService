@@ -48,7 +48,8 @@ public static class ServiceRegistration
     {
         var connectionString = config.GetConnectionString("Dynamics")
             ?? throw new InvalidOperationException("Missing required ConnectionStrings:Dynamics");
-        services.AddSingleton(NpgsqlDataSource.Create(connectionString));
+        services.AddSingleton(NpgsqlDataSource.Create(DatabaseIsolation.Validate(connectionString,
+            requireDedicatedName: !string.Equals(config["ASPNETCORE_ENVIRONMENT"], "Testing", StringComparison.OrdinalIgnoreCase))));
         services.AddSingleton<ISecretProtector, Encryption>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<IQuoteRepository, QuoteRepository>();

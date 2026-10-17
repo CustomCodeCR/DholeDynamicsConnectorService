@@ -13,7 +13,7 @@ public sealed class ApiSmokeTests
         Environment.SetEnvironmentVariable("Jwt__Audience", "phase1-tests");
         Environment.SetEnvironmentVariable("Jwt__SecretKey", new string('s', 64));
         Environment.SetEnvironmentVariable("ConnectionStrings__Dynamics",
-            "Host=127.0.0.1;Port=1;Timeout=1;Database=notused;Username=tests;Password=notused");
+            "Host=127.0.0.1;Port=1;Timeout=1;Database=dhole_dynamics_connector_test;Username=tests;Password=notused");
         Environment.SetEnvironmentVariable("DYNAMICS_ENCRYPTION_KEY_BASE64",
             Convert.ToBase64String(new byte[32]));
         return new WebApplicationFactory<Program>();

@@ -71,8 +71,10 @@ public static class ReadQueryCompiler
                 if (node.Field is not null || node.Value is not null || node.Parameter is not null
                     || node.Join is not ("and" or "or") || children.Count is < 2 or > 10)
                     throw new ArgumentException("Invalid logical filter.");
-                return "(" + string.Join(" " + node.Join + " ",
-                    children.Select(n => Parse(n, depth+1, ref count, aliases))) + ")";
+                var expressions = new List<string>();
+                foreach (var child in children)
+                    expressions.Add(Parse(child, depth + 1, ref count, aliases));
+                return "(" + string.Join(" " + node.Join + " ", expressions) + ")";
             }
 
             if (node.Join is not null || node.Children is { Count: > 0 }

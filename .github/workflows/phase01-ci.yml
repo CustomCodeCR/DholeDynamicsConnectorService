@@ -39,6 +39,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/package.json
       - run: pnpm install --no-frozen-lockfile
+      - name: Emit generated public lockfile for repository pinning
+        run: |
+          echo PHASE01_LOCK_START
+          base64 -w 0 pnpm-lock.yaml
+          echo
+          echo PHASE01_LOCK_END
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build

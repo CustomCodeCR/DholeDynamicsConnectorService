@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Infrastructure;
 using Dhole.Dynamics.Persistence;
@@ -24,6 +26,13 @@ public static class ServiceRegistration
         var adminSecret = config["AdminOidc:ClientSecret"];
         var machineAuthority = config["M2m:Authority"];
         var machineAudience = config["M2m:Audience"];
+        var publicOrigin = config["Admin:PublicOrigin"];
+        if (!string.IsNullOrWhiteSpace(publicOrigin) &&
+            (!Uri.TryCreate(publicOrigin, UriKind.Absolute, out var publicUri)
+                || publicUri.Scheme != "https" || publicUri.UserInfo.Length > 0
+                || publicUri.Query.Length > 0 || publicUri.Fragment.Length > 0
+                || publicUri.AbsolutePath != "/"))
+            throw new InvalidOperationException("Admin public origin must be a single HTTPS origin.");
         var adminConfigured = IsHttpsAuthority(adminAuthority) && !string.IsNullOrWhiteSpace(adminId)
             && !string.IsNullOrWhiteSpace(adminSecret);
         var machineConfigured = IsHttpsAuthority(machineAuthority) && !string.IsNullOrWhiteSpace(machineAudience);
@@ -102,6 +111,8 @@ public static class ServiceRegistration
 
         if (adminConfigured)
         {
+            if (string.IsNullOrWhiteSpace(publicOrigin))
+                throw new InvalidOperationException("Admin:PublicOrigin HTTPS callback origin is required.");
             auth.AddOpenIdConnect(AdminOidc, options =>
             {
                 options.Authority = adminAuthority;
@@ -114,6 +125,11 @@ public static class ServiceRegistration
                 options.GetClaimsFromUserInfoEndpoint = false;
                 options.RequireHttpsMetadata = true;
                 options.CallbackPath = "/signin-oidc";
+                options.Events.OnRedirectToIdentityProvider = ctx =>
+                {
+                    ctx.ProtocolMessage.RedirectUri = publicOrigin!.TrimEnd('/') + "/signin-oidc";
+                    return Task.CompletedTask;
+                };
                 options.Scope.Clear();
                 options.Scope.Add("openid");
                 options.Scope.Add("profile");
@@ -140,6 +156,19 @@ public static class ServiceRegistration
                 .RequireAuthenticatedUser()
                 .RequireClaim("connector:issuer")
                 .RequireAssertion(c => !string.IsNullOrWhiteSpace(ScopeSecurity.ClientId(c.User))));
+        });
+
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("AdminRate", http =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 100, Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0, AutoReplenishment = true
+                    }));
         });
 
         services.AddAntiforgery(options =>

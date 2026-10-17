@@ -100,6 +100,8 @@ public sealed class QuoteApplicationTests
             if (ThrowOnPost) throw new HttpRequestException("simulated timeout");
             return Task.FromResult(new DataverseCreateResult(Guid.NewGuid()));
         }
+        public Task<DataverseHealth> TestConnectionAsync(DynamicsConnection connection, CancellationToken ct) =>
+            throw new NotImplementedException();
         public Task<string> GetQuoteAsync(DynamicsConnection connection, Guid id, CancellationToken ct) =>
             throw new NotImplementedException();
     }

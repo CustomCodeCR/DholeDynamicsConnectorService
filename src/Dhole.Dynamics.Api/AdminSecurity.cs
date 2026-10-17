@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -19,7 +20,7 @@ public static class AdminSecurity
             {
                 RedirectUri = "/"
             }, [ServiceRegistration.AdminOidc]);
-        }).AllowAnonymous();
+        }).RequireRateLimiting("AdminRate").AllowAnonymous();
 
         app.MapGet("/auth/session", (HttpContext ctx, IAntiforgery antiforgery) =>
         {

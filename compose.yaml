@@ -36,6 +36,7 @@ services:
       ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
       # Local auth remains disabled without a real external OIDC/OAuth provider.
       AdminOidc__Authority: "${ADMIN_OIDC_AUTHORITY:-}"
+      Admin__PublicOrigin: "${ADMIN_PUBLIC_ORIGIN:-}"
       AdminOidc__ClientId: "${ADMIN_OIDC_CLIENT_ID:-}"
       AdminOidc__ClientSecret: "${ADMIN_OIDC_CLIENT_SECRET:-}"
       M2m__Authority: "${M2M_AUTHORITY:-}"

@@ -25,6 +25,7 @@ app.Use(async (http, next) =>
 app.UseCors("AdminSameOrigin");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapAdminAuthEndpoints();
 app.MapDynamicsEndpoints();

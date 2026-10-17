@@ -5,6 +5,38 @@ namespace Dhole.Dynamics.Api;
 /// <summary>Database-enforced registration, connection policies and atomic per-grant quotas.</summary>
 public sealed class ClientAccessRepository(NpgsqlDataSource source)
 {
+    public async Task<IReadOnlyList<ClientRecord>> ListClientsAsync(CancellationToken ct)
+    {
+        var clients = new List<ClientRecord>();
+        await using var conn = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT id, issuer, oauth_client_id, display_name, enabled
+            FROM dynamics.api_clients ORDER BY display_name LIMIT 500
+            """, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            clients.Add(new ClientRecord(reader.GetGuid(0), reader.GetString(1),
+                reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)));
+        return clients;
+    }
+
+    public async Task<IReadOnlyList<GrantRecord>> ListGrantsAsync(CancellationToken ct)
+    {
+        var grants = new List<GrantRecord>();
+        await using var conn = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT id, api_client_id, connection_id, entity_set, operation,
+                   allowed_fields, max_requests_per_minute, enabled
+            FROM dynamics.api_grants ORDER BY created_at DESC LIMIT 1000
+            """, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            grants.Add(new GrantRecord(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2),
+                reader.GetString(3), reader.GetString(4), reader.GetFieldValue<string[]>(5),
+                reader.GetInt32(6), reader.GetBoolean(7)));
+        return grants;
+    }
+
     public async Task<ClientRecord> RegisterAsync(ClientRegistrationRequest request, string actor, CancellationToken ct)
     {
         await using var conn = await source.OpenConnectionAsync(ct);

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Contracts;
@@ -16,11 +17,13 @@ public static class DynamicsEndpoints
     public static IEndpointRouteBuilder MapDynamicsEndpoints(this IEndpointRouteBuilder app)
     {
         var admin = app.MapGroup("/api/admin/v1").WithGroupName("admin-v1")
-            .RequireAuthorization("Admin").RequireCsrfForWrites();
+            .RequireAuthorization("Admin").RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         admin.MapGet("/connections", ListConnections);
         admin.MapPost("/connections", UpsertConnection);
         admin.MapPut("/connections/{code}/secret", RotateSecret);
         admin.MapPost("/connections/{code}/test", TestConnection);
+        admin.MapGet("/clients", ListClients).RequireAuthorization("SecurityAdmin");
+        admin.MapGet("/grants", ListGrants).RequireAuthorization("SecurityAdmin");
         admin.MapPost("/clients", RegisterClient).RequireAuthorization("SecurityAdmin");
         admin.MapPost("/grants", UpsertGrant).RequireAuthorization("SecurityAdmin");
 
@@ -32,7 +35,7 @@ public static class DynamicsEndpoints
 
         // Legacy route names remain for existing clients, but NO HMAC token or
         // machine token can authenticate an Admin action after this security upgrade.
-        var legacyAdmin = app.MapGroup("/api/dynamics").RequireCsrfForWrites()
+        var legacyAdmin = app.MapGroup("/api/dynamics").RequireRateLimiting("AdminRate").RequireCsrfForWrites()
             .RequireAuthorization("Admin");
         legacyAdmin.MapGet("/connections", ListConnections);
         legacyAdmin.MapPost("/connections", UpsertConnection);
@@ -87,6 +90,12 @@ public static class DynamicsEndpoints
                 "Dataverse identity or connection validation failed.");
         }
     }
+
+    private static async Task<IResult> ListClients(ClientAccessRepository repository, CancellationToken ct) =>
+        Results.Ok(await repository.ListClientsAsync(ct));
+
+    private static async Task<IResult> ListGrants(ClientAccessRepository repository, CancellationToken ct) =>
+        Results.Ok(await repository.ListGrantsAsync(ct));
 
     private static async Task<IResult> RegisterClient(ClientRegistrationRequest request,
         ClientAccessRepository repository, IConfiguration config, ClaimsPrincipal actor,

@@ -36,11 +36,18 @@ public sealed class Phase06WriteTests
         public int Calls {get;private set;}
         public bool Timeout {get;set;}
         public HttpStatusCode Status {get;set;} = HttpStatusCode.Created;
+        public DateTimeOffset? CreatedOn {get;set;} = DateTimeOffset.UtcNow.AddDays(-100);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req,CancellationToken ct)
         {
             Calls++;
             Assert.Equal("ci.crm.dynamics.com",req.RequestUri!.Host);
             if(Timeout)throw new TaskCanceledException("response lost after send");
+            if(req.Method == HttpMethod.Get && req.RequestUri!.Query.Contains("$select=createdon",StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                    Content = new StringContent(CreatedOn is DateTimeOffset date
+                        ? JsonSerializer.Serialize(new { createdon = date.ToString("O") })
+                        : "{}", Encoding.UTF8, "application/json")
+                });
             if(req.RequestUri!.AbsolutePath.EndsWith("/$batch",StringComparison.Ordinal))
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                     Content = new StringContent("HTTP/1.1 201 Created\r\nHTTP/1.1 201 Created",
@@ -183,6 +190,26 @@ public sealed class Phase06WriteTests
                     new Dictionary<string,JsonElement>{{"new_status",V(10)}}),
                 "upsert-test-000001",CancellationToken.None);
             Assert.Equal("succeeded",upsert.State);
+            Assert.True(await retention.SetAsync(a.Id, "new_shipment",
+                new DeletePolicyRequest(true, 30), "ci", CancellationToken.None));
+            handler.CreatedOn = DateTimeOffset.UtcNow.AddDays(-100);
+            var removed = await service.DeleteAsync(principal, "new_shipment", Guid.NewGuid(),
+                new GenericDeleteRequest(a.Code, true, "Approved removal according to retention"),
+                "delete-authorized-key-0001", "W/\"100\"", CancellationToken.None);
+            Assert.Equal("succeeded", removed.State);
+            Assert.Equal(204, removed.HttpStatus);
+            handler.CreatedOn = DateTimeOffset.UtcNow;
+            var recent = await Assert.ThrowsAsync<ReadRejected>(() => service.DeleteAsync(
+                principal, "new_shipment", Guid.NewGuid(),
+                new GenericDeleteRequest(a.Code, true, "Recently created record must remain"),
+                "delete-recent-key-000001", "W/\"101\"", CancellationToken.None));
+            Assert.Equal(403, recent.Status);
+            handler.CreatedOn = null;
+            var unknown = await Assert.ThrowsAsync<ReadRejected>(() => service.DeleteAsync(
+                principal, "new_shipment", Guid.NewGuid(),
+                new GenericDeleteRequest(a.Code, true, "Record age cannot be confirmed"),
+                "delete-unknown-key-00001", "W/\"102\"", CancellationToken.None));
+            Assert.Equal(403, unknown.Status);
             var currentSnapshot = (await metadata.LatestAsync(a.Id,CancellationToken.None))!;
             var currentPolicies = await metadata.PoliciesAsync(a.Id,CancellationToken.None);
             Assert.Throws<ReadRejected>(()=>GenericWriteService.AlternativeKey(

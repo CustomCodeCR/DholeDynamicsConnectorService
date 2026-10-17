@@ -127,7 +127,7 @@ public static class WriteEndpoints
         {
             "ambiguous" => 409,
             "rejected" => result.HttpStatus is >= 400 and <= 499 ? result.HttpStatus.Value : 502,
-            "succeeded" => result.HttpStatus is >= 200 and <= 299 ? result.HttpStatus.Value : 200,
+            "succeeded" => result.HttpStatus == 201 ? 201 : 200,
             _ => 409
         };
         return Results.Json(result, statusCode: status);

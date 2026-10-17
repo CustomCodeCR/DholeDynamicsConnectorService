@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj" />
+  <Project Path="src/Dhole.Dynamics.Application/Dhole.Dynamics.Application.csproj" />
+  <Project Path="src/Dhole.Dynamics.Domain/Dhole.Dynamics.Domain.csproj" />
+  <Project Path="src/Dhole.Dynamics.Infrastructure/Dhole.Dynamics.Infrastructure.csproj" />
+  <Project Path="src/Dhole.Dynamics.Persistence/Dhole.Dynamics.Persistence.csproj" />
+  <Project Path="src/Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
+  <Project Path="src/Dhole.Dynamics.Workers/Dhole.Dynamics.Workers.csproj" />
+  <Project Path="tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj" />
+  <Project Path="tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj" />
+</Solution>

@@ -1,13 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.76.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dhole.Dynamics.Application/Dhole.Dynamics.Application.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Domain/Dhole.Dynamics.Domain.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Infrastructure/Dhole.Dynamics.Infrastructure.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Persistence/Dhole.Dynamics.Persistence.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../sql/001_init.sql" Link="sql/001_init.sql" CopyToOutputDirectory="PreserveNewest" />

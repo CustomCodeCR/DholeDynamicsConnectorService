@@ -1,8 +1,11 @@
 using Npgsql;
+using Dhole.Dynamics.Application;
+using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Domain;
 
-namespace Dhole.Dynamics.Api;
+namespace Dhole.Dynamics.Persistence;
 
-public sealed class ConnectionRepository(NpgsqlDataSource database, Encryption encryption)
+public sealed class ConnectionRepository(NpgsqlDataSource database, ISecretProtector encryption) : IConnectionRepository
 {
     public async Task<DynamicsConnection?> FindAsync(string code, CancellationToken ct)
     {
@@ -29,7 +32,7 @@ public sealed class ConnectionRepository(NpgsqlDataSource database, Encryption e
             FROM dynamics.connections ORDER BY code
             """, connection);
         await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) result.Add(Read(r).ToSummary());
+        while (await r.ReadAsync(ct)) result.Add(ToSummary(Read(r)));
         return result;
     }
 
@@ -69,13 +72,13 @@ public sealed class ConnectionRepository(NpgsqlDataSource database, Encryption e
         command.Parameters.AddWithValue("nonce", encrypted.Nonce);
         command.Parameters.AddWithValue("cipher", encrypted.Ciphertext);
         command.Parameters.AddWithValue("tag", encrypted.Tag);
-        command.Parameters.AddWithValue("version", Encryption.CurrentVersion);
+        command.Parameters.AddWithValue("version", encryption.KeyVersion);
         var persistedId = await command.ExecuteScalarAsync(ct);
         if (persistedId is null)
             throw new InvalidOperationException("Concurrent configuration update detected; retry.");
 
         await WriteAuditAsync(connection, id, actor, "connection.upsert", ct);
-        return (await FindAsync(request.Code, ct))!.ToSummary();
+        return ToSummary((await FindAsync(request.Code, ct))!);
     }
 
     public async Task<bool> RotateSecretAsync(
@@ -98,7 +101,7 @@ public sealed class ConnectionRepository(NpgsqlDataSource database, Encryption e
         command.Parameters.AddWithValue("nonce", encrypted.Nonce);
         command.Parameters.AddWithValue("cipher", encrypted.Ciphertext);
         command.Parameters.AddWithValue("tag", encrypted.Tag);
-        command.Parameters.AddWithValue("version", Encryption.CurrentVersion);
+        command.Parameters.AddWithValue("version", encryption.KeyVersion);
         var changed = await command.ExecuteNonQueryAsync(ct);
         if (changed > 0) await WriteAuditAsync(connection, previous.Id, actor, "connection.secret.rotate", ct);
         return changed > 0;
@@ -117,6 +120,9 @@ public sealed class ConnectionRepository(NpgsqlDataSource database, Encryption e
         command.Parameters.AddWithValue("action", action);
         await command.ExecuteNonQueryAsync(ct);
     }
+
+    private static ConnectionSummary ToSummary(DynamicsConnection c) =>
+        new(c.Id, c.Code, c.DataverseUrl, c.TenantId, c.ClientId, c.DefaultCurrencyId, c.UpdatedAt);
 
     private static DynamicsConnection Read(NpgsqlDataReader r) =>
         new(

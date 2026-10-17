@@ -1,16 +1,20 @@
 using System.Security.Cryptography;
 using System.Text;
+using Dhole.Dynamics.Application;
+using Dhole.Dynamics.Domain;
+using Microsoft.Extensions.Configuration;
 
-namespace Dhole.Dynamics.Api;
+namespace Dhole.Dynamics.Infrastructure;
 
 /// <summary>
 /// Encrypts application client secrets using an externally supplied 256-bit master key.
 /// Encryption keys MUST NOT be committed or stored in the integration database.
 /// </summary>
-public sealed class Encryption
+public sealed class Encryption : ISecretProtector
 {
     private readonly byte[] _key;
     public const int CurrentVersion = 1;
+    public int KeyVersion => CurrentVersion;
 
     public Encryption(IConfiguration config)
     {

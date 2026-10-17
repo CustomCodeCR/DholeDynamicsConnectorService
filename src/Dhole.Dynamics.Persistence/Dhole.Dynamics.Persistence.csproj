@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dhole.Dynamics.Domain/Dhole.Dynamics.Domain.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Application/Dhole.Dynamics.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+  </ItemGroup>
+</Project>

@@ -1,4 +1,4 @@
-namespace Dhole.Dynamics.Api;
+namespace Dhole.Dynamics.Contracts;
 
 public sealed record ConnectionUpsertRequest(
     string Code,
@@ -18,23 +18,6 @@ public sealed record ConnectionSummary(
     Guid ClientId,
     Guid? DefaultCurrencyId,
     DateTimeOffset UpdatedAt);
-
-public sealed record DynamicsConnection(
-    Guid Id,
-    string Code,
-    string DataverseUrl,
-    Guid TenantId,
-    Guid ClientId,
-    Guid? DefaultCurrencyId,
-    byte[] SecretNonce,
-    byte[] SecretCiphertext,
-    byte[] SecretTag,
-    int SecretKeyVersion,
-    DateTimeOffset UpdatedAt)
-{
-    public ConnectionSummary ToSummary() =>
-        new(Id, Code, DataverseUrl, TenantId, ClientId, DefaultCurrencyId, UpdatedAt);
-}
 
 public sealed record QuoteCreateRequest(
     string ConnectionCode,
@@ -61,15 +44,6 @@ public sealed record QuoteCreateRequest(
     int? ProposalType,
     int? SpecificProject,
     int? CargoType);
-
-public sealed record QuoteLink(
-    Guid Id,
-    Guid ConnectionId,
-    Guid DholeRateId,
-    Guid? DynamicsQuoteId,
-    string Status,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
 
 public sealed record QuoteCreatedResult(
     Guid DholeRateId,

@@ -1,8 +1,10 @@
 using Npgsql;
+using Dhole.Dynamics.Application;
+using Dhole.Dynamics.Domain;
 
-namespace Dhole.Dynamics.Api;
+namespace Dhole.Dynamics.Persistence;
 
-public sealed class QuoteRepository(NpgsqlDataSource database)
+public sealed class QuoteRepository(NpgsqlDataSource database) : IQuoteRepository
 {
     /// <summary>
     /// Atomically reserves a local quote mapping before Dataverse POST.

@@ -3,10 +3,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Identity.Client;
+using Dhole.Dynamics.Application;
+using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Domain;
 
-namespace Dhole.Dynamics.Api;
+namespace Dhole.Dynamics.Infrastructure;
 
-public sealed class DataverseClient(HttpClient httpClient, Encryption encryption)
+public sealed class DataverseClient(HttpClient httpClient, ISecretProtector encryption) : IDataverseClient
 {
     public async Task<DataverseCreateResult> CreateQuoteAsync(
         DynamicsConnection connection, QuoteCreateRequest request, CancellationToken ct)

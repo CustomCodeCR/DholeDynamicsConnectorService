@@ -210,6 +210,13 @@ public static class ServiceRegistration
         services.AddScoped<ClientAccessRepository>();
         services.AddScoped<MetadataRepository>();
         services.AddScoped<ReadAccessRepository>();
+        services.AddScoped<WriteAccessService>();
+        services.AddScoped<WriteLedger>();
+        services.AddScoped<DeletePolicyRepository>();
+        services.AddScoped<GenericWriteService>();
+        services.AddHttpClient<DataverseWriteTransport>(http => http.Timeout = TimeSpan.FromSeconds(60))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<SavedQueryRepository>();
         services.AddSingleton<ReadCursorProtector>();
         services.AddHttpClient<ReadSearchService>(h => h.Timeout = TimeSpan.FromSeconds(45))

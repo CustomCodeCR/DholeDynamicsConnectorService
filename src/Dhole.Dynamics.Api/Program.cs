@@ -31,6 +31,7 @@ app.MapAdminAuthEndpoints();
 app.MapDynamicsEndpoints();
 app.MapMetadataEndpoints();
 app.MapReadEndpoints();
+app.MapWriteEndpoints();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();

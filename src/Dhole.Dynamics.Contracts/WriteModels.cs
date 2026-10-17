@@ -11,7 +11,7 @@ public sealed record GenericBatchItem(string Operation, string Entity, Guid? Rec
     string? ETag = null);
 public sealed record GenericBatchRequest(string ConnectionCode, IReadOnlyList<GenericBatchItem> Items);
 public sealed record WriteResult(Guid OperationId, string State, int? HttpStatus,
-    Guid? RecordId, string? ETag, string? Reference, bool Replay = false);
+    Guid? RecordId, string? ETag, string? Reference, bool Replay = false, int? RetryAfterSeconds = null);
 public sealed record WriteOperationDetail(Guid Id, string Entity, string Operation, string State,
     int? HttpStatus, Guid? RecordId, DateTimeOffset StartedAt, DateTimeOffset? FinishedAt,
     string? Reference);

@@ -33,3 +33,22 @@ CREATE TABLE dynamics.external_references (
     UNIQUE(connection_id,reference_space,dataverse_id,entity_name)
 );
 CREATE INDEX ix_template_versions_template_created ON dynamics.template_versions(template_id,version DESC);
+
+-- Named, bound Dataverse actions are opt-in and cannot become an open HTTP proxy.
+CREATE TABLE dynamics.allowed_actions (
+    connection_id uuid NOT NULL,
+    entity_name varchar(128) NOT NULL,
+    action_name varchar(80) NOT NULL CHECK(action_name ~ '^[A-Za-z][A-Za-z0-9_]{0,79}$'),
+    parameters jsonb NOT NULL CHECK(jsonb_typeof(parameters) = 'array'),
+    enabled boolean NOT NULL DEFAULT false,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(connection_id,entity_name,action_name),
+    FOREIGN KEY(connection_id,entity_name)
+      REFERENCES dynamics.metadata_allowed_entities(connection_id,logical_name) ON DELETE CASCADE
+);
+ALTER TABLE dynamics.api_grants DROP CONSTRAINT IF EXISTS chk_grant_operation;
+ALTER TABLE dynamics.api_grants ADD CONSTRAINT chk_grant_operation
+ CHECK(operation IN ('create','read','update','delete','upsert','action'));
+ALTER TABLE dynamics.write_operations DROP CONSTRAINT IF EXISTS write_operations_operation_check;
+ALTER TABLE dynamics.write_operations ADD CONSTRAINT write_operations_operation_check
+ CHECK(operation IN ('create','update','delete','upsert','batch','action'));

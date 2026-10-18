@@ -21,8 +21,8 @@ public static class GrantRules
             || (c >= '0' && c <= '9') || c == '_' || c == '@' || c == '.');
 
     public static bool ValidGrant(string entitySet, string operation, string[] fields, int quota) =>
-        ((entitySet == "quotes" && operation is "create" or "read") ||
-          (operation == "read" && Dhole.Dynamics.Infrastructure.DataverseMetadataDiscovery.SafeName(entitySet))) &&
+        Dhole.Dynamics.Infrastructure.DataverseMetadataDiscovery.SafeName(entitySet) &&
+        operation is ("create" or "read" or "update" or "delete" or "upsert" or "action") &&
         quota is >= 1 and <= 600 && fields.Length is > 0 and <= 80 &&
         fields.Distinct(StringComparer.Ordinal).Count() == fields.Length &&
         fields.All(ValidField);

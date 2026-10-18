@@ -7,7 +7,8 @@ namespace Dhole.Dynamics.Api;
 /// <summary>Authoritative template entry point: revalidates active snapshot and policies for every invocation.</summary>
 public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalReferenceRepository references,
     WriteAccessService writerAccess,GenericWriteService writer,ReadSearchService reader,
-    SavedQueryRepository saved,ReadAccessRepository readerAccess)
+    SavedQueryRepository saved,ReadAccessRepository readerAccess,
+    ActionPolicyRepository actionPolicy,BoundActionExecutor actionRunner)
 {
     public async Task<TemplateSummary> CreateDraftAsync(string code,string name,
         IntegrationTemplate definition,string actor,CancellationToken ct)
@@ -64,7 +65,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 typed.Fields,policy.Snapshot.Version);
         }
         return new(version,revision.Definition.Operation,revision.Definition.EntityName,data,
-            revision.Definition.Select??[],policy.Snapshot.Version);
+            revision.Definition.Operation=="action" ? data.Keys.Order(StringComparer.Ordinal).ToArray()
+                : revision.Definition.Select??[],policy.Snapshot.Version);
     }
 
     public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
@@ -81,7 +83,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         await ValidateDefinitionAsync(policy,definition,ct);
         var input=TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
         var values=await BuildAsync(definition,policy,input,ct);
-        if(definition.Operation is "create" or "update" or "upsert" or "delete" &&
+        if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))
             throw new ReadRejected(400,"idempotency_key_required");
         return definition.Operation switch
@@ -109,6 +111,10 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                     definition.Select??[],ct)
                 : throw new ReadRejected(400,"record_id_required"),
             "find" => await ExecuteFindAsync(actor,definition,request,input,ct),
+            "action" => request.RecordId is Guid target
+                ? await actionRunner.InvokeAsync(actor,policy,definition.ActionName!,target,values,
+                    idempotencyKey!,active,ct)
+                : throw new ReadRejected(400,"record_id_required"),
             _ => throw new ReadRejected(400,"unsupported_template_operation")
         };
     }
@@ -150,6 +156,15 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         IntegrationTemplate definition,CancellationToken ct)
     {
         TemplateMapper.ValidateDefinition(definition,policy);
+        if(definition.Operation=="action")
+        {
+            var named=await actionPolicy.FindAsync(policy.Connection.Id,definition.EntityName,
+                definition.ActionName!,ct);
+            if(named is not {Enabled:true} ||
+                definition.Mappings.Count!=named.Parameters.Count ||
+                definition.Mappings.Any(m=>!named.Parameters.Any(p=>p.Name==m.Target)))
+                throw new ReadRejected(403,"action_policy_denied");
+        }
         if(definition.Operation=="find")
         {
             var existing=await saved.FindAsync(policy.Connection.Id,definition.SavedQuery!,ct);

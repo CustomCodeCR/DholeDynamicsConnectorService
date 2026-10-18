@@ -10,7 +10,8 @@ public sealed record TemplateMapping(string Target, string? Source = null,
     IReadOnlyList<TemplateStep>? Steps = null, JsonElement? Constant = null);
 public sealed record IntegrationTemplate(string EntityName, string Operation,
     IReadOnlyList<TemplateInput> Inputs, IReadOnlyList<TemplateMapping> Mappings,
-    IReadOnlyList<string>? Select = null, string? SavedQuery = null);
+    IReadOnlyList<string>? Select = null, string? SavedQuery = null,
+    string? ActionName = null);
 public sealed record TemplateRevision(int Version, IntegrationTemplate Definition,
     int MetadataVersion, DateTimeOffset CreatedAt, string Sha256);
 public sealed record TemplateSummary(Guid Id, string Name, int? ActiveVersion,

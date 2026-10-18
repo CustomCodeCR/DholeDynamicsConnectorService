@@ -18,7 +18,7 @@ public static class TemplateMapper
 
     public static void ValidateDefinition(IntegrationTemplate definition, WritePolicy policy)
     {
-        if(definition.Operation is not ("create" or "update" or "upsert" or "delete" or "read" or "find")
+        if(definition.Operation is not ("create" or "update" or "upsert" or "delete" or "read" or "find" or "action")
             || definition.Inputs is not { Count: <= 30 } || definition.Mappings is not { Count: <= 40 }
             || definition.EntityName!=policy.Table.LogicalName)
             throw new ReadRejected(400,"invalid_template_definition");
@@ -30,13 +30,18 @@ public static class TemplateMapper
             throw new ReadRejected(400,"invalid_template_inputs");
         if(definition.Mappings.Select(m=>m.Target).Distinct(StringComparer.Ordinal).Count()!=definition.Mappings.Count)
             throw new ReadRejected(400,"duplicate_template_target");
-        if(definition.Operation is "create" or "update" or "upsert")
+        if(definition.Operation is "create" or "update" or "upsert" or "action")
         {
-            if(definition.Mappings.Count<1 || definition.Select is { Count: > 0 } ||
+            if(definition.Operation!="action" && definition.Mappings.Count<1 || definition.Select is { Count: > 0 } ||
                 definition.SavedQuery is not null) throw new ReadRejected(400,"invalid_write_template");
         }
         else if(definition.Mappings.Count!=0)
             throw new ReadRejected(400,"readonly_template_cannot_map_writes");
+        if(definition.Operation=="action" && !System.Text.RegularExpressions.Regex.IsMatch(
+            definition.ActionName??"", @"^[A-Za-z][A-Za-z0-9_]{0,79}$"))
+            throw new ReadRejected(400,"invalid_template_action");
+        if(definition.Operation!="action" && definition.ActionName is not null)
+            throw new ReadRejected(400,"unexpected_template_action");
         if(definition.Operation=="find" && (string.IsNullOrEmpty(definition.SavedQuery) ||
             !ReadQueryCompiler.ValidParam(definition.SavedQuery)))
             throw new ReadRejected(400,"invalid_find_template");
@@ -44,6 +49,18 @@ public static class TemplateMapper
             throw new ReadRejected(400,"read_projection_required");
         foreach(var mapping in definition.Mappings)
         {
+            if(definition.Operation=="action")
+            {
+                if(!ReadQueryCompiler.ValidParam(mapping.Target) ||
+                    mapping.Source is null && mapping.Constant is null ||
+                    mapping.Source is not null && mapping.Constant is not null ||
+                    mapping.Source is not null && definition.Inputs.All(i=>i.Name!=mapping.Source) ||
+                    mapping.Steps is {Count: > 8} ||
+                    (mapping.Steps??[]).Any(s=>!Steps.Contains(s.Op) || s.Argument?.Length>64 ||
+                        s.Op=="lookup_ref"))
+                    throw new ReadRejected(400,"invalid_action_mapping");
+                continue;
+            }
             var fieldName=mapping.Target.EndsWith("@odata.bind",StringComparison.Ordinal)
                 ? policy.Table.Relationships.FirstOrDefault(r=>
                     r.Kind=="ManyToOneRelationships" && r.ReferencingEntity==definition.EntityName

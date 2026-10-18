@@ -166,6 +166,22 @@ public static class DynamicsEndpoints
                 return ApiProblems.Create(http, 403, "write_grant_entity_denied", "Entity not approved.");
             }
         }
+        if (request.Operation=="action")
+        {
+            var writer=http.RequestServices.GetRequiredService<WriteAccessService>();
+            var policies=http.RequestServices.GetRequiredService<ActionPolicyRepository>();
+            WritePolicy scope;
+            try { scope=await writer.ResolveAsync(request.ConnectionCode,request.EntitySet,ct); }
+            catch(ReadRejected) {
+                return ApiProblems.Create(http,403,"action_entity_denied","Entity not enabled.");
+            }
+            var allowed=await policies.ListAsync(scope.Connection.Id,ct);
+            if(!allowed.Any(p=>p.EntityName==request.EntitySet && p.Enabled &&
+                request.AllowedFields.Contains("__action_"+p.ActionName,StringComparer.Ordinal) &&
+                request.AllowedFields.Where(f=>f!="__action_"+p.ActionName)
+                    .All(f=>p.Parameters.Any(param=>param.Name==f))))
+                return ApiProblems.Create(http,403,"action_grant_denied","Action not explicitly approved.");
+        }
         var grant = await repository.UpsertGrantAsync(request, ScopeSecurity.ActorId(actor), ct);
         return grant is null
             ? ApiProblems.Create(http, 404, "client_or_connection_not_found", "Client or connection not found.")

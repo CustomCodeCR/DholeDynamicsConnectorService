@@ -67,7 +67,7 @@ public sealed class Phase09MigrationTests
                 "title",false,new Dictionary<int,string>(),
                 names.Select(n=>new MetadataColumn(n,"String",true,true,true,false,
                     null,null,null,[],new Dictionary<int,string>(),[])).ToArray(),[])]);
-            await metadata.SaveAsync(first.Id,catalog,"test","ci",CancellationToken.None);
+            await metadata.SaveAsync(first.Id,catalog,"manual","ci",CancellationToken.None);
             Assert.True(await metadata.SetEntityAsync(first.Id,"incident",true,"ci",CancellationToken.None));
             foreach(var name in names)
                 Assert.True(await metadata.SetFieldAsync(first.Id,"incident",name,

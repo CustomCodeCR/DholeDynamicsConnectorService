@@ -217,6 +217,7 @@ public static class ServiceRegistration
         services.AddScoped<DeletePolicyRepository>();
         services.AddScoped<GenericWriteService>();
         services.AddScoped<TemplateRepository>();
+        services.AddScoped<LegacyMigrationService>();
         services.AddScoped<ExternalReferenceRepository>();
         services.AddScoped<TemplateOrchestrator>();
         services.AddScoped<ActionPolicyRepository>();

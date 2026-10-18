@@ -35,6 +35,7 @@ app.MapReadEndpoints();
 app.MapWriteEndpoints();
 app.MapTemplateEndpoints();
 app.MapAdminConsoleEndpoints();
+app.MapLegacyMigrationEndpoints();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();

@@ -78,6 +78,13 @@ public sealed class Phase11DurableJobTests
                 DateTimeOffset.UtcNow,CancellationToken.None);
             var item=await b.FindAsync(conn,claim.Id,CancellationToken.None);
             Assert.Equal("completed",item!.Status);
+            var priorCursor=await b.CursorAsync(conn,"quote",CancellationToken.None);
+            Assert.NotNull(priorCursor.Delta);
+            // Re-saving the same sync settings must NOT destroy a valid delta checkpoint.
+            await b.SetConfigAsync(conn,new SyncSettings("quote",true,"delta",true,15),
+                "ci",CancellationToken.None);
+            var keptCursor=await b.CursorAsync(conn,"quote",CancellationToken.None);
+            Assert.Equal(priorCursor.Delta,keptCursor.Delta);
             var snapshots=await b.CheckpointsAsync(conn,CancellationToken.None);
             Assert.NotNull(snapshots);
             await using(var count=new NpgsqlCommand("""
@@ -101,7 +108,24 @@ public sealed class Phase11DurableJobTests
                 "Evidence collected and reprocessing manually approved.",
                 CancellationToken.None);
             Assert.Equal("pending",replay.Status);
-            Assert.NotNull(await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None));
+            var unfinished=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
+            Assert.NotNull(unfinished);
+            // Simulate a process crash while a job is running; the durable lease may be reclaimed.
+            await using(var expire=new NpgsqlCommand("""
+                UPDATE dynamics.job_queue SET lease_until=now()-interval '5 seconds' WHERE id=@id
+                """,db))
+            {
+                expire.Parameters.AddWithValue("id",unfinished!.Id);
+                await expire.ExecuteNonQueryAsync();
+            }
+            var resumed=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
+            Assert.NotNull(resumed);
+            Assert.Equal(unfinished!.Id,resumed!.Id);
+            Assert.True(resumed.LeaseVersion>unfinished.LeaseVersion);
+            var stale=await Assert.ThrowsAsync<ReadRejected>(()=>
+                b.FinishAsync(unfinished,CancellationToken.None));
+            Assert.Equal("job_lease_lost",stale.Code);
+            await b.FinishAsync(resumed,CancellationToken.None);
             var stats=await b.StatsAsync(CancellationToken.None);
             Assert.True(stats.UnacknowledgedAlerts>=1);
         }

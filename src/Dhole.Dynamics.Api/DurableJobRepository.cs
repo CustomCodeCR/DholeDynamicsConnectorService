@@ -39,7 +39,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         {
             await using var guard=new NpgsqlCommand("""
                 SELECT 1 FROM dynamics.sync_config
-                WHERE connection_id=@connection AND entity_name=@entity AND enabled
+                WHERE connection_id=@connection AND entity_name=@entity AND enabled FOR UPDATE
                 """,db,tx);
             guard.Parameters.AddWithValue("connection",connection);
             guard.Parameters.AddWithValue("entity",entity);
@@ -189,8 +189,15 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         cmd.Parameters.AddWithValue("conn",connection);
         cmd.Parameters.AddWithValue("id",id);
         QueueJob? changed;
-        await using(var r=await cmd.ExecuteReaderAsync(ct))
+        try
+        {
+            await using var r=await cmd.ExecuteReaderAsync(ct);
             changed=await r.ReadAsync(ct)?Read(r):null;
+        }
+        catch(PostgresException ex) when(ex.SqlState==PostgresErrorCodes.UniqueViolation)
+        {
+            throw new ReadRejected(409,"job_conflicting_active_replay");
+        }
         if(changed is null)throw new ReadRejected(409,"job_not_dead_or_conflicting");
         await AuditAsync(db,tx,connection,actor,"job.replayed.manual",ct);
         await tx.CommitAsync(ct);
@@ -376,6 +383,16 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             throw new ReadRejected(400,"invalid_sync_configuration");
         await using var db=await data.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
+        // Serialize configuration mutation against manual enqueue and scheduled sync jobs.
+        await using(var locked=new NpgsqlCommand("""
+            SELECT 1 FROM dynamics.sync_config WHERE connection_id=@conn AND entity_name=@entity
+            FOR UPDATE
+            """,db,tx))
+        {
+            locked.Parameters.AddWithValue("conn",connection);
+            locked.Parameters.AddWithValue("entity",input.EntityName);
+            await locked.ExecuteScalarAsync(ct);
+        }
         await using(var busy=new NpgsqlCommand("""
             SELECT 1 FROM dynamics.job_queue WHERE connection_id=@conn AND kind='delta_sync'
               AND resource_key=@entity AND status IN ('pending','running') LIMIT 1

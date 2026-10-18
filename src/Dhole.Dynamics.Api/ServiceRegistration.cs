@@ -217,6 +217,10 @@ public static class ServiceRegistration
         services.AddScoped<TemplateRepository>();
         services.AddScoped<ExternalReferenceRepository>();
         services.AddScoped<TemplateOrchestrator>();
+        services.AddScoped<ActionPolicyRepository>();
+        services.AddHttpClient<BoundActionExecutor>(http => http.Timeout=TimeSpan.FromSeconds(45))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {AllowAutoRedirect=false,UseCookies=false});
         services.AddHttpClient<DataverseWriteTransport>(http => http.Timeout = TimeSpan.FromSeconds(60))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             { AllowAutoRedirect = false, UseCookies = false });

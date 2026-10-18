@@ -31,6 +31,7 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [Fase 06: CRUD, upsert, batch, ETag, retención e idempotencia](docs/PHASE_06_README.md)
 - [Fase 07: plantillas y mapeos configurables, preview y rollback](docs/PHASE_07_README.md)
 - [Fase 08: consola Vue de administración, búsqueda, editor, jobs, auditoría y configuración](docs/PHASE_08_README.md)
+- [Fase 09: inventario y migración declarativa del legado, cobertura y validación](docs/migration/PHASE_09_README.md)
 - [Modelo de amenazas](docs/security/THREAT_MODEL.md)
 - [CI Fase 02 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063682728) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063679477)
 

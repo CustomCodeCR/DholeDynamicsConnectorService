@@ -29,6 +29,7 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [Fase 04: metadatos Dataverse, snapshots, Choice, relaciones y allowlists](docs/PHASE_04_README.md)
 - [Fase 05: lectura/búsqueda tipada, paginación y consultas guardadas](docs/PHASE_05_README.md)
 - [Fase 06: CRUD, upsert, batch, ETag, retención e idempotencia](docs/PHASE_06_README.md)
+- [Fase 07: plantillas y mapeos configurables, preview y rollback](docs/PHASE_07_README.md)
 - [Modelo de amenazas](docs/security/THREAT_MODEL.md)
 - [CI Fase 02 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063682728) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063679477)
 

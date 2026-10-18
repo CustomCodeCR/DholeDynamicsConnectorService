@@ -91,7 +91,7 @@ export function useAdminApi() {
 export function safeCsv(rows: Array<Record<string, unknown>>, fields: string[]): string {
   const quote = (value: unknown): string => {
     const raw = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)
-    const safe = /^[=+\-@\t\r]/.test(raw) ? "'" + raw : raw
+    const safe = /^[=+\-@]/.test(raw.trimStart()) || /^[\t\r]/.test(raw) ? "'" + raw : raw
     return '"' + safe.replaceAll('"', '""') + '"'
   }
   return [fields.map(quote).join(','), ...rows.map(row =>

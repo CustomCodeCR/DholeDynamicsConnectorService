@@ -8,6 +8,7 @@ describe('admin console CSV export', () => {
     expect(output).toContain('"\' +cmd"'.replace(' ', ''))
     expect(output).toContain('"\'-4"')
     expect(output).toContain('"\'@user"')
+    expect(safeCsv([{value:'  =3+3'}],['value'])).toContain('"\'  =3+3"')
   })
   it('escapes delimiters, quotes and only includes approved columns', () => {
     expect(safeCsv([{visible:'a,"b"',secret:'never'}],['visible']))

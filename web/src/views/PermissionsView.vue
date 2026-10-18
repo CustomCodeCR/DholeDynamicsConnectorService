@@ -27,8 +27,10 @@ const fields=computed(()=>{
   if(!chosen.value)return []
   if(operation.value==='delete')return chosen.value.columns.filter(f=>f.logicalName===chosen.value!.primaryIdAttribute)
   if(operation.value==='action')return []
-  return api.allowedFields(chosen.value,policies.value,operation.value==='read'?'read':
+  const usable=api.allowedFields(chosen.value,policies.value,operation.value==='read'?'read':
     operation.value==='create'?'create':'update')
+  return operation.value==='upsert'?usable.filter(f=>
+    api.allowedFields(chosen.value!,policies.value,'create').some(c=>c.logicalName===f.logicalName)):usable
 })
 function resetFields(){checked.value=[]}
 async function reload(){

@@ -112,7 +112,7 @@ public sealed class TemplateRepository(NpgsqlDataSource database)
             UPDATE dynamics.integration_templates t
             SET active_version=@version,updated_at=now()
             WHERE connection_id=@connection AND name=@name
-              AND (@version IS NULL OR EXISTS(
+              AND (CAST(@version AS integer) IS NULL OR EXISTS(
                 SELECT 1 FROM dynamics.template_versions v
                 WHERE v.template_id=t.id AND v.version=@version))
             RETURNING id

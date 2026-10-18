@@ -130,7 +130,7 @@ public static class TemplateMapper
                 throw new ReadRejected(400,"template_input_size");
             if(spec.Min is decimal min || spec.Max is decimal)
             {
-                var number=val.ValueKind==JsonValueKind.String?val.GetString()!.Length :
+                decimal number=val.ValueKind==JsonValueKind.String?val.GetString()!.Length :
                     val.ValueKind==JsonValueKind.Number && val.TryGetDecimal(out var decimalValue)
                     ? decimalValue : 0;
                 if(spec.Min is decimal lower && number<lower ||
@@ -174,7 +174,7 @@ public static class TemplateMapper
             {
                 switch(step.Op)
                 {
-                    case "trim": current=Str(current).Trim() is var trimmed?JsonSerializer.SerializeToElement(trimmed):current; break;
+                    case "trim": current=JsonSerializer.SerializeToElement(Str(current).Trim()); break;
                     case "upper": current=JsonSerializer.SerializeToElement(Str(current).ToUpperInvariant()); break;
                     case "lower": current=JsonSerializer.SerializeToElement(Str(current).ToLowerInvariant()); break;
                     case "decimal":
@@ -217,8 +217,6 @@ public static class TemplateMapper
                         current=JsonSerializer.SerializeToElement(decimal.Round(converted,4,MidpointRounding.AwayFromZero));break;
                     case "lookup_ref":
                         var space=step.Argument!;
-                        var referencedEntity=step.OtherInput is not null && values.TryGetValue(step.OtherInput,out var ent)
-                            ? Str(ent):null;
                         // Target entity is a static part of the lookup operation, never inferred from user input.
                         // Resolved by callback from known relationship metadata.
                         var id=await resolve(space,Str(current),mapping.Target,ct);

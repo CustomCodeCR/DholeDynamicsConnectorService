@@ -49,6 +49,15 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         await ValidateDefinitionAsync(policy,revision.Definition,ct);
         var bound=TemplateMapper.ValidateInputs(revision.Definition.Inputs,inputs);
         var data=await BuildAsync(revision.Definition,policy,bound,ct);
+        if(revision.Definition.Operation=="action")
+        {
+            var action=await actionPolicy.FindAsync(policy.Connection.Id,
+                revision.Definition.EntityName,revision.Definition.ActionName!,ct)
+                ?? throw new ReadRejected(403,"action_policy_denied");
+            if(action.Parameters.Any(p=>!data.TryGetValue(p.Name,out var v) ||
+                !TemplateMapper.Typed(p.Type,v)))
+                throw new ReadRejected(400,"action_parameter_type");
+        }
         if(revision.Definition.Operation is "create" or "update" or "upsert")
         {
             var typed=await WriteValueCompiler.CompileAsync(policy,data,async(rel,id,token)=>
@@ -81,7 +90,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var definition=revision.Definition;
         var policy=await writerAccess.ResolveAsync(request.ConnectionCode,definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,definition,ct);
-        var input=TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
+        var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
+            ? new Dictionary<string,JsonElement>()
+            : TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
         var values=await BuildAsync(definition,policy,input,ct);
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))
@@ -163,6 +174,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             if(named is not {Enabled:true} ||
                 definition.Mappings.Count!=named.Parameters.Count ||
                 definition.Mappings.Any(m=>!named.Parameters.Any(p=>p.Name==m.Target)))
+                
                 throw new ReadRejected(403,"action_policy_denied");
         }
         if(definition.Operation=="find")

@@ -1,0 +1,74 @@
+openapi: 3.0.3
+info:
+  title: DholeDynamicsConnectorService - Fase 10 External Quote API
+  version: 1.0.0
+  description: M2M-only independent HTTPS contract. No gateway dependency.
+servers:
+  - url: https://connector.example
+    description: Replace with approved staging host, never a client-supplied URL.
+security:
+  - machineToken: []
+paths:
+  /api/v1/dhole/quotes:
+    post:
+      operationId: createConfirmedDholeQuote
+      summary: Create a confirmed quote exactly once by Dhole rate ID
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, pattern: '^dhole-rate-[0-9a-f]{32}$'}
+        - name: X-Correlation-ID
+          in: header
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DholeQuoteTemplateRequest'}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/DholeQuoteTemplateResult'}}}}
+        '200': {description: Existing confirmed link, content: {application/json: {schema: {$ref: '#/components/schemas/DholeQuoteTemplateResult'}}}}
+        '400': {description: Validation failure}
+        '401': {description: Missing or invalid app token}
+        '403': {description: Scope or grant denied}
+        '409': {description: Pending/ambiguous creation; manual reconciliation required}
+        '429': {description: M2M grant quota exhausted}
+        '502': {description: Upstream error, do not automatically re-POST}
+  /api/v1/dhole/quotes/links/{rateId}:
+    get:
+      operationId: getDholeQuoteLink
+      summary: Read an authorized local-to-Dataverse quote link
+      parameters:
+        - {name: rateId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: connectionCode, in: query, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Link found, content: {application/json: {schema: {$ref: '#/components/schemas/DholeQuoteTemplateResult'}}}}
+        '403': {description: Connection or field grant denied}
+        '404': {description: Link not found}
+components:
+  securitySchemes:
+    machineToken: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    DholeQuoteTemplateRequest:
+      type: object
+      required: [connectionCode, dholeRateId, confirmed, inputs]
+      additionalProperties: false
+      properties:
+        connectionCode: {type: string}
+        dholeRateId: {type: string, format: uuid}
+        confirmed: {type: boolean, enum: [true]}
+        inputs:
+          type: object
+          description: Typed fields declared by active CreateQuote template; optional nulls omitted.
+          additionalProperties: true
+    DholeQuoteTemplateResult:
+      type: object
+      required: [dholeRateId, status, alreadyExisted]
+      properties:
+        dholeRateId: {type: string, format: uuid}
+        dynamicsQuoteId: {type: string, format: uuid, nullable: true}
+        status: {type: string, enum: [succeeded, requires_reconciliation]}
+        alreadyExisted: {type: boolean}
+        operationId: {type: string, format: uuid, nullable: true}
+        quoteNumber: {type: string, nullable: true}

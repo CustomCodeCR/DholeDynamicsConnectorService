@@ -5,6 +5,7 @@
   <Project Path="src/Dhole.Dynamics.Infrastructure/Dhole.Dynamics.Infrastructure.csproj" />
   <Project Path="src/Dhole.Dynamics.Persistence/Dhole.Dynamics.Persistence.csproj" />
   <Project Path="src/Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
+  <Project Path="src/Dhole.Dynamics.Client/Dhole.Dynamics.Client.csproj" />
   <Project Path="src/Dhole.Dynamics.Workers/Dhole.Dynamics.Workers.csproj" />
   <Project Path="src/Dhole.Dynamics.Tools/Dhole.Dynamics.Tools.csproj" />
   <Project Path="tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj" />

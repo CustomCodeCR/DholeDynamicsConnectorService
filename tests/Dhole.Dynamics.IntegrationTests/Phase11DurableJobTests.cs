@@ -117,6 +117,10 @@ public sealed class Phase11DurableJobTests
             var scheduled=(await b.ListAsync(conn,30,CancellationToken.None))
                 .Single(j=>j.Kind=="metadata_refresh");
             Assert.Equal("pending",scheduled.Status);
+            var scheduledClaim=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
+            Assert.NotNull(scheduledClaim);
+            Assert.Equal(scheduled.Id,scheduledClaim!.Id);
+            await b.FinishAsync(scheduledClaim,CancellationToken.None);
             var snapshots=await b.CheckpointsAsync(conn,CancellationToken.None);
             Assert.NotNull(snapshots);
             await using(var count=new NpgsqlCommand("""

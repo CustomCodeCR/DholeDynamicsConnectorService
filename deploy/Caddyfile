@@ -14,5 +14,5 @@
   request_body {
     max_size 4MB
   }
-  reverse_proxy admin:80
+  reverse_proxy admin:8080
 }

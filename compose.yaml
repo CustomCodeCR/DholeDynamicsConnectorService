@@ -59,7 +59,7 @@ services:
       dockerfile: web/Dockerfile
     depends_on: [api]
     ports:
-      - "127.0.0.1:8081:80"
+      - "127.0.0.1:8081:8080"
     networks: [connector_internal]
 networks:
   connector_internal:

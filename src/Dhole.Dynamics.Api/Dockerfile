@@ -3,6 +3,7 @@ WORKDIR /src
 COPY Directory.Build.props DholeDynamicsConnectorService.slnx ./
 COPY src/ ./src/
 COPY sql/ ./sql/
+COPY legacy/ ./legacy/
 RUN dotnet restore src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj
 RUN dotnet publish src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj -c Release --no-restore -o /out /p:UseAppHost=false
 

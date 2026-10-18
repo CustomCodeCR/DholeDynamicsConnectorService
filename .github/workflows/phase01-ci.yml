@@ -72,7 +72,7 @@ jobs:
       - name: Verify migration replay
         run: |
           docker compose run --rm migrate
-          test "$(docker compose exec -T postgres psql -U connector_app -d dhole_dynamics_connector -Atc 'SELECT count(*) FROM dynamics.schema_migrations')" = "6"
+          test "$(docker compose exec -T postgres psql -U connector_app -d dhole_dynamics_connector -Atc 'SELECT count(*) FROM dynamics.schema_migrations')" = "7"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -81,7 +81,7 @@ jobs:
           export PHASE2_TEST_DB_CONNECTION="Host=127.0.0.1;Port=55432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD}"
           export PHASE2_SQL_DIR="$GITHUB_WORKSPACE/sql"
           dotnet test tests/Dhole.Dynamics.IntegrationTests/Dhole.Dynamics.IntegrationTests.csproj -c Release \
-            --filter 'FullyQualifiedName~Phase02DatabaseTests|FullyQualifiedName~Phase03GrantTests|FullyQualifiedName~Phase04MetadataTests|FullyQualifiedName~Phase05ReadTests|FullyQualifiedName~Phase06WriteTests' \
+            --filter 'FullyQualifiedName~Phase02DatabaseTests|FullyQualifiedName~Phase03GrantTests|FullyQualifiedName~Phase04MetadataTests|FullyQualifiedName~Phase05ReadTests|FullyQualifiedName~Phase06WriteTests|FullyQualifiedName~Phase07TemplateTests' \
             --logger 'console;verbosity=normal'
       - name: Install backup and encryption tooling
         run: |
@@ -107,7 +107,7 @@ jobs:
           export RESTORE_DB_NAME=dhole_dynamics_connector_restore_ci
           export ALLOW_SANDBOX_RESTORE=YES
           bash scripts/restore-sandbox.sh
-          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.schema_migrations')" = "6"
+          test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.schema_migrations')" = "7"
           test "$(psql -X -At -d "$RESTORE_DB_NAME" -c 'SELECT count(*) FROM dynamics.secret_rotation_runs')" -ge 1
           if bash scripts/restore-sandbox.sh; then echo 'Unsafe repeated restore accepted'; exit 1; fi
           rm -f "$BACKUP_FILE" "$AGE_IDENTITY_FILE"

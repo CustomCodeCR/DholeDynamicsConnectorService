@@ -5,7 +5,7 @@ namespace Dhole.Dynamics.Tools;
 
 public static class DatabaseMigrator
 {
-    private static readonly string[] Migrations = ["001_init.sql", "002_secret_rotation.sql", "003_api_access.sql", "004_metadata_catalog.sql", "005_saved_queries.sql", "006_generic_writes.sql"];
+    private static readonly string[] Migrations = ["001_init.sql", "002_secret_rotation.sql", "003_api_access.sql", "004_metadata_catalog.sql", "005_saved_queries.sql", "006_generic_writes.sql", "007_integration_templates.sql"];
 
     public static async Task ApplyAsync(NpgsqlDataSource dataSource, string directory, CancellationToken ct = default)
     {

@@ -55,47 +55,46 @@ public sealed class Phase10QuoteTests
 
     private static Dhole.Dynamics.Api.WritePolicy QuotePolicy()
     {
-        using var noOp = new System.IO.MemoryStream();
         var columns = new[]
         {
-            new Dhole.Dynamics.Domain.MetadataColumn("quoteid","Uniqueidentifier",true,false,false,false,
+            new Dhole.Dynamics.Contracts.MetadataColumn("quoteid","Uniqueidentifier",true,false,false,false,
                 null,null,null,[],new Dictionary<int,string>(),[]),
-            new Dhole.Dynamics.Domain.MetadataColumn("name","String",true,true,true,false,
+            new Dhole.Dynamics.Contracts.MetadataColumn("name","String",true,true,true,false,
                 null,null,null,[],new Dictionary<int,string>(),[]),
-            new Dhole.Dynamics.Domain.MetadataColumn("customerid","Customer",true,true,true,false,
+            new Dhole.Dynamics.Contracts.MetadataColumn("customerid","Customer",true,true,true,false,
                 null,null,null,[],new Dictionary<int,string>(),[]),
-            new Dhole.Dynamics.Domain.MetadataColumn("transactioncurrencyid","Lookup",true,true,true,false,
+            new Dhole.Dynamics.Contracts.MetadataColumn("transactioncurrencyid","Lookup",true,true,true,false,
                 null,null,null,[],new Dictionary<int,string>(),[]),
-            new Dhole.Dynamics.Domain.MetadataColumn("new_preestado","Picklist",true,true,true,false,
+            new Dhole.Dynamics.Contracts.MetadataColumn("new_preestado","Picklist",true,true,true,false,
                 null,null,null,[],new Dictionary<int,string>(),[
-                    new Dhole.Dynamics.Domain.MetadataChoice(10,new Dictionary<int,string>())]),
-            new Dhole.Dynamics.Domain.MetadataColumn("new_flete","Money",true,true,true,false,
+                    new Dhole.Dynamics.Contracts.MetadataChoice(10,new Dictionary<int,string>())]),
+            new Dhole.Dynamics.Contracts.MetadataColumn("new_flete","Money",true,true,true,false,
                 null,2,null,[],new Dictionary<int,string>(),[]),
-            new Dhole.Dynamics.Domain.MetadataColumn("msdyn_invoicesetuptotals","Money",true,false,false,true,
+            new Dhole.Dynamics.Contracts.MetadataColumn("msdyn_invoicesetuptotals","Money",true,false,false,true,
                 null,2,null,[],new Dictionary<int,string>(),[])
         };
         var rel = new[]
         {
-            new Dhole.Dynamics.Domain.MetadataRelationship("quote_account","ManyToOneRelationships",
+            new Dhole.Dynamics.Contracts.MetadataRelationship("quote_account","ManyToOneRelationships",
                 "account","quote","accountid","customerid","customerid_account"),
-            new Dhole.Dynamics.Domain.MetadataRelationship("quote_currency","ManyToOneRelationships",
+            new Dhole.Dynamics.Contracts.MetadataRelationship("quote_currency","ManyToOneRelationships",
                 "transactioncurrency","quote","transactioncurrencyid","transactioncurrencyid")
         };
-        var quote = new Dhole.Dynamics.Domain.MetadataTable("quote","quotes","quoteid","name",true,
+        var quote = new Dhole.Dynamics.Contracts.MetadataTable("quote","quotes","quoteid","name",true,
             new Dictionary<int,string>(), columns, rel);
-        var account = new Dhole.Dynamics.Domain.MetadataTable("account","accounts","accountid","name",true,
+        var account = new Dhole.Dynamics.Contracts.MetadataTable("account","accounts","accountid","name",true,
             new Dictionary<int,string>(),[],[]);
-        var currency = new Dhole.Dynamics.Domain.MetadataTable("transactioncurrency","transactioncurrencies",
+        var currency = new Dhole.Dynamics.Contracts.MetadataTable("transactioncurrency","transactioncurrencies",
             "transactioncurrencyid","currencyname",true,new Dictionary<int,string>(),[],[]);
         var conn = new Dhole.Dynamics.Domain.DynamicsConnection(Guid.NewGuid(),"sandbox",
             "https://ci.crm.dynamics.com",Guid.NewGuid(),Guid.NewGuid(),null,new byte[12],
             new byte[2],new byte[16],1,DateTimeOffset.UtcNow);
-        var permissions = new Dhole.Dynamics.Domain.MetadataPolicies([new("quote",true)],
-            columns.Select(c => new Dhole.Dynamics.Domain.MetadataFieldPolicy("quote",c.LogicalName,
+        var permissions = new Dhole.Dynamics.Contracts.MetadataPolicies([new("quote",true)],
+            columns.Select(c => new Dhole.Dynamics.Contracts.MetadataFieldPolicy("quote",c.LogicalName,
                 true,c.CanRead,c.CanCreate,c.CanUpdate,MetadataRepository.Fingerprint(c))).ToArray());
-        var snapshot = new Dhole.Dynamics.Domain.MetadataSnapshot(Guid.NewGuid(),conn.Id,1,
+        var snapshot = new Dhole.Dynamics.Contracts.MetadataSnapshot(Guid.NewGuid(),conn.Id,1,
             DateTimeOffset.UtcNow,"hash","ci",
-            new Dhole.Dynamics.Domain.MetadataCatalog([quote,account,currency]));
+            new Dhole.Dynamics.Contracts.MetadataCatalog([quote,account,currency]));
         return new(conn,snapshot,quote,permissions);
     }
 

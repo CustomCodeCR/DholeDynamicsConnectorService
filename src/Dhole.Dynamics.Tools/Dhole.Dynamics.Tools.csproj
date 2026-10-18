@@ -19,5 +19,6 @@
     <Content Include="../../sql/005_saved_queries.sql" Link="migrations/005_saved_queries.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/006_generic_writes.sql" Link="migrations/006_generic_writes.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/007_integration_templates.sql" Link="migrations/007_integration_templates.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../sql/008_admin_console.sql" Link="migrations/008_admin_console.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

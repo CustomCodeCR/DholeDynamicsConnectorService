@@ -14,6 +14,7 @@ builder.Services.AddOpenApi("admin-v1");
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationMiddleware>();
+app.UseMiddleware<RequestDiagnosticsMiddleware>();
 app.Use(async (http, next) =>
 {
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";

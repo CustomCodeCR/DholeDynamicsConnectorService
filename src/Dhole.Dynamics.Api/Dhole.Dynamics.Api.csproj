@@ -22,4 +22,7 @@
   <ItemGroup>
     <Content Include="../../sql/001_init.sql" Link="sql/001_init.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../legacy/phase09-v1.json" LogicalName="Dhole.Legacy.Phase09.Bundle" />
+  </ItemGroup>
 </Project>

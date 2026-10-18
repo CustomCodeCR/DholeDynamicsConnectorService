@@ -20,7 +20,8 @@ public sealed record TemplatePreview(int Version, string Operation, string Entit
     int MetadataVersion, bool WouldSend = false);
 public sealed record TemplateInputs(string ConnectionCode, IReadOnlyDictionary<string,JsonElement> Inputs,
     Guid? RecordId = null, string? ETag = null, IReadOnlyDictionary<string,JsonElement>? Keys = null,
-    string? Cursor = null);
+    string? Cursor = null, bool ConfirmDelete = false, string? DeleteReason = null);
 public sealed record ReferenceWrite(string ReferenceSpace, string InternalId, string EntityName, Guid DataverseId);
 public sealed record ReferenceResult(string ReferenceSpace, string InternalId, string EntityName, Guid DataverseId);
 public sealed record TemplateExport(string Format, string Name, IntegrationTemplate Definition);
+public sealed record TemplateActivation(int? Version);

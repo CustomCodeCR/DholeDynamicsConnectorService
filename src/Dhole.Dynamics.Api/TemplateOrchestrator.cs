@@ -1,0 +1,165 @@
+using System.Security.Claims;
+using System.Text.Json;
+using Dhole.Dynamics.Contracts;
+
+namespace Dhole.Dynamics.Api;
+
+/// <summary>Authoritative template entry point: revalidates active snapshot and policies for every invocation.</summary>
+public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalReferenceRepository references,
+    WriteAccessService writerAccess,GenericWriteService writer,ReadSearchService reader,
+    SavedQueryRepository saved,ReadAccessRepository readerAccess)
+{
+    public async Task<TemplateSummary> CreateDraftAsync(string code,string name,
+        IntegrationTemplate definition,string actor,CancellationToken ct)
+    {
+        var context=await writerAccess.ResolveAsync(code,definition.EntityName,ct);
+        await ValidateDefinitionAsync(context,definition,ct);
+        return await templates.NewRevisionAsync(context.Connection.Id,name,definition,
+            context.Snapshot.Version,actor,ct);
+    }
+
+    public async Task<TemplateSummary> ActivateAsync(string code,string name,int? version,
+        string actor,CancellationToken ct)
+    {
+        var conn=await readerAccess.ConnectionAsync(code,ct);
+        var template=await templates.FindAsync(conn.Id,name,ct)
+            ?? throw new ReadRejected(404,"template_missing");
+        if(version is int requested)
+        {
+            var revision=template.History.SingleOrDefault(r=>r.Version==requested)
+                ?? throw new ReadRejected(404,"template_version_missing");
+            var context=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
+            await ValidateDefinitionAsync(context,revision.Definition,ct);
+        }
+        if(!await templates.SetActiveAsync(conn.Id,name,version,actor,ct))
+            throw new ReadRejected(409,"template_version_missing");
+        return (await templates.FindAsync(conn.Id,name,ct))!;
+    }
+
+    public async Task<TemplatePreview> PreviewAsync(string code,string name,int version,
+        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct)
+    {
+        var conn=await readerAccess.ConnectionAsync(code,ct);
+        var template=await templates.FindAsync(conn.Id,name,ct)
+            ?? throw new ReadRejected(404,"template_missing");
+        var revision=template.History.SingleOrDefault(x=>x.Version==version)
+            ?? throw new ReadRejected(404,"template_version_missing");
+        var policy=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
+        await ValidateDefinitionAsync(policy,revision.Definition,ct);
+        var bound=TemplateMapper.ValidateInputs(revision.Definition.Inputs,inputs);
+        var data=await BuildAsync(revision.Definition,policy,bound,ct);
+        if(revision.Definition.Operation is "create" or "update" or "upsert")
+        {
+            var typed=await WriteValueCompiler.CompileAsync(policy,data,async(rel,id,token)=>
+            {
+                // Preview validates relationship and approval but NEVER invokes Dataverse or consumes M2M quotas.
+                if(rel.ReferencedEntity is null)throw new ReadRejected(400,"invalid_template_relation");
+                var target=await writerAccess.ResolveAsync(code,rel.ReferencedEntity,token);
+                if(!target.Permissions.Fields.Any(f=>f.EntityName==rel.ReferencedEntity
+                    && f.FieldName==target.Table.PrimaryIdAttribute && f.Enabled && f.CanRead))
+                    throw new ReadRejected(403,"preview_lookup_target_denied");
+            },ct);
+            return new(version,revision.Definition.Operation,revision.Definition.EntityName,
+                typed.Payload.ToDictionary(x=>x.Key,x=>JsonSerializer.SerializeToElement(x.Value)),
+                typed.Fields,policy.Snapshot.Version);
+        }
+        return new(version,revision.Definition.Operation,revision.Definition.EntityName,data,
+            revision.Definition.Select??[],policy.Snapshot.Version);
+    }
+
+    public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
+        string? idempotencyKey,CancellationToken ct)
+    {
+        var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
+        var template=await templates.FindAsync(conn.Id,name,ct);
+        if(template?.ActiveVersion is not int active)
+            throw new ReadRejected(404,"active_template_missing");
+        var revision=template.History.SingleOrDefault(r=>r.Version==active)
+            ?? throw new ReadRejected(409,"active_revision_missing");
+        var definition=revision.Definition;
+        var policy=await writerAccess.ResolveAsync(request.ConnectionCode,definition.EntityName,ct);
+        await ValidateDefinitionAsync(policy,definition,ct);
+        var input=TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
+        var values=await BuildAsync(definition,policy,input,ct);
+        if(definition.Operation is "create" or "update" or "upsert" or "delete" &&
+            !WriteLedger.ValidKey(idempotencyKey))
+            throw new ReadRejected(400,"idempotency_key_required");
+        return definition.Operation switch
+        {
+            "create" => await writer.CreateAsync(actor,definition.EntityName,
+                new GenericCreateRequest(request.ConnectionCode,values),
+                idempotencyKey!,ct),
+            "update" => request.RecordId is Guid id
+                ? await writer.PatchAsync(actor,definition.EntityName,id,
+                    new GenericPatchRequest(request.ConnectionCode,values),
+                    idempotencyKey!,request.ETag,ct)
+                : throw new ReadRejected(400,"record_id_required"),
+            "upsert" => await writer.UpsertAsync(actor,definition.EntityName,
+                new GenericUpsertRequest(request.ConnectionCode,
+                    request.Keys??throw new ReadRejected(400,"alternate_key_required"),values),
+                idempotencyKey!,ct),
+            "delete" => request.RecordId is Guid id
+                ? await writer.DeleteAsync(actor,definition.EntityName,id,
+                    new GenericDeleteRequest(request.ConnectionCode,request.ConfirmDelete,
+                        request.DeleteReason??""),
+                    idempotencyKey!,request.ETag,ct)
+                : throw new ReadRejected(400,"record_id_required"),
+            "read" => request.RecordId is Guid id
+                ? await reader.ByIdAsync(actor,request.ConnectionCode,definition.EntityName,id,
+                    definition.Select??[],ct)
+                : throw new ReadRejected(400,"record_id_required"),
+            "find" => await ExecuteFindAsync(actor,definition,request,input,ct),
+            _ => throw new ReadRejected(400,"unsupported_template_operation")
+        };
+    }
+
+    private async Task<ReadSearchResponse> ExecuteFindAsync(ClaimsPrincipal actor,
+        IntegrationTemplate definition,TemplateInputs req,
+        IReadOnlyDictionary<string,JsonElement> parameters,CancellationToken ct)
+    {
+        var context=await readerAccess.ResolveAsync(req.ConnectionCode,definition.EntityName,ct);
+        var stored=await saved.FindAsync(context.Connection.Id,definition.SavedQuery!,ct);
+        if(stored is not { Enabled:true } || stored.EntityName!=definition.EntityName)
+            throw new ReadRejected(403,"saved_view_disabled");
+        var spec=string.IsNullOrWhiteSpace(req.Cursor)
+            ? ReadSavedQueryBinder.Bind(stored.Query,stored.Parameters,parameters) : null;
+        // Run the saved query through the same M2M fields, scope, quotas and cursor enforcement as Phase 05.
+        return await reader.SearchAsync(actor,definition.EntityName,
+            new ReadSearchRequest(req.ConnectionCode,spec,req.Cursor),ct,
+            definition.SavedQuery);
+    }
+
+    private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
+        IntegrationTemplate definition,WritePolicy policy,
+        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct) =>
+        await TemplateMapper.BuildAsync(definition,inputs,policy.Connection.Id,
+            async(space,internalId,navigation,token)=>
+            {
+                var relation=policy.Table.Relationships.FirstOrDefault(r=>
+                    r.Kind=="ManyToOneRelationships" &&
+                    r.ReferencingNavigation+"@odata.bind"==navigation &&
+                    r.ReferencingEntity==policy.Table.LogicalName);
+                if(relation?.ReferencedEntity is null)
+                    throw new ReadRejected(400,"unapproved_reference_relation");
+                var entry=await references.FindAsync(policy.Connection.Id,space,internalId,
+                    relation.ReferencedEntity,token);
+                return entry?.DataverseId;
+            },ct);
+
+    private async Task ValidateDefinitionAsync(WritePolicy policy,
+        IntegrationTemplate definition,CancellationToken ct)
+    {
+        TemplateMapper.ValidateDefinition(definition,policy);
+        if(definition.Operation=="find")
+        {
+            var existing=await saved.FindAsync(policy.Connection.Id,definition.SavedQuery!,ct);
+            if(existing is not { Enabled:true } || existing.EntityName!=definition.EntityName)
+                throw new ReadRejected(403,"saved_view_disabled");
+            // Preserve exact type/required match, don't silently treat arbitrary parameters as fields.
+            if(existing.Parameters.Count!=definition.Inputs.Count ||
+                existing.Parameters.Any(p=>!definition.Inputs.Any(i=>i.Name==p.Name &&
+                    i.Type==p.Type && i.Required==p.Required)))
+                throw new ReadRejected(400,"saved_view_parameters_mismatch");
+        }
+    }
+}

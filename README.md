@@ -36,3 +36,8 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [CI Fase 09 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39092263116) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39092266578)
 
 Las fases 01–09 han sido validadas en CI, incluidas pruebas con PostgreSQL real. Fase 09 inventaría las 88 rutas legacy (87 GET, 1 PATCH): 78 candidatos configurables y 10 incompatibilidades de fuente justificadas. Ningún candidato representa paridad Dataverse productiva sin validación de metadatos y grants en staging. Las pruebas del proyecto no sustituyen una prueba E2E con Microsoft Entra y Dataverse en staging ni implican un despliegue productivo. Antes de conectar datos reales, resolver controles pendientes de F00, incluida la **revocación de credenciales históricas** del repositorio legado. No se inició Fase 10.
+
+
+## Fase 12 — release independiente (sin go-live automático)
+
+La imagen de release utiliza [Compose aislado](compose.release.yaml), [Caddy HTTPS](deploy/Caddyfile), [seguridad de CodeQL + preflight](.github/workflows/release-security.yml) y workflows **manuales** para publicar imágenes y desplegar con revisión. Véase [estado/gates de Fase 12](docs/PHASE_12_README.md), [manual Admin](docs/manuals/PHASE_12_ADMIN_MANUAL.md) y [manual de integración](docs/manuals/PHASE_12_CONSUMER_MANUAL.md). Staging E2E con Microsoft Entra/Dataverse es requisito pendiente hasta validación con credenciales y conexión reales. Producción no se despliega ni habilita escrituras sin autorización explícita.

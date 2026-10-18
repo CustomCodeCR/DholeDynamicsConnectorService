@@ -10,7 +10,7 @@
 - **0 rutas declaradas paridad productiva:** la validación final contra los metadatos reales, Choices, valores de estado, entidades/relationship names y permisos de la organización destino sigue pendiente. Los 79 candidatos no se activan si faltan campos o difieren sus tipos.
 - No se excluyó ninguna ruta por simple semejanza de nombre. Las nueve incompatibilidades tienen causa y línea de origen en la matriz; su remediación necesita corrección explícita y nueva revisión del paquete.
 
-**Matriz de cobertura por ruta:** [PHASE09_COVERAGE.csv](PHASE09_COVERAGE.csv). **Datos fuente:** [LEGACY_COVERAGE.csv](LEGACY_COVERAGE.csv) y [LEGACY_INVENTORY.md](LEGACY_INVENTORY.md). El paquete tipado está en [legacy/phase09-v1.json](../../legacy/phase09-v1.json).
+**Matriz de cobertura por ruta:** [PHASE09_COVERAGE.csv](PHASE09_COVERAGE.csv). **Datos fuente:** [LEGACY_COVERAGE.csv](LEGACY_COVERAGE.csv) y [LEGACY_INVENTORY.md](LEGACY_INVENTORY.md). El paquete normaliza nombres de entity set del controlador al nombre lógico de Dataverse: `incidents→incident`, `accounts→account`, `quotes→quote`, `competitors→competitor` y `salesliteratures→salesliterature`. Además, los lookup OData `_campo_value` se materializan exclusivamente desde los atributos Lookup/Customer/Owner que realmente descubra Fase 04, como campos derivados **solo lectura**, cada uno sujeto a autorización independiente. El paquete tipado está en [legacy/phase09-v1.json](../../legacy/phase09-v1.json).
 
 ## Familias
 

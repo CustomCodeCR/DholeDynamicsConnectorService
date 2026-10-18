@@ -113,6 +113,22 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                     NestedString(item, "RequiredLevel", "Value"), precision, defaultValue, targets,
                     Labels(item, "DisplayName"), opts, currencyPrecisionSource));
             }
+            // Dataverse returns lookup identifiers as read-only OData shadow properties
+            // (_<logical lookup name>_value). They are not AttributeMetadata entries.
+            // Materialize ONLY shadows derived from real readable Lookup/Customer/Owner attributes.
+            // They require an independent metadata-field allowlist and per-client read grant.
+            foreach (var lookup in columns.Where(c => c.CanRead &&
+                c.Type is "Lookup" or "Customer" or "Owner").ToArray())
+            {
+                var virtualName = "_" + lookup.LogicalName + "_value";
+                if (virtualName.Length > 128 || columns.Any(c => c.LogicalName == virtualName))
+                    continue;
+                columns.Add(new MetadataColumn(virtualName, "Uniqueidentifier",
+                    true, false, false, true, lookup.RequiredLevel, null, null,
+                    lookup.LookupTargets, lookup.Labels, [], null));
+            }
+            if (columns.Count > MaxColumns)
+                throw new InvalidOperationException("Metadata lookup projections exceed field limit.");
             var relations = new List<MetadataRelationship>();
             foreach (var relKind in new[] { "OneToManyRelationships", "ManyToOneRelationships", "ManyToManyRelationships" })
             {

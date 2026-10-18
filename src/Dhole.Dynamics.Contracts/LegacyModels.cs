@@ -6,7 +6,7 @@ public sealed record LegacyEndpoint(string Id, string Method, string Route,
     string Family, string EntityName, int SourceLine, string Status,
     IReadOnlyList<string> Reasons, string? QueryName, string TemplateName,
     ReadSpec? Query, IReadOnlyList<ReadParamDefinition> ParameterSchema,
-    IntegrationTemplate? Template);
+    IntegrationTemplate? Template, string? SourceEntitySet = null);
 public sealed record LegacyBundle(string Format, LegacySource Source,
     IReadOnlyList<LegacyEndpoint> Entries);
 public sealed record LegacyMigrationItem(string Id, string Route, string Family,

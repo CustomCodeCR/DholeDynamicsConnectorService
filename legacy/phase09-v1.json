@@ -16,7 +16,7 @@
       "method": "GET",
       "route": "/dynamics/listarId",
       "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 16,
       "legacyParameters": [
         "name"
@@ -90,7 +90,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -101,14 +101,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-001"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-002",
       "method": "GET",
       "route": "/dynamics/listarPo",
       "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 62,
       "legacyParameters": [
         "name"
@@ -182,7 +183,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -193,14 +194,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-002"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-003",
       "method": "GET",
       "route": "/dynamics/listarBcf",
       "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 108,
       "legacyParameters": [
         "name"
@@ -273,7 +275,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -284,14 +286,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-003"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-004",
       "method": "GET",
       "route": "/dynamics/listarContenedor",
       "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 154,
       "legacyParameters": [
         "name"
@@ -364,7 +367,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -375,14 +378,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-004"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-005",
       "method": "GET",
       "route": "/dynamics/listarClienteF",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 200,
       "legacyParameters": [
         "name"
@@ -509,7 +513,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -520,14 +524,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-005"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-006",
       "method": "GET",
       "route": "/dynamics/listarClienteA",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 246,
       "legacyParameters": [
         "name"
@@ -659,7 +664,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -670,14 +675,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-006"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-007",
       "method": "GET",
       "route": "/dynamics/listarClienteNombre",
       "family": "Clientes y trámites",
-      "entityName": "accounts",
+      "entityName": "account",
       "sourceLine": 292,
       "legacyParameters": [
         "name"
@@ -713,7 +719,7 @@
         }
       ],
       "template": {
-        "entityName": "accounts",
+        "entityName": "account",
         "operation": "find",
         "inputs": [
           {
@@ -724,14 +730,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-007"
-      }
+      },
+      "sourceEntitySet": "accounts"
     },
     {
       "id": "LEG-008",
       "method": "GET",
       "route": "/dynamics/listarClienteFiltroA",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 338,
       "legacyParameters": [
         "name",
@@ -769,14 +776,15 @@
           "required": true
         }
       ],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-009",
       "method": "GET",
       "route": "/dynamics/listarClienteFiltroF",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 384,
       "legacyParameters": [
         "name",
@@ -814,14 +822,15 @@
           "required": true
         }
       ],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-010",
       "method": "GET",
       "route": "/dynamics/listarClienteIdtra",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 430,
       "legacyParameters": [
         "name"
@@ -917,7 +926,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -928,14 +937,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-010"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-011",
       "method": "GET",
       "route": "/dynamics/listarClienteBcf",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 476,
       "legacyParameters": [
         "name"
@@ -1031,7 +1041,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1042,14 +1052,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-011"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-012",
       "method": "GET",
       "route": "/dynamics/listarClienteContenedor",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 522,
       "legacyParameters": [
         "name"
@@ -1145,7 +1156,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1156,14 +1167,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-012"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-013",
       "method": "GET",
       "route": "/dynamics/listarClientePo",
       "family": "Clientes y trámites",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 568,
       "legacyParameters": [
         "name"
@@ -1259,7 +1271,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1270,14 +1282,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-013"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-014",
       "method": "GET",
       "route": "/dynamics/listarEjecutivoFiltroA",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 614,
       "legacyParameters": [
         "name"
@@ -1311,14 +1324,15 @@
           "required": true
         }
       ],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-015",
       "method": "GET",
       "route": "/dynamics/listarEjecutivoFiltroF",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 660,
       "legacyParameters": [
         "name"
@@ -1395,7 +1409,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1406,14 +1420,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-015"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-016",
       "method": "GET",
       "route": "/dynamics/listarEjecutivoIdtra",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 706,
       "legacyParameters": [
         "name",
@@ -1528,7 +1543,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1544,14 +1559,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-016"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-017",
       "method": "GET",
       "route": "/dynamics/listarEjecutivobCF",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 752,
       "legacyParameters": [
         "name",
@@ -1666,7 +1682,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1682,14 +1698,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-017"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-018",
       "method": "GET",
       "route": "/dynamics/listarEjecutivoContenedor",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 798,
       "legacyParameters": [
         "name",
@@ -1804,7 +1821,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1820,14 +1837,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-018"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-019",
       "method": "GET",
       "route": "/dynamics/listarEjecutivoPo",
       "family": "Ejecutivos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 844,
       "legacyParameters": [
         "name",
@@ -1942,7 +1960,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -1958,14 +1976,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-019"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-020",
       "method": "GET",
       "route": "/dynamics/VistaGeneral",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 890,
       "legacyParameters": [
         "name",
@@ -2035,14 +2054,15 @@
           "required": true
         }
       ],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-021",
       "method": "GET",
       "route": "/dynamics/Contenedores",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 936,
       "legacyParameters": [
         "name",
@@ -2156,7 +2176,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2177,14 +2197,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-021"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-022",
       "method": "GET",
       "route": "/dynamics/Precios",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 982,
       "legacyParameters": [
         "name",
@@ -2276,7 +2297,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2297,14 +2318,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-022"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-023",
       "method": "GET",
       "route": "/dynamics/listarRJIdtra",
       "family": "Trámites RJ",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1028,
       "legacyParameters": [
         "name"
@@ -2400,7 +2422,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2411,14 +2433,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-023"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-024",
       "method": "GET",
       "route": "/dynamics/listarRJBcf",
       "family": "Trámites RJ",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1074,
       "legacyParameters": [
         "name"
@@ -2514,7 +2537,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2525,14 +2548,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-024"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-025",
       "method": "GET",
       "route": "/dynamics/listarRJContenedor",
       "family": "Trámites RJ",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1120,
       "legacyParameters": [
         "name"
@@ -2628,7 +2652,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2639,14 +2663,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-025"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-026",
       "method": "GET",
       "route": "/dynamics/listarRJPo",
       "family": "Trámites RJ",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1166,
       "legacyParameters": [
         "name"
@@ -2742,7 +2767,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2753,14 +2778,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-026"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-027",
       "method": "GET",
       "route": "/dynamics/listarFiltroA",
       "family": "Trámites RJ",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1212,
       "legacyParameters": [],
       "sourceSelect": [
@@ -2826,19 +2852,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-027"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-028",
       "method": "GET",
       "route": "/dynamics/VistaGeneral2",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1258,
       "legacyParameters": [
         "name"
@@ -2894,14 +2921,15 @@
           "required": true
         }
       ],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-029",
       "method": "GET",
       "route": "/dynamics/Contenedores2",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1304,
       "legacyParameters": [
         "name"
@@ -2981,7 +3009,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -2992,14 +3020,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-029"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-030",
       "method": "GET",
       "route": "/dynamics/Precios2",
       "family": "Detalle, contenedores y precios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1350,
       "legacyParameters": [
         "name"
@@ -3057,7 +3086,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -3068,14 +3097,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-030"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-031",
       "method": "GET",
       "route": "/dynamics/listarCotizacionesS",
       "family": "Cotizaciones y casos",
-      "entityName": "quotes",
+      "entityName": "quote",
       "sourceLine": 1396,
       "legacyParameters": [
         "name"
@@ -3152,7 +3182,7 @@
         }
       ],
       "template": {
-        "entityName": "quotes",
+        "entityName": "quote",
         "operation": "find",
         "inputs": [
           {
@@ -3163,14 +3193,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-031"
-      }
+      },
+      "sourceEntitySet": "quotes"
     },
     {
       "id": "LEG-032",
       "method": "GET",
       "route": "/dynamics/listarCotizacionesA",
       "family": "Cotizaciones y casos",
-      "entityName": "quotes",
+      "entityName": "quote",
       "sourceLine": 1442,
       "legacyParameters": [
         "name"
@@ -3250,7 +3281,7 @@
         }
       ],
       "template": {
-        "entityName": "quotes",
+        "entityName": "quote",
         "operation": "find",
         "inputs": [
           {
@@ -3261,14 +3292,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-032"
-      }
+      },
+      "sourceEntitySet": "quotes"
     },
     {
       "id": "LEG-033",
       "method": "GET",
       "route": "/dynamics/listarCotizacionesRJS",
       "family": "Cotizaciones y casos",
-      "entityName": "quotes",
+      "entityName": "quote",
       "sourceLine": 1488,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3331,19 +3363,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "quotes",
+        "entityName": "quote",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-033"
-      }
+      },
+      "sourceEntitySet": "quotes"
     },
     {
       "id": "LEG-034",
       "method": "GET",
       "route": "/dynamics/listarCotizacionesRJA",
       "family": "Cotizaciones y casos",
-      "entityName": "quotes",
+      "entityName": "quote",
       "sourceLine": 1534,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3409,19 +3442,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "quotes",
+        "entityName": "quote",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-034"
-      }
+      },
+      "sourceEntitySet": "quotes"
     },
     {
       "id": "LEG-035",
       "method": "GET",
       "route": "/dynamics/listarCaso",
       "family": "Cotizaciones y casos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1580,
       "legacyParameters": [
         "name"
@@ -3457,7 +3491,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -3468,14 +3502,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-035"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-036",
       "method": "GET",
       "route": "/dynamics/listarTarifasMercadoS",
       "family": "Cotizaciones y casos",
-      "entityName": "quotes",
+      "entityName": "quote",
       "sourceLine": 1626,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3509,14 +3544,15 @@
       "templateName": "Legacy036",
       "query": null,
       "parameterSchema": [],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "quotes"
     },
     {
       "id": "LEG-037",
       "method": "GET",
       "route": "/dynamics/TramitesOrigenSS",
       "family": "Trámites por origen",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1672,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3573,19 +3609,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-037"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-038",
       "method": "GET",
       "route": "/dynamics/TramitesOrigenAM",
       "family": "Trámites por origen",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1718,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3642,19 +3679,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-038"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-039",
       "method": "GET",
       "route": "/dynamics/TramitesOrigenDS",
       "family": "Trámites por origen",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1764,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3711,19 +3749,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-039"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-040",
       "method": "GET",
       "route": "/dynamics/TramitesOrigenAH",
       "family": "Trámites por origen",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1810,
       "legacyParameters": [],
       "sourceSelect": [
@@ -3780,19 +3819,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-040"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-041",
       "method": "GET",
       "route": "/dynamics/listarCertificadosA",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1856,
       "legacyParameters": [
         "name"
@@ -3883,7 +3923,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -3894,14 +3934,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-041"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-042",
       "method": "GET",
       "route": "/dynamics/listarCertificadosARJ",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1902,
       "legacyParameters": [
         "name"
@@ -3997,7 +4038,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4008,14 +4049,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-042"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-043",
       "method": "GET",
       "route": "/dynamics/listarCertificadosF",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1948,
       "legacyParameters": [
         "name"
@@ -4108,7 +4150,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4119,14 +4161,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-043"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-044",
       "method": "GET",
       "route": "/dynamics/listarCertificadosFactura",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 1994,
       "legacyParameters": [
         "name",
@@ -4193,7 +4236,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4209,14 +4252,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-044"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-045",
       "method": "GET",
       "route": "/dynamics/listarCertificadosIdtra",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2043,
       "legacyParameters": [
         "name",
@@ -4283,7 +4327,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4299,14 +4343,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-045"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-046",
       "method": "GET",
       "route": "/dynamics/DatosCertificados",
       "family": "Certificados",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2089,
       "legacyParameters": [],
       "sourceSelect": [
@@ -4354,19 +4399,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-046"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-047",
       "method": "GET",
       "route": "/dynamics/ColocacionesPtoAlmacen",
       "family": "Movimientos portuarios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2135,
       "legacyParameters": [],
       "sourceSelect": [
@@ -4411,19 +4457,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-047"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-048",
       "method": "GET",
       "route": "/dynamics/MovimientoPanamaCrc",
       "family": "Movimientos portuarios",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2181,
       "legacyParameters": [],
       "sourceSelect": [
@@ -4457,19 +4504,20 @@
       },
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [],
         "mappings": [],
         "savedQuery": "legacy-048"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-049",
       "method": "GET",
       "route": "/dynamics/AlmacenFiscalIdtra",
       "family": "Almacén fiscal",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2227,
       "legacyParameters": [
         "name"
@@ -4529,7 +4577,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4540,14 +4588,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-049"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-050",
       "method": "GET",
       "route": "/dynamics/AlmacenFiscalPo",
       "family": "Almacén fiscal",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2273,
       "legacyParameters": [
         "name"
@@ -4607,7 +4656,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4618,14 +4667,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-050"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-051",
       "method": "GET",
       "route": "/dynamics/AlmacenFiscalFactura",
       "family": "Almacén fiscal",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2319,
       "legacyParameters": [
         "name"
@@ -4685,7 +4735,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4696,14 +4746,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-051"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-052",
       "method": "GET",
       "route": "/dynamics/AlmacenFiscalBcf",
       "family": "Almacén fiscal",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2365,
       "legacyParameters": [
         "name"
@@ -4763,7 +4814,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4774,14 +4825,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-052"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-053",
       "method": "GET",
       "route": "/dynamics/AlmacenFiscalContenedor",
       "family": "Almacén fiscal",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2411,
       "legacyParameters": [
         "name"
@@ -4841,7 +4893,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4852,14 +4904,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-053"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-054",
       "method": "GET",
       "route": "/dynamics/WHSMiamiPreAlerta",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2457,
       "legacyParameters": [
         "name"
@@ -4957,7 +5010,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -4968,14 +5021,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-054"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-055",
       "method": "GET",
       "route": "/dynamics/WHSMiamiBodega",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2503,
       "legacyParameters": [
         "name"
@@ -5077,7 +5131,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5088,14 +5142,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-055"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-056",
       "method": "GET",
       "route": "/dynamics/WHSMiamiDespacho",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2549,
       "legacyParameters": [
         "name"
@@ -5209,7 +5264,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5220,14 +5275,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-056"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-057",
       "method": "GET",
       "route": "/dynamics/WHSMiamiBcf",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2595,
       "legacyParameters": [
         "name"
@@ -5293,7 +5349,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5304,14 +5360,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-057"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-058",
       "method": "GET",
       "route": "/dynamics/WHSMiamiContenedor",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2641,
       "legacyParameters": [
         "name"
@@ -5377,7 +5434,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5388,14 +5445,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-058"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-059",
       "method": "GET",
       "route": "/dynamics/WHSMiamiTracking",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2687,
       "legacyParameters": [
         "name"
@@ -5461,7 +5519,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5472,14 +5530,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-059"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-060",
       "method": "GET",
       "route": "/dynamics/WHSMiamiIdtra",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2733,
       "legacyParameters": [
         "name"
@@ -5545,7 +5604,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5556,14 +5615,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-060"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-061",
       "method": "GET",
       "route": "/dynamics/WHSMiamiFactura",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2779,
       "legacyParameters": [
         "name"
@@ -5629,7 +5689,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5640,14 +5700,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-061"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-062",
       "method": "GET",
       "route": "/dynamics/WHSMiamiPo",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2825,
       "legacyParameters": [
         "name"
@@ -5713,7 +5774,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5724,14 +5785,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-062"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-063",
       "method": "GET",
       "route": "/dynamics/WHSMiamiWhs",
       "family": "Almacén Miami",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2871,
       "legacyParameters": [
         "name"
@@ -5797,7 +5859,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5808,14 +5870,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-063"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-064",
       "method": "GET",
       "route": "/dynamics/WHSPanamaTransito",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2917,
       "legacyParameters": [
         "name"
@@ -5918,7 +5981,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -5929,14 +5992,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-064"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-065",
       "method": "GET",
       "route": "/dynamics/WHSPanamaBodega",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 2963,
       "legacyParameters": [
         "name"
@@ -6039,7 +6103,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6050,14 +6114,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-065"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-066",
       "method": "GET",
       "route": "/dynamics/WHSPanamaDespacho",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3009,
       "legacyParameters": [
         "name"
@@ -6170,7 +6235,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6181,14 +6246,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-066"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-067",
       "method": "GET",
       "route": "/dynamics/WHSPanamaBcf",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3055,
       "legacyParameters": [
         "name"
@@ -6256,7 +6322,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6267,14 +6333,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-067"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-068",
       "method": "GET",
       "route": "/dynamics/WHSPanamaContenedor",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3101,
       "legacyParameters": [
         "name"
@@ -6342,7 +6409,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6353,14 +6420,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-068"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-069",
       "method": "GET",
       "route": "/dynamics/WHSPanamaTracking",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3147,
       "legacyParameters": [
         "name"
@@ -6428,7 +6496,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6439,14 +6507,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-069"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-070",
       "method": "GET",
       "route": "/dynamics/WHSPanamaIdtra",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3193,
       "legacyParameters": [
         "name"
@@ -6514,7 +6583,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6525,14 +6594,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-070"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-071",
       "method": "GET",
       "route": "/dynamics/WHSPanamaFactura",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3239,
       "legacyParameters": [
         "name"
@@ -6600,7 +6670,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6611,14 +6681,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-071"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-072",
       "method": "GET",
       "route": "/dynamics/WHSPanamaPo",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3285,
       "legacyParameters": [
         "name"
@@ -6686,7 +6757,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6697,14 +6768,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-072"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-073",
       "method": "GET",
       "route": "/dynamics/WHSPanamaWhs",
       "family": "Almacén Panamá",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3331,
       "legacyParameters": [
         "name"
@@ -6772,7 +6844,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6783,14 +6855,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-073"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-074",
       "method": "PATCH",
       "route": "/dynamics/UpdateDynamics",
       "family": "Actualización BCF",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3376,
       "legacyParameters": [
         "id",
@@ -6807,7 +6880,7 @@
       "query": null,
       "parameterSchema": [],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "update",
         "inputs": [
           {
@@ -6822,14 +6895,15 @@
             "source": "bcf"
           }
         ]
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-075",
       "method": "GET",
       "route": "/dynamics/listarCodigoCaso",
       "family": "Casos",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 3427,
       "legacyParameters": [
         "name"
@@ -6865,7 +6939,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -6876,14 +6950,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-075"
-      }
+      },
+      "sourceEntitySet": "incidents"
     },
     {
       "id": "LEG-076",
       "method": "GET",
       "route": "/dynamics/listarTramitesAduanalesF",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3472,
       "legacyParameters": [
         "name"
@@ -6985,7 +7060,7 @@
         }
       ],
       "template": {
-        "entityName": "competitors",
+        "entityName": "competitor",
         "operation": "find",
         "inputs": [
           {
@@ -6996,14 +7071,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-076"
-      }
+      },
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-077",
       "method": "GET",
       "route": "/dynamics/listarTramitesAduanalesA",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3517,
       "legacyParameters": [
         "name"
@@ -7111,7 +7187,7 @@
         }
       ],
       "template": {
-        "entityName": "competitors",
+        "entityName": "competitor",
         "operation": "find",
         "inputs": [
           {
@@ -7122,14 +7198,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-077"
-      }
+      },
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-078",
       "method": "GET",
       "route": "/dynamics/listarAduanaIdtra",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3562,
       "legacyParameters": [
         "name"
@@ -7213,7 +7290,7 @@
         }
       ],
       "template": {
-        "entityName": "competitors",
+        "entityName": "competitor",
         "operation": "find",
         "inputs": [
           {
@@ -7224,14 +7301,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-078"
-      }
+      },
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-079",
       "method": "GET",
       "route": "/dynamics/listarAduanaRecibo",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3607,
       "legacyParameters": [
         "name"
@@ -7313,7 +7391,7 @@
         }
       ],
       "template": {
-        "entityName": "competitors",
+        "entityName": "competitor",
         "operation": "find",
         "inputs": [
           {
@@ -7324,14 +7402,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-079"
-      }
+      },
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-080",
       "method": "GET",
       "route": "/dynamics/listarAduanaSolicitud",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3652,
       "legacyParameters": [
         "name"
@@ -7375,14 +7454,15 @@
       "templateName": "Legacy080",
       "query": null,
       "parameterSchema": [],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-081",
       "method": "GET",
       "route": "/dynamics/listarAduanaBl",
       "family": "Aduanas",
-      "entityName": "competitors",
+      "entityName": "competitor",
       "sourceLine": 3697,
       "legacyParameters": [
         "name"
@@ -7426,14 +7506,15 @@
       "templateName": "Legacy081",
       "query": null,
       "parameterSchema": [],
-      "template": null
+      "template": null,
+      "sourceEntitySet": "competitors"
     },
     {
       "id": "LEG-082",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesA",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3742,
       "legacyParameters": [
         "name"
@@ -7497,7 +7578,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7508,14 +7589,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-082"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-083",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesF",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3787,
       "legacyParameters": [
         "name"
@@ -7574,7 +7656,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7585,14 +7667,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-083"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-084",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesIdtra",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3832,
       "legacyParameters": [
         "name"
@@ -7640,7 +7723,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7651,14 +7734,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-084"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-085",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesProducto",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3877,
       "legacyParameters": [
         "name"
@@ -7704,7 +7788,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7715,14 +7799,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-085"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-086",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesSolicitud",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3922,
       "legacyParameters": [
         "name"
@@ -7770,7 +7855,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7781,14 +7866,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-086"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-087",
       "method": "GET",
       "route": "/dynamics/listarExoneracionesAutorizacion",
       "family": "Exoneraciones",
-      "entityName": "salesliteratures",
+      "entityName": "salesliterature",
       "sourceLine": 3967,
       "legacyParameters": [
         "name"
@@ -7836,7 +7922,7 @@
         }
       ],
       "template": {
-        "entityName": "salesliteratures",
+        "entityName": "salesliterature",
         "operation": "find",
         "inputs": [
           {
@@ -7847,14 +7933,15 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-087"
-      }
+      },
+      "sourceEntitySet": "salesliteratures"
     },
     {
       "id": "LEG-088",
       "method": "GET",
       "route": "/dynamics/ClienteIdtra",
       "family": "Clientes / IDTRA",
-      "entityName": "incidents",
+      "entityName": "incident",
       "sourceLine": 4012,
       "legacyParameters": [
         "name"
@@ -7890,7 +7977,7 @@
         }
       ],
       "template": {
-        "entityName": "incidents",
+        "entityName": "incident",
         "operation": "find",
         "inputs": [
           {
@@ -7901,7 +7988,8 @@
         ],
         "mappings": [],
         "savedQuery": "legacy-088"
-      }
+      },
+      "sourceEntitySet": "incidents"
     }
   ]
 }

@@ -17,10 +17,11 @@ public sealed class Phase09MigrationTests
         Assert.Equal("e0490c3260372e547f8672974633104268f89233", Bundle.Source.Ref);
         Assert.Equal(88, Bundle.Entries.Count);
         Assert.Equal(87, Bundle.Entries.Count(e => e.Method == "GET"));
-        Assert.Single(Bundle.Entries.Where(e => e.Method == "PATCH"));
+        Assert.Single(Bundle.Entries, e => e.Method == "PATCH");
         Assert.Equal(88, Bundle.Entries.Select(e => e.Route).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(88, Bundle.Entries.Select(e => e.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(79, Bundle.Entries.Count(e => e.Query is not null));
+        Assert.All(Bundle.Entries,e=>Assert.NotEqual(e.SourceEntitySet,e.EntityName));
         Assert.Equal(9, Bundle.Entries.Count(e => e.Status == "blocked_source"));
         foreach (var (entry,index) in Bundle.Entries.Select((e,i) => (e,i)))
         {
@@ -53,7 +54,7 @@ public sealed class Phase09MigrationTests
     {
         foreach(var id in new[]{"LEG-014","LEG-020","LEG-028","LEG-036","LEG-080","LEG-081"})
         {
-            var entry=Assert.Single(Bundle.Entries.Where(e=>e.Id==id));
+            var entry=Assert.Single(Bundle.Entries, e=>e.Id==id);
             Assert.Null(entry.Query);
             Assert.NotEmpty(entry.Reasons);
             Assert.Equal("blocked_source",entry.Status);
@@ -74,7 +75,8 @@ public sealed class Phase09MigrationTests
             foreach(var order in spec.Order??[])fields.Add(order.Field);
             Collect(spec.Filter,types,fields,e.ParameterSchema);
             var columns=fields.Select(f=>new MetadataColumn(f,types.GetValueOrDefault(f)??"String",
-                true,true,true,false,null,null,null,[],new Dictionary<int,string>(),[])).ToArray();
+                true,!f.StartsWith('_'),!f.StartsWith('_'),f.StartsWith('_'),
+                null,null,null,[],new Dictionary<int,string>(),[])).ToArray();
             var table=new MetadataTable(e.EntityName,e.EntityName,"incidentid",null,true,
                 new Dictionary<int,string>(),columns,[]);
             var allowed=fields.ToHashSet(StringComparer.Ordinal);

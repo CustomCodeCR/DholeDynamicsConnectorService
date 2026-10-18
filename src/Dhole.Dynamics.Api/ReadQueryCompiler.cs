@@ -55,7 +55,12 @@ public static class ReadQueryCompiler
 
         void ValidateField(string field)
         {
-            if (!DataverseMetadataDiscovery.SafeName(field)
+            var approvedShadow = field.Length <= 128 && field.StartsWith('_') &&
+                field.EndsWith("_value", StringComparison.Ordinal) &&
+                field.Length > 7 && DataverseMetadataDiscovery.SafeName(field[1..^6]) &&
+                table.Columns.Any(c => c.LogicalName == field &&
+                    c.Type == "Uniqueidentifier" && c.IsCalculated && c.CanRead);
+            if (!(DataverseMetadataDiscovery.SafeName(field) || approvedShadow)
                 || table.Columns.All(c => c.LogicalName != field) || !readable.Contains(field))
                 throw new UnauthorizedAccessException("Read field not approved.");
             all.Add(field);

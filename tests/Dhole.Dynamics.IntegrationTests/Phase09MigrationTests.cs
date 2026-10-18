@@ -63,14 +63,14 @@ public sealed class Phase09MigrationTests
             var migration=new LegacyMigrationService(read,write,saved,templates,db);
             var src=LegacyMigrationService.Bundle.Entries.Single(x=>x.Id=="LEG-001");
             var names=src.Query!.Select.Concat(["title"]).Distinct(StringComparer.Ordinal).ToArray();
-            var catalog=new MetadataCatalog([new MetadataTable("incidents","incidents","incidentid",
+            var catalog=new MetadataCatalog([new MetadataTable("incident","incidents","incidentid",
                 "title",false,new Dictionary<int,string>(),
                 names.Select(n=>new MetadataColumn(n,"String",true,true,true,false,
                     null,null,null,[],new Dictionary<int,string>(),[])).ToArray(),[])]);
             await metadata.SaveAsync(first.Id,catalog,"test","ci",CancellationToken.None);
-            Assert.True(await metadata.SetEntityAsync(first.Id,"incidents",true,"ci",CancellationToken.None));
+            Assert.True(await metadata.SetEntityAsync(first.Id,"incident",true,"ci",CancellationToken.None));
             foreach(var name in names)
-                Assert.True(await metadata.SetFieldAsync(first.Id,"incidents",name,
+                Assert.True(await metadata.SetFieldAsync(first.Id,"incident",name,
                     new MetadataFieldToggle(true,true,true,true),"ci",CancellationToken.None));
 
             var before=await migration.PreviewAsync(first.Code,CancellationToken.None);

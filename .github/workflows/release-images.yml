@@ -18,6 +18,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,6 +39,14 @@ jobs:
       - run: dotnet restore DholeDynamicsConnectorService.slnx
       - run: dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
       - run: dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build
+      - name: Verify security workflow has passed for this exact SHA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow connector-release-security --commit "$GITHUB_SHA" --json conclusion --jq '.[0].conclusion')"
+          [[ "$status" == success ]] || { echo "Security release gate is not green"; exit 1; }
       - name: Secret scan (no credentials in repository)
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 dir /repo --no-banner --redact
       - name: Verify release Compose against fake paths

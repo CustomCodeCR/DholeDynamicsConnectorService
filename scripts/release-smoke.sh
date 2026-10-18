@@ -3,7 +3,7 @@ set -euo pipefail
 BASE="${1:?Usage: release-smoke.sh https://your-real-connector-host}"
 [[ "$BASE" =~ ^https://[a-zA-Z0-9.-]+$ ]] ||
   { echo "HTTPS host without credentials/path required"; exit 2; }
-# TLS verification MUST remain on: curl --insecure is prohibited.
+# TLS certificate chain and hostname verification MUST remain enabled.
 for i in $(seq 1 30); do
   if curl --fail --silent --show-error --max-time 5 "$BASE/health/ready" >/dev/null 2>&1; then break; fi
   sleep 3

@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 type Session = { authenticated: boolean; actor: string; securityAdmin: boolean; csrfToken: string }
-type Connection = { id: string; code: string; dataverseUrl: string; tenantId: string; clientId: string }
+type Connection = { id: string; code: string; dataverseUrl: string; tenantId: string; clientId: string; defaultCurrencyId?:string|null }
 type OAuthClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
 type Grant = { id: string; clientId: string; connectionId: string; entitySet: string; operation: string; allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 
@@ -67,6 +67,14 @@ async function action(task: () => Promise<unknown>, result: string) {
     notice.value = error instanceof Error ? error.message : t('error')
   } finally { busy.value = false }
 }
+function editConnection(item: Connection) {
+  connection.value = {
+    code: item.code, dataverseUrl: item.dataverseUrl,
+    tenantId: item.tenantId, clientId: item.clientId,
+    clientSecret: '', defaultCurrencyId: item.defaultCurrencyId ?? ''
+  }
+  document.getElementById('connection-form')?.scrollIntoView({ behavior: 'smooth' })
+}
 async function saveConnection() {
   const { code, dataverseUrl, tenantId, clientId, clientSecret, defaultCurrencyId } = connection.value
   await action(() => api('/api/admin/v1/connections', 'POST', {
@@ -126,12 +134,13 @@ onMounted(() => { void reload() })
         <ul class="mt-3 space-y-2">
           <li v-for="item in connections" :key="item.id" class="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
             <div><strong>{{ item.code }}</strong><p class="text-xs text-slate-600">{{ item.dataverseUrl }}</p></div>
-            <button :disabled="busy" class="rounded border px-3 py-2 text-sm" @click="check(item.code)">{{ t('testConnection') }}</button>
+            <div class="flex flex-wrap gap-2"><button :disabled="busy" class="rounded border px-3 py-2 text-sm" @click="editConnection(item)">{{ t('uiEditConnection') }}</button>
+            <button :disabled="busy" class="rounded border px-3 py-2 text-sm" @click="check(item.code)">{{ t('testConnection') }}</button></div>
           </li>
         </ul>
       </section>
-      <form class="grid gap-3 rounded-xl border bg-white p-6 sm:grid-cols-2" @submit.prevent="saveConnection">
-        <h3 class="text-lg font-semibold sm:col-span-2">{{ t('configureConnection') }}</h3>
+      <form id="connection-form" class="grid gap-3 rounded-xl border bg-white p-6 sm:grid-cols-2" @submit.prevent="saveConnection">
+        <h3 class="text-lg font-semibold sm:col-span-2">{{ t('configureConnection') }}</h3><p class="text-sm text-slate-600 sm:col-span-2">{{t('uiNewSecretOnEdit')}}</p>
         <label class="text-sm">{{ t('code') }}<input v-model="connection.code" required maxlength="64" class="mt-1 w-full rounded border p-2" autocomplete="off" /></label>
         <label class="text-sm">Dataverse HTTPS URL<input v-model="connection.dataverseUrl" required type="url" class="mt-1 w-full rounded border p-2" placeholder="https://org.crm.dynamics.com" /></label>
         <label class="text-sm">Tenant ID<input v-model="connection.tenantId" required class="mt-1 w-full rounded border p-2" /></label>

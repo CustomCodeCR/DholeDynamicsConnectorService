@@ -47,7 +47,8 @@ public sealed class Phase03SecurityTests
     public void RejectWildcardGrantsAndUnsupportedEntitiesOrOperations()
     {
         Assert.True(GrantRules.ValidGrant("accounts", "read", ["name"], 10));
-        Assert.False(GrantRules.ValidGrant("quotes", "delete", ["name"], 10));
+        Assert.True(GrantRules.ValidGrant("quotes", "delete", ["name"], 10));
+        Assert.False(GrantRules.ValidGrant("quotes", "execute_script", ["name"], 10));
         Assert.False(GrantRules.ValidGrant("quotes", "create", ["*"], 10));
         Assert.False(GrantRules.ValidGrant("quotes", "create", ["name"], 601));
         Assert.True(GrantRules.ValidGrant("quotes", "create",

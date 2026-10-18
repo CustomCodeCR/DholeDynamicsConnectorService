@@ -2,6 +2,7 @@ using Dhole.Dynamics.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Dhole.Dynamics.UnitTests;
@@ -69,6 +70,7 @@ public sealed class Phase12ReleaseSecurityTests
         var http=new DefaultHttpContext();
         http.Request.Method="POST";http.Request.Path="/api/v1/records/quote";
         http.Response.Body=new MemoryStream();
+        http.RequestServices=new ServiceCollection().AddLogging().AddProblemDetails().BuildServiceProvider();
         await middleware.InvokeAsync(http,Policy("Production"));
         Assert.Equal(403,http.Response.StatusCode);
         Assert.False(downstream);

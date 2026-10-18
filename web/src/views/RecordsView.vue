@@ -178,7 +178,7 @@ onMounted(async()=>{
               </select>
               <div v-else-if="['Lookup','Customer','Owner'].includes(field.type)" class="text-sm">
                 <label v-for="relation in relations.filter(r=>r.referencingAttribute===field.logicalName)"
-                  :key="relation.referencingNavigation" class="block">
+                  :key="relation.referencingNavigation ?? relation.referencingAttribute ?? 'relation'" class="block">
                   {{relation.referencingNavigation}} → {{relation.referencedEntity}}
                   <input v-model.trim="relatedIds[relation.referencingNavigation!]" class="mt-1 w-full rounded border p-2" placeholder="Related record GUID">
                 </label>

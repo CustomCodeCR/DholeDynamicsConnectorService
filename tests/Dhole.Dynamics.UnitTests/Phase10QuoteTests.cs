@@ -78,7 +78,7 @@ public sealed class Phase10QuoteTests
             new Dhole.Dynamics.Contracts.MetadataRelationship("quote_account","ManyToOneRelationships",
                 "account","quote","accountid","customerid","customerid_account"),
             new Dhole.Dynamics.Contracts.MetadataRelationship("quote_currency","ManyToOneRelationships",
-                "transactioncurrency","quote","transactioncurrencyid","transactioncurrencyid")
+                "transactioncurrency","quote","transactioncurrencyid","transactioncurrencyid","transactioncurrencyid")
         };
         var quote = new Dhole.Dynamics.Contracts.MetadataTable("quote","quotes","quoteid","name",true,
             new Dictionary<int,string>(), columns, rel);

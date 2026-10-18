@@ -2,6 +2,7 @@ using Dhole.Dynamics.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 ReleaseSecretFiles.Apply(builder.Configuration);
+ReleaseDataProtection.Configure(builder.Services,builder.Configuration,builder.Environment);
 builder.Services.AddDholeApiSecurity(builder.Configuration, builder.Environment);
 builder.Services.AddDholeApiInfrastructure(builder.Configuration);
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>

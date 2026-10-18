@@ -1,0 +1,130 @@
+# Release-only. Do NOT layer onto development compose.yaml.
+# One host / one Docker Compose project per environment; isolated volumes/networks.
+name: ${DYNAMICS_STACK_NAME:?Set distinct staging/prod stack name}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dhole_dynamics_connector
+      POSTGRES_USER: connector_app
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [connector_data:/var/lib/postgresql/data]
+    networks: [connector_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U connector_app -d dhole_dynamics_connector"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    security_opt: [no-new-privileges:true]
+
+  migrate:
+    image: ghcr.io/customcodecr/dhole-dynamics-tools:${DYNAMICS_RELEASE_TAG:?Pinned SHA tag required}
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      DYNAMICS_CONNECTION_STRING_FILE: /run/secrets/connector_db
+    secrets: [connector_db]
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [connector_internal]
+    security_opt: [no-new-privileges:true]
+
+  api:
+    image: ghcr.io/customcodecr/dhole-dynamics-api:${DYNAMICS_RELEASE_TAG:?Pinned SHA tag required}
+    restart: unless-stopped
+    environment: &api_env
+      ASPNETCORE_ENVIRONMENT: ${DYNAMICS_ENVIRONMENT:?Must be Staging or Production}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Dynamics: ""
+      DYNAMICS_CONNECTION_STRING_FILE: /run/secrets/connector_db
+      DYNAMICS_ENCRYPTION_KEY_FILE: /run/secrets/dynamics_encryption_key
+      DYNAMICS_CURSOR_KEY_FILE: /run/secrets/read_cursor_key
+      ADMIN_OIDC_CLIENT_SECRET_FILE: /run/secrets/admin_oidc_client_secret
+      DYNAMICS_DP_CERT_PASSWORD_FILE: /run/secrets/data_protection_password
+      DataProtection__CertificatePath: /run/secrets/data_protection_cert
+      DataProtection__KeyPath: /data/keys
+      DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION: ${DYNAMICS_ENCRYPTION_ACTIVE_KEY_VERSION:-1}
+      Admin__PublicOrigin: https://${DYNAMICS_PUBLIC_FQDN:?Real DNS name required}
+      AdminOidc__Authority: ${DYNAMICS_ADMIN_OIDC_AUTHORITY:?External HTTPS issuer required}
+      AdminOidc__ClientId: ${DYNAMICS_ADMIN_OIDC_CLIENT_ID:?OIDC client ID required}
+      M2m__Authority: ${DYNAMICS_M2M_AUTHORITY:?External HTTPS issuer required}
+      M2m__Audience: ${DYNAMICS_M2M_AUDIENCE:?M2M audience required}
+      Jobs__Enabled: "false"
+      Metadata__SchedulerEnabled: "false"
+      ProductionWrites__Approved: ${DYNAMICS_PRODUCTION_WRITES_APPROVED:-NO}
+      ProductionWrites__ApprovalReference: ${DYNAMICS_PRODUCTION_WRITES_TICKET:-}
+      ProductionWrites__DeletesApproved: ${DYNAMICS_PRODUCTION_DELETES_APPROVED:-NO}
+      ProductionWrites__DeletesApprovalReference: ${DYNAMICS_PRODUCTION_DELETES_TICKET:-}
+    secrets: &api_secrets [connector_db, dynamics_encryption_key, read_cursor_key, admin_oidc_client_secret, data_protection_cert, data_protection_password]
+    volumes: [data_protection_keys:/data/keys]
+    tmpfs: [/tmp]
+    read_only: true
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    networks: [connector_internal]
+    security_opt: [no-new-privileges:true]
+
+  worker:
+    image: ghcr.io/customcodecr/dhole-dynamics-api:${DYNAMICS_RELEASE_TAG:?Pinned SHA tag required}
+    restart: unless-stopped
+    environment:
+      <<: *api_env
+      ASPNETCORE_URLS: http://127.0.0.1:8080
+      Jobs__Enabled: ${DYNAMICS_JOBS_ENABLED:-false}
+      Metadata__SchedulerEnabled: "false"
+    secrets: *api_secrets
+    volumes: [data_protection_keys:/data/keys]
+    tmpfs: [/tmp]
+    read_only: true
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    networks: [connector_internal]
+    security_opt: [no-new-privileges:true]
+
+  admin:
+    image: ghcr.io/customcodecr/dhole-dynamics-admin:${DYNAMICS_RELEASE_TAG:?Pinned SHA tag required}
+    restart: unless-stopped
+    depends_on: [api]
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    networks: [connector_internal]
+    security_opt: [no-new-privileges:true]
+
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_FQDN: ${DYNAMICS_PUBLIC_FQDN:?Real DNS name required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [connector_internal, connector_edge]
+    depends_on: [admin]
+    security_opt: [no-new-privileges:true]
+
+secrets:
+  postgres_password: {file: ${DYNAMICS_POSTGRES_PASSWORD_FILE:?Host secret file required}}
+  connector_db: {file: ${DYNAMICS_CONNECTOR_DB_FILE:?Host secret file required}}
+  dynamics_encryption_key: {file: ${DYNAMICS_ENCRYPTION_KEY_FILE:?Host secret file required}}
+  read_cursor_key: {file: ${DYNAMICS_CURSOR_KEY_FILE:?Host secret file required}}
+  admin_oidc_client_secret: {file: ${DYNAMICS_ADMIN_OIDC_SECRET_FILE:?Host secret file required}}
+  data_protection_cert: {file: ${DYNAMICS_DP_CERT_FILE:?Host cert PFX required}}
+  data_protection_password: {file: ${DYNAMICS_DP_PASSWORD_FILE:?Host cert password required}}
+
+volumes:
+  connector_data:
+  data_protection_keys:
+  caddy_data:
+  caddy_config:
+
+networks:
+  connector_internal: {internal: true}
+  connector_edge: {}

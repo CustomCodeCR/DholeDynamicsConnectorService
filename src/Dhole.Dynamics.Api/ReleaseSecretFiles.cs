@@ -15,7 +15,8 @@ public static class ReleaseSecretFiles
             ["DYNAMICS_ENCRYPTION_KEY_FILE"]="DYNAMICS_ENCRYPTION_KEY_BASE64",
             ["DYNAMICS_ENCRYPTION_KEYRING_FILE"]="DYNAMICS_ENCRYPTION_KEYS_JSON",
             ["DYNAMICS_CURSOR_KEY_FILE"]="READ_CURSOR_KEY_BASE64",
-            ["ADMIN_OIDC_CLIENT_SECRET_FILE"]="AdminOidc:ClientSecret"
+            ["ADMIN_OIDC_CLIENT_SECRET_FILE"]="AdminOidc:ClientSecret",
+            ["DYNAMICS_DP_CERT_PASSWORD_FILE"]="DataProtection:CertificatePassword"
         };
 
     public static IDictionary<string,string?> Read(IReadOnlyDictionary<string,string?> environment)

@@ -85,6 +85,21 @@ public sealed class Phase11DurableJobTests
                 "ci",CancellationToken.None);
             var keptCursor=await b.CursorAsync(conn,"quote",CancellationToken.None);
             Assert.Equal(priorCursor.Delta,keptCursor.Delta);
+            // More than max_attempts pages must not exhaust the per-page retry budget.
+            var paged=await a.EnqueueAsync(conn,
+                request with{DedupeKey="phase11-multipage-0001"},"ci",CancellationToken.None);
+            Assert.NotNull(paged);
+            for(var pageIndex=0;pageIndex<9;pageIndex++)
+            {
+                var nextClaim=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
+                Assert.NotNull(nextClaim);
+                Assert.Equal(paged!.Id,nextClaim!.Id);
+                Assert.Equal(1,nextClaim.Attempts);
+                var another=pageIndex==8?null:continuation;
+                await b.SavePageAsync(nextClaim,"delta",new SyncPage([change],another,
+                    pageIndex==8?continuation:null),DateTimeOffset.UtcNow,CancellationToken.None);
+            }
+            Assert.Equal("completed",(await b.FindAsync(conn,paged!.Id,CancellationToken.None))!.Status);
             var snapshots=await b.CheckpointsAsync(conn,CancellationToken.None);
             Assert.NotNull(snapshots);
             await using(var count=new NpgsqlCommand("""

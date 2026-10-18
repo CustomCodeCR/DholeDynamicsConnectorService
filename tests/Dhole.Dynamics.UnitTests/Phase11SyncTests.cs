@@ -99,6 +99,20 @@ public sealed class Phase11SyncTests
     }
 
     [Fact]
+    public async Task UnsupportedSuccessfulDeltaResponseIsMarkedForConfiguredFallback()
+    {
+        var handler=new Handler(_=>new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content=new StringContent("""{"value":[]}""",Encoding.UTF8,"application/json")
+        });
+        var page=await new DataverseDeltaReader(new HttpClient(handler),new Token())
+            .ReadAsync(Policy(),"delta",null,null,null,CancellationToken.None);
+        Assert.True(page.UnsupportedDelta);
+        Assert.Empty(page.Changes);
+        Assert.Equal(1,handler.Calls);
+    }
+
+    [Fact]
     public async Task RateLimitedReadPreservesRetryAfterButNeverResendsItself()
     {
         var handler=new Handler(_=>{

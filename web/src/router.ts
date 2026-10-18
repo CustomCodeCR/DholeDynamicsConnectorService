@@ -11,6 +11,7 @@ import JobsView from './views/JobsView.vue'
 import AuditView from './views/AuditView.vue'
 import SettingsView from './views/SettingsView.vue'
 import PermissionsView from './views/PermissionsView.vue'
+import LegacyMigrationView from './views/LegacyMigrationView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -21,6 +22,7 @@ export const router = createRouter({
     { path: '/metadata', component: MetadataView, name: 'metadata' },
     { path: '/saved-queries', component: SavedQueriesView, name: 'saved-queries' },
     { path: '/templates', component: TemplatesView, name: 'templates' },
+    { path: '/legacy-migration', component: LegacyMigrationView, name: 'legacy-migration' },
     { path: '/search', component: SearchView, name: 'search' },
     { path: '/records', component: RecordsView, name: 'records' },
     { path: '/jobs', component: JobsView, name: 'jobs' },

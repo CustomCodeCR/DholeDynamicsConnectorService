@@ -47,6 +47,13 @@ public sealed class ProductionWritePolicy
         if(HttpMethods.IsGet(request.Method)||HttpMethods.IsHead(request.Method)||
             HttpMethods.IsOptions(request.Method))return false;
         var path=request.Path;
+        // These two approved POST endpoints are READ-ONLY typed searches.
+        // Do not disable routine read access while production writes are gated.
+        if(HttpMethods.IsPost(request.Method) &&
+            (path.StartsWithSegments("/api/v1/records") ||
+             path.StartsWithSegments("/api/admin/v1/console/records")) &&
+             path.Value?.EndsWith("/search",StringComparison.Ordinal)==true)
+            return false;
         if(path.StartsWithSegments("/api/v1"))
             return !WritesApproved || (HttpMethods.IsDelete(request.Method) && !DeletesApproved);
         if(path.StartsWithSegments("/api/dynamics/quotes"))

@@ -10,6 +10,9 @@ ENV_FILE="${1:?Usage: bash scripts/release-deploy.sh /path/to/secured.env}"
 set -a; source "$ENV_FILE"; set +a
 [[ "$DYNAMICS_ENVIRONMENT" == "Staging" || "$DYNAMICS_ENVIRONMENT" == "Production" ]] ||
   { echo "Staging or Production environment required"; exit 2; }
+[[ "${DYNAMICS_DEPLOY_TARGET:-}" == "${DYNAMICS_ENVIRONMENT,,}" &&
+    "$ENV_FILE" == "/etc/dhole-dynamics/${DYNAMICS_ENVIRONMENT,,}/release.env" ]] ||
+  { echo "Environment target/host file mismatch"; exit 2; }
 [[ "${DYNAMICS_DEPLOY_APPROVAL_TICKET:-}" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]{11,119}$ &&
     "${DYNAMICS_DEPLOY_APPROVAL_TICKET:-}" == "${DYNAMICS_GO_LIVE_TICKET:-${DYNAMICS_STAGING_APPROVAL_TICKET:-}}" ]] ||
     { echo "Deployment requires the same reviewed change ticket on the target host"; exit 2; }

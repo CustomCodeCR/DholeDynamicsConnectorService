@@ -80,6 +80,7 @@ jobs:
           RELEASE_USER: ${{ secrets.DYNAMICS_RELEASE_USER }}
           REMOTE_ENV_FILE: ${{ vars.DYNAMICS_RELEASE_ENV_FILE }}
           APPROVAL_TICKET: ${{ inputs.approval_ticket }}
+          TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_HOST" =~ ^[a-zA-Z0-9.-]+$ ]] || exit 1
@@ -90,4 +91,4 @@ jobs:
           tar -czf - compose.release.yaml deploy/Caddyfile scripts/release-deploy.sh scripts/release-smoke.sh |
             ssh -o StrictHostKeyChecking=yes "$dest" 'tar -xz -C /opt/dhole-dynamics'
           ssh -o StrictHostKeyChecking=yes "$dest" \
-            "DYNAMICS_DEPLOY_APPROVAL_TICKET='$APPROVAL_TICKET' bash /opt/dhole-dynamics/scripts/release-deploy.sh '$REMOTE_ENV_FILE'"
+            "DYNAMICS_DEPLOY_APPROVAL_TICKET='$APPROVAL_TICKET' DYNAMICS_DEPLOY_TARGET='$TARGET' bash /opt/dhole-dynamics/scripts/release-deploy.sh '$REMOTE_ENV_FILE'"

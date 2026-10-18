@@ -39,6 +39,10 @@ public sealed class Phase12ReleaseSecurityTests
             Assert.Throws<ReadRejected>(()=>policy.Demand("create")).Code);
         Assert.True(policy.IsBlocked(new DefaultHttpContext {Request={Method="POST",Path="/api/v1/dhole/quotes"}}.Request));
         Assert.False(policy.IsBlocked(new DefaultHttpContext {Request={Method="GET",Path="/api/v1/quotes"}}.Request));
+        Assert.False(policy.IsBlocked(new DefaultHttpContext {
+            Request={Method="POST",Path="/api/v1/records/quote/search"}}.Request));
+        Assert.False(policy.IsBlocked(new DefaultHttpContext {
+            Request={Method="POST",Path="/api/admin/v1/console/records/quote/search"}}.Request));
     }
     [Fact]
     public void ProductionDeleteNeedsSecondDistinctApproval()

@@ -117,10 +117,21 @@ public sealed class Phase11DurableJobTests
             var scheduled=(await b.ListAsync(conn,30,CancellationToken.None))
                 .Single(j=>j.Kind=="metadata_refresh");
             Assert.Equal("pending",scheduled.Status);
-            var scheduledClaim=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
-            Assert.NotNull(scheduledClaim);
-            Assert.Equal(scheduled.Id,scheduledClaim!.Id);
-            await b.FinishAsync(scheduledClaim,CancellationToken.None);
+            // Both the sync and metadata schedules may now be due. Drain both
+            // deterministically before asserting the next reconciliation job.
+            var due=(await b.ListAsync(conn,30,CancellationToken.None))
+                .Where(x=>x.Status=="pending").ToArray();
+            foreach(var expected in due)
+            {
+                var dueClaim=await b.ClaimAsync(Guid.NewGuid(),CancellationToken.None);
+                Assert.NotNull(dueClaim);
+                if(dueClaim!.Kind=="delta_sync")
+                    await b.SavePageAsync(dueClaim,"delta",new SyncPage([],null,continuation),
+                        DateTimeOffset.UtcNow,CancellationToken.None);
+                else
+                    await b.FinishAsync(dueClaim,CancellationToken.None);
+            }
+            Assert.Equal("completed",(await b.FindAsync(conn,scheduled.Id,CancellationToken.None))!.Status);
             var snapshots=await b.CheckpointsAsync(conn,CancellationToken.None);
             Assert.NotNull(snapshots);
             await using(var count=new NpgsqlCommand("""

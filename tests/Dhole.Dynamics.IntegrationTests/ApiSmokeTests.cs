@@ -63,4 +63,15 @@ public sealed class ApiSmokeTests
         using var response = await client.GetAsync("/auth/login");
         Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
+    [Fact]
+    public async Task AnonymousAdminConsoleAndCrudAreProtected()
+    {
+        using var factory = Factory();
+        using var client = factory.CreateClient();
+        using var dashboard = await client.GetAsync("/api/admin/v1/console/overview");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized,dashboard.StatusCode);
+        using var editor = await client.GetAsync("/api/admin/v1/console/records/new_shipment/" +
+            Guid.NewGuid() + "?connectionCode=ci&select=new_name");
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized,editor.StatusCode);
+    }
 }

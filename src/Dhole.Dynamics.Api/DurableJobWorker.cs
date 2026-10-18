@@ -37,7 +37,14 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
                     await Task.Delay(TimeSpan.FromSeconds(3),ct);
                     continue;
                 }
-                await ProcessAsync(scope.ServiceProvider,queue,claim,ct);
+                using var operation=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                var keepAlive=KeepAliveAsync(queue,claim,operation,ct);
+                try{await ProcessAsync(scope.ServiceProvider,queue,claim,operation.Token);}
+                finally
+                {
+                    operation.Cancel();
+                    await keepAlive;
+                }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
             catch(Exception ex)
@@ -48,6 +55,24 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
                 catch(OperationCanceledException){break;}
             }
         }
+    }
+
+    private static async Task KeepAliveAsync(DurableJobRepository jobs,QueueJob claim,
+        CancellationTokenSource operation,CancellationToken stop)
+    {
+        try
+        {
+            while(!operation.IsCancellationRequested && !stop.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(25),operation.Token);
+                if(!await jobs.RenewAsync(claim,operation.Token))
+                {
+                    operation.Cancel();
+                    break;
+                }
+            }
+        }
+        catch(OperationCanceledException){}
     }
 
     private async Task ProcessAsync(IServiceProvider services,DurableJobRepository queue,
@@ -61,21 +86,18 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
                     await SyncAsync(services,queue,job,ct);
                     return;
                 case "metadata_refresh":
-                    var conn=services.GetRequiredService<IConnectionRepository>();
-                    var connection=await CodeAsync(conn,job.ConnectionId,ct);
+                    var connection=await queue.ConnectionCodeAsync(job.ConnectionId,ct);
                     var refreshed=await services.GetRequiredService<MetadataRefreshService>()
                         .RefreshAsync(connection,"scheduled","system:durable-job",ct);
                     if(refreshed is null)throw new ReadRejected(404,"connection_not_found");
                     break;
                 case "legacy_preview":
-                    var previewCode=await CodeAsync(services.GetRequiredService<IConnectionRepository>(),
-                        job.ConnectionId,ct);
+                    var previewCode=await queue.ConnectionCodeAsync(job.ConnectionId,ct);
                     await services.GetRequiredService<LegacyMigrationService>()
                         .PreviewAsync(previewCode,ct);
                     break;
                 case "legacy_import":
-                    var importCode=await CodeAsync(services.GetRequiredService<IConnectionRepository>(),
-                        job.ConnectionId,ct);
+                    var importCode=await queue.ConnectionCodeAsync(job.ConnectionId,ct);
                     // Import is config-only, staged disabled and idempotent by audited Phase 09 contract.
                     await services.GetRequiredService<LegacyMigrationService>()
                         .ImportAsync(importCode,true,"system:durable-import",ct);
@@ -100,22 +122,13 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
         }
     }
 
-    private static async Task<string> CodeAsync(IConnectionRepository repository,
-        Guid id,CancellationToken ct)
-    {
-        var connections=await repository.ListAsync(ct);
-        var record=connections.FirstOrDefault(c=>c.Id==id);
-        return record?.Code??throw new ReadRejected(404,"job_connection_missing");
-    }
-
     private async Task SyncAsync(IServiceProvider services,DurableJobRepository jobs,
         QueueJob job,CancellationToken ct)
     {
         var settings=await jobs.GetConfigAsync(job.ConnectionId,job.ResourceKey,ct);
         if(settings is not {Enabled:true})
             throw new ReadRejected(403,"sync_not_enabled");
-        var code=await CodeAsync(services.GetRequiredService<IConnectionRepository>(),
-            job.ConnectionId,ct);
+        var code=await jobs.ConnectionCodeAsync(job.ConnectionId,ct);
         var policy=await services.GetRequiredService<ReadAccessRepository>()
             .ResolveAsync(code,job.ResourceKey,ct);
         var (storedMode,next,delta,watermark,started)=

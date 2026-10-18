@@ -83,16 +83,54 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         return item;
     }
 
+
+    public async Task<string> ConnectionCodeAsync(Guid connection,CancellationToken ct)
+    {
+        await using var db=await data.OpenConnectionAsync(ct);
+        await using var cmd=new NpgsqlCommand("""
+            SELECT code FROM dynamics.connections WHERE id=@id
+            """,db);
+        cmd.Parameters.AddWithValue("id",connection);
+        return (await cmd.ExecuteScalarAsync(ct) as string)
+            ??throw new ReadRejected(404,"job_connection_missing");
+    }
+
+    public async Task<bool> RenewAsync(QueueJob claim,CancellationToken ct)
+    {
+        await using var db=await data.OpenConnectionAsync(ct);
+        await using var cmd=new NpgsqlCommand("""
+            UPDATE dynamics.job_queue SET lease_until=now()+interval '120 seconds',
+              updated_at=now()
+            WHERE id=@id AND status='running' AND lease_owner=@owner
+              AND lease_version=@version AND lease_until>now()
+            """,db);
+        BindLease(cmd,claim);
+        return await cmd.ExecuteNonQueryAsync(ct)==1;
+    }
+
     public async Task<QueueJob?> ClaimAsync(Guid worker,CancellationToken ct)
     {
         if(worker==Guid.Empty)throw new ArgumentException("Invalid worker lease.");
         await using var db=await data.OpenConnectionAsync(ct);
+        // Exhausted leases cannot spin forever after repeated process crashes.
+        await using(var reap=new NpgsqlCommand("""
+            WITH abandoned AS (
+              UPDATE dynamics.job_queue SET status='dead',lease_owner=NULL,lease_until=NULL,
+                last_error_code='lease_exhausted',finished_at=now(),updated_at=now()
+              WHERE status='running' AND lease_until<now() AND attempts>=max_attempts
+              RETURNING id,connection_id
+            )
+            INSERT INTO dynamics.job_alerts(id,connection_id,job_id,code)
+            SELECT gen_random_uuid(),connection_id,id,'job_dead_letter' FROM abandoned
+            """,db))
+            await reap.ExecuteNonQueryAsync(ct);
         await using var cmd=new NpgsqlCommand($"""
             WITH claimed AS (
              SELECT q.id FROM dynamics.job_queue q
              LEFT JOIN dynamics.job_circuits c ON c.connection_id=q.connection_id
              WHERE (q.status='pending' AND q.available_at<=now() OR
                     q.status='running' AND q.lease_until<now())
+               AND q.attempts<q.max_attempts
                AND (q.kind NOT IN ('delta_sync','metadata_refresh') OR
                     c.open_until IS NULL OR c.open_until<=now())
              ORDER BY q.available_at,q.created_at,q.id LIMIT 1 FOR UPDATE OF q SKIP LOCKED
@@ -170,7 +208,8 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             """,db);
         BindLease(cmd,claim);
         if(await cmd.ExecuteNonQueryAsync(ct)!=1)throw new ReadRejected(409,"job_lease_lost");
-        await ResetCircuitAsync(claim.ConnectionId,ct);
+        if(claim.Kind is "delta_sync" or "metadata_refresh")
+            await ResetCircuitAsync(claim.ConnectionId,ct);
     }
 
     public async Task FailAsync(QueueJob claim,bool retryable,string errorCode,int? retrySeconds,
@@ -293,7 +332,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         update.Parameters.AddWithValue("next",(object?)page.NextLink??DBNull.Value);
         update.Parameters.AddWithValue("delta",(object?)page.DeltaLink??DBNull.Value);
         update.Parameters.AddWithValue("watermark",mode=="watermark" && page.NextLink is null
-            ?scanStarted:DBNull.Value);
+            ? (object)scanStarted : DBNull.Value);
         update.Parameters.AddWithValue("started",scanStarted);
         update.Parameters.AddWithValue("count",page.Changes.Count);
         await update.ExecuteNonQueryAsync(ct);
@@ -370,8 +409,15 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             INSERT INTO dynamics.sync_checkpoints(connection_id,entity_name,mode)
             VALUES(@conn,@entity,@mode)
             ON CONFLICT(connection_id,entity_name) DO UPDATE SET
-               mode=EXCLUDED.mode,next_link=NULL,delta_link=NULL,
-               scan_started_at=NULL,watermark_utc=NULL,
+               mode=EXCLUDED.mode,
+               next_link=CASE WHEN dynamics.sync_checkpoints.mode=EXCLUDED.mode
+                  THEN dynamics.sync_checkpoints.next_link ELSE NULL END,
+               delta_link=CASE WHEN dynamics.sync_checkpoints.mode=EXCLUDED.mode
+                  THEN dynamics.sync_checkpoints.delta_link ELSE NULL END,
+               scan_started_at=CASE WHEN dynamics.sync_checkpoints.mode=EXCLUDED.mode
+                  THEN dynamics.sync_checkpoints.scan_started_at ELSE NULL END,
+               watermark_utc=CASE WHEN dynamics.sync_checkpoints.mode=EXCLUDED.mode
+                  THEN dynamics.sync_checkpoints.watermark_utc ELSE NULL END,
                generation=dynamics.sync_checkpoints.generation+1
             """,db,tx))
         {

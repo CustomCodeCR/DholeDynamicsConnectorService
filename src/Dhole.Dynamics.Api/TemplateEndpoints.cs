@@ -26,6 +26,9 @@ public static class TemplateEndpoints
             .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         security.MapPut("/references",SetReference);
+        security.MapGet("/allowed-actions",ListActions);
+        security.MapPost("/allowed-actions",SaveAction);
+        security.MapPut("/allowed-actions/{entity}/{name}/enabled",EnableAction);
 
         app.MapPost("/api/v1/templates/{name}/execute",Execute)
             .WithGroupName("v1").RequireAuthorization("M2M");
@@ -101,6 +104,31 @@ public static class TemplateEndpoints
             var result=await repository.FindAsync(connection.Id,space,internalId,entity,ct);
             return result is not null?Results.Ok(result):
                 ApiProblems.Create(http,404,"reference_missing","Reference not found.");
+        });
+
+    private static async Task<IResult> ListActions(string code,
+        ActionPolicyRepository repo,ReadAccessRepository access,HttpContext http,CancellationToken ct) =>
+        await Guard(http,async()=>{
+            var conn=await access.ConnectionAsync(code,ct);
+            return Results.Ok(await repo.ListAsync(conn.Id,ct));
+        });
+
+    private static async Task<IResult> SaveAction(string code,BoundActionWrite definition,
+        ActionPolicyRepository repo,WriteAccessService access,ClaimsPrincipal actor,
+        HttpContext http,CancellationToken ct) =>
+        await Guard(http,async()=>{
+            var policy=await access.ResolveAsync(code,definition.EntityName,ct);
+            return Results.Ok(await repo.SetAsync(policy.Connection.Id,definition,
+                ScopeSecurity.ActorId(actor),ct));
+        });
+
+    private static async Task<IResult> EnableAction(string code,string entity,string name,
+        MetadataToggle toggle,ActionPolicyRepository repo,WriteAccessService access,
+        ClaimsPrincipal actor,HttpContext http,CancellationToken ct) =>
+        await Guard(http,async()=>{
+            var policy=await access.ResolveAsync(code,entity,ct);
+            return Results.Ok(await repo.EnableAsync(policy.Connection.Id,entity,name,
+                toggle.Enabled,ScopeSecurity.ActorId(actor),ct));
         });
 
     private static async Task<IResult> Execute(string name,TemplateInputs request,

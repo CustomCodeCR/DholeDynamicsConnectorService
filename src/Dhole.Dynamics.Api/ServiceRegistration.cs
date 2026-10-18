@@ -21,6 +21,7 @@ public static class ServiceRegistration
 
     public static IServiceCollection AddDholeApiSecurity(this IServiceCollection services, IConfiguration config, IHostEnvironment environment)
     {
+        services.AddSingleton(ProductionWritePolicy.FromConfiguration(config,environment));
         var adminAuthority = config["AdminOidc:Authority"];
         var adminId = config["AdminOidc:ClientId"];
         var adminSecret = config["AdminOidc:ClientSecret"];

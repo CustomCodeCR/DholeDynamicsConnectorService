@@ -15,10 +15,12 @@ public sealed record WriteTransportOutcome(int HttpStatus, Guid? RecordId, strin
     string? Reference, int? RetryAfterSeconds, bool Ambiguous = false);
 
 /// <summary>Fixed-host Dataverse writer. Exactly one dispatch; NEVER retries POST, PATCH or DELETE.</summary>
-public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTokenProvider tokens)
+public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTokenProvider tokens,
+    ProductionWritePolicy? production = null)
 {
     public async Task<WriteTransportOutcome> SendAsync(WriteCommand command, CancellationToken ct)
     {
+        production?.Demand(command.Operation);
         var uri = Validate(command.Policy, command.Path, false);
         using var request = CreateRequest(command, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
@@ -89,6 +91,7 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
 
     public async Task<WriteTransportOutcome> SendBatchAsync(IReadOnlyList<WriteCommand> commands, CancellationToken ct)
     {
+        foreach(var command in commands)production?.Demand(command.Operation);
         if (commands.Count is < 1 or > 5 || commands.Any(c => c.Policy.Connection.Id != commands[0].Policy.Connection.Id))
             throw new ReadRejected(400, "invalid_batch");
         var policy = commands[0].Policy;

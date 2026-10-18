@@ -107,4 +107,20 @@ public sealed class Phase10HttpClientTests
         Assert.ThrowsAsync<ArgumentException>(()=>client.FindQuoteByRateAsync("../admin",
             Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None)).GetAwaiter().GetResult();
     }
+
+    [Fact]
+    public async Task LostPostResponseDoesNotCauseSecondHttpRequest()
+    {
+        var handler = new Handler((_, _) => throw new TaskCanceledException("Lost response after upstream create"));
+        var args = new Dictionary<string, JsonElement>
+        {
+            ["name"] = JsonSerializer.SerializeToElement("Demo"),
+            ["customerAccountId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
+            ["currencyId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString())
+        };
+        await Assert.ThrowsAsync<TaskCanceledException>(()=>
+            Client(handler).CreateConfirmedQuoteAsync("sandbox",Guid.NewGuid(),args,
+                Guid.NewGuid(),CancellationToken.None));
+        Assert.Equal(1,handler.Calls);
+    }
 }

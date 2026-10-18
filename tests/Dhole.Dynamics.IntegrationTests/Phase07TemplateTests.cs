@@ -105,7 +105,7 @@ public sealed class Phase07TemplateTests
             var meta=new MetadataRepository(db);
             var oauth=new ClientAccessRepository(db);
             var templates=new TemplateRepository(db);
-            var links=new ExternalReferenceRepository(db);
+            var links=new ExternalReferenceRepository(db,meta);
             var actionPolicies=new ActionPolicyRepository(db);
             var grants=await oauth.RegisterAsync(
                 new ClientRegistrationRequest(issuer,clientId,"Integration Phase07"),"ci",CancellationToken.None);
@@ -218,6 +218,8 @@ public sealed class Phase07TemplateTests
         finally
         {
             await using var cleanup=new NpgsqlCommand("""
+                DELETE FROM dynamics.external_references
+                WHERE connection_id IN (@a,@b) AND integration_reference_space IS NOT NULL;
                 DELETE FROM dynamics.api_clients WHERE issuer=@issuer AND oauth_client_id=@client;
                 DELETE FROM dynamics.connections WHERE id IN (@a,@b)
                 """,conn);

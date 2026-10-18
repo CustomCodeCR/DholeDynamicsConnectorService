@@ -88,3 +88,5 @@ Rollback sin pérdida: primero `Jobs__Enabled=false` y reiniciar API. La cola y 
 ## Consulta incremental externa (M2M)
 
 `GET /api/v1/sync/{entity}/changes?connectionCode=staging&after=0&limit=50` requiere JWT app-only con rol `dynamics.records.read`, aplicación registrada, grant read de la entidad y del campo ID, y cuota disponible. Devuelve `{entityName,items:[{sequence,recordId,changeHash,action,observedAt}],nextAfter,hasMore}`, **sin datos de negocio**. El consumidor guarda su último `nextAfter` únicamente después de procesar el manifiesto local y repite usando ese valor; el orden es estable por secuencia y está aislado por conexión/entidad. Máximo 100 por página. La retención del manifiesto puede eliminar eventos anteriores al último cursor del consumidor: use reconciliación completa si estuvo offline más tiempo que `changeDays`. No hay acceso anónimo.
+
+**OpenAPI de Fase 11:** [phase11-openapi.yaml](api/phase11-openapi.yaml). El esquema describe el contrato externo autenticado y las operaciones administrativas sin publicar secretos ni URL de Dataverse.

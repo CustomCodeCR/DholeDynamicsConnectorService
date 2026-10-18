@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: Dhole Dynamics Connector — Phase 11 Jobs and Delta Sync
+  version: 1.0.0
+  description: >
+    Jobs run only when explicitly enabled and per-entity sync is configured.
+    Dataverse writes are never retried by the worker; all admin writes require
+    a SecurityAdmin OIDC cookie and anti-CSRF token. No business payloads are
+    included in the change feed or job status.
+servers:
+  - url: https://connector.example
+    description: Replace with the pinned approved connector environment.
+paths:
+  /api/v1/sync/{entity}/changes:
+    get:
+      operationId: readIncrementalChangeManifest
+      summary: Authorized, paginated change identifiers only
+      security: [{machineToken: []}]
+      parameters:
+        - {name: entity, in: path, required: true, schema: {type: string}}
+        - {name: connectionCode, in: query, required: true, schema: {type: string}}
+        - {name: after, in: query, required: false, schema: {type: integer, format: int64, minimum: 0, default: 0}}
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+      responses:
+        '200':
+          description: The next page, scoped to the caller's connection and approved entity
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChangesPage'}
+        '400': {description: Invalid cursor or query}
+        '401': {description: Missing or expired M2M JWT}
+        '403': {description: M2M role, registration, grant or field denied}
+        '429': {description: Durable grant quota exceeded}
+  /api/admin/v1/operations/jobs:
+    get:
+      operationId: listDurableJobs
+      security: [{adminSession: []}]
+      parameters:
+        - {name: connectionCode, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+      responses:
+        '200':
+          description: Sanitized durable jobs
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Job'}}
+  /api/admin/v1/operations/jobs/{code}:
+    post:
+      operationId: enqueueDurableJob
+      security: [{adminSession: []}]
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/JobEnqueue'}
+      responses:
+        '202': {description: Job enqueued}
+        '400': {description: Invalid kind, confirmation or key}
+        '403': {description: Requires SecurityAdmin}
+        '409': {description: Job is already active or sync has not been enabled}
+  /api/admin/v1/operations/jobs/{code}/{id}/replay:
+    post:
+      operationId: replayDeadLetterJob
+      security: [{adminSession: []}]
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Replay'}
+      responses:
+        '200': {description: Dead-letter reset to pending}
+        '403': {description: Requires SecurityAdmin}
+        '409': {description: Not in dead-letter or another active job exists}
+  /api/admin/v1/operations/sync/{code}:
+    put:
+      operationId: setSyncConfiguration
+      security: [{adminSession: []}]
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SyncConfiguration'}
+      responses:
+        '204': {description: Configuration updated}
+        '400': {description: Invalid mode or interval}
+        '403': {description: Entity, ID or modifiedon field not enabled}
+        '409': {description: Synchronization is in progress}
+  /api/admin/v1/operations/stats:
+    get:
+      operationId: getQueueStatistics
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: Aggregate queue state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobStats'}
+  /api/admin/v1/operations/audit/export:
+    get:
+      operationId: exportSanitizedAudit
+      security: [{adminSession: []}]
+      parameters:
+        - {name: connectionCode, in: query, schema: {type: string}}
+      responses:
+        '200': {description: Sanitized and capped CSV export, content: {text/csv: {schema: {type: string}}}}
+        '403': {description: Requires SecurityAdmin}
+  /health/jobs:
+    get:
+      operationId: jobServiceStatus
+      security: []
+      responses:
+        '200': {description: Disabled or operational status and safe aggregate counts}
+        '503': {description: Database unavailable}
+components:
+  securitySchemes:
+    machineToken: {type: http, scheme: bearer, bearerFormat: JWT}
+    adminSession: {type: apiKey, in: cookie, name: __Host-dhole-dynamics-admin}
+  schemas:
+    Job:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        connectionId: {type: string, format: uuid}
+        kind: {type: string, enum: [delta_sync, metadata_refresh, legacy_preview, legacy_import, reconcile_scan]}
+        resourceKey: {type: string}
+        status: {type: string, enum: [pending, running, completed, dead]}
+        attempts: {type: integer}
+        maxAttempts: {type: integer}
+        pageCount: {type: integer}
+        lastErrorCode: {type: string, nullable: true}
+    JobEnqueue:
+      type: object
+      required: [kind, dedupeKey]
+      additionalProperties: false
+      properties:
+        kind: {type: string, enum: [delta_sync, metadata_refresh, legacy_preview, legacy_import, reconcile_scan]}
+        entityName: {type: string, nullable: true}
+        dedupeKey: {type: string, minLength: 16, maxLength: 128}
+        confirm: {type: boolean, description: Required as true for legacy_import}
+    Replay:
+      type: object
+      required: [confirm, reason]
+      properties:
+        confirm: {type: boolean, enum: [true]}
+        reason: {type: string, minLength: 15, maxLength: 400}
+    SyncConfiguration:
+      type: object
+      required: [entityName, enabled, mode, fallbackToWatermark, intervalMinutes]
+      properties:
+        entityName: {type: string}
+        enabled: {type: boolean}
+        mode: {type: string, enum: [delta, watermark]}
+        fallbackToWatermark: {type: boolean}
+        intervalMinutes: {type: integer, minimum: 15, maximum: 10080}
+    ChangeEntry:
+      type: object
+      properties:
+        sequence: {type: integer, format: int64}
+        recordId: {type: string, format: uuid}
+        changeHash: {type: string, pattern: '^[A-F0-9]{64}$'}
+        action: {type: string, enum: [upsert, delete]}
+        observedAt: {type: string, format: date-time}
+    ChangesPage:
+      type: object
+      required: [entityName, items, nextAfter, hasMore]
+      properties:
+        entityName: {type: string}
+        items: {type: array, items: {$ref: '#/components/schemas/ChangeEntry'}}
+        nextAfter: {type: integer, format: int64, minimum: 0}
+        hasMore: {type: boolean}
+    JobStats:
+      type: object
+      properties:
+        pending: {type: integer}
+        running: {type: integer}
+        dead: {type: integer}
+        completed: {type: integer}
+        unacknowledgedAlerts: {type: integer}
+        changes24h: {type: integer}
+        staleLeases: {type: integer}

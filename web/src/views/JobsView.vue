@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import OperationalJobsPanel from './OperationalJobsPanel.vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminApi, type Connection } from '../lib/adminApi'
 type Job = { id:string;connectionId:string;entity:string;operation:string;state:string;
@@ -75,6 +76,7 @@ onMounted(async()=>{
       </div>
       <p v-if="api.error.value" role="alert" class="text-red-700">{{api.error.value}}</p>
       <p v-if="api.message.value" role="status">{{api.message.value}}</p>
+      <OperationalJobsPanel :connection-code="code" />
       <section class="rounded-xl border bg-white p-4">
         <h3 class="mb-3 font-semibold">{{t('uiScheduledRefresh')}}</h3>
         <p v-if="!schedules.length" class="text-sm text-slate-600">{{t('uiNoJobs')}}</p>

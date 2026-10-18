@@ -10,12 +10,15 @@ namespace Dhole.Dynamics.Api;
 
 /// <summary>Single dispatch of a preapproved bound Dataverse action, with durable no-retry semantics.</summary>
 public sealed class BoundActionExecutor(ActionPolicyRepository policies,ClientAccessRepository clients,
-    WriteLedger ledger,HttpClient http,IDataverseAccessTokenProvider tokens)
+    WriteLedger ledger,HttpClient http,IDataverseAccessTokenProvider tokens,
+    ProductionWritePolicy? production = null)
 {
     public async Task<WriteResult> InvokeAsync(ClaimsPrincipal actor,WritePolicy connection,
         string actionName,Guid recordId,IReadOnlyDictionary<string,JsonElement> data,
         string idempotencyKey,int revision,CancellationToken ct)
     {
+        // Bound actions may be destructive; require BOTH approvals in Production.
+        production?.Demand("action");
         if(recordId==Guid.Empty || !WriteLedger.ValidKey(idempotencyKey) ||
             !System.Text.RegularExpressions.Regex.IsMatch(actionName??"",
                 @"^[A-Za-z][A-Za-z0-9_]{0,79}$"))

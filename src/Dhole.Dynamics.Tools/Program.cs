@@ -14,9 +14,18 @@ if (args.Length is < 1 or > 2 || args[0] is not ("migrate" or "rotate-keys")
 try
 {
     var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+    var file=Environment.GetEnvironmentVariable("DYNAMICS_CONNECTION_STRING_FILE");
+    string? connectionValue=config["ConnectionStrings:Dynamics"];
+    if(!string.IsNullOrEmpty(file))
+    {
+        if(!file.StartsWith("/run/secrets/",StringComparison.Ordinal) ||
+            file.Contains("..",StringComparison.Ordinal) || !File.Exists(file) ||
+            new FileInfo(file).Length is < 1 or > 8192)
+            throw new InvalidOperationException("Invalid release database secret file.");
+        connectionValue=(await File.ReadAllTextAsync(file)).TrimEnd('\r','\n');
+    }
     var connectionString = DatabaseIsolation.Validate(
-        config["ConnectionStrings:Dynamics"]
-            ?? throw new InvalidOperationException("Missing connector DB connection."),
+        connectionValue ?? throw new InvalidOperationException("Missing connector DB connection."),
         requireDedicatedName: true);
     await using var database = new NpgsqlDataSourceBuilder(connectionString).Build();
     if (args[0] == "migrate")

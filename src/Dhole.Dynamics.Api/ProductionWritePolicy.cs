@@ -37,7 +37,7 @@ public sealed class ProductionWritePolicy
     {
         if(!IsProduction)return;
         if(!WritesApproved)throw new ReadRejected(403,"production_writes_not_approved");
-        if(operation=="delete" && !DeletesApproved)
+        if(operation is "delete" or "action" && !DeletesApproved)
             throw new ReadRejected(403,"production_deletes_not_approved");
     }
 
@@ -49,6 +49,8 @@ public sealed class ProductionWritePolicy
         var path=request.Path;
         if(path.StartsWithSegments("/api/v1"))
             return !WritesApproved || (HttpMethods.IsDelete(request.Method) && !DeletesApproved);
+        if(path.StartsWithSegments("/api/dynamics/quotes"))
+            return !WritesApproved;
         if(path.StartsWithSegments("/api/admin/v1/console/records"))
             return !WritesApproved || (HttpMethods.IsDelete(request.Method) && !DeletesApproved);
         return false;

@@ -54,6 +54,9 @@ public sealed class Phase12ReleaseSecurityTests
         var full=Policy("Production","YES","YES","CAB-2026-00001","CAB-2026-00002");
         full.Demand("delete");
         Assert.False(full.IsBlocked(batch.Request));
+        Assert.Equal("production_deletes_not_approved",
+            Assert.Throws<ReadRejected>(()=>allow.Demand("action")).Code);
+        full.Demand("action");
     }
     [Fact]
     public void StagingNeverAccidentallyRequiresProductionApproval()

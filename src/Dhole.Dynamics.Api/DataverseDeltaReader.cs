@@ -101,9 +101,10 @@ public sealed class DataverseDeltaReader(HttpClient http,IDataverseAccessTokenPr
         }
         var nextLink=GetLink(body.RootElement,"@odata.nextLink",policy);
         var deltaLink=GetLink(body.RootElement,"@odata.deltaLink",policy);
-        if(nextLink is not null && deltaLink is not null ||
-            mode=="delta" && nextLink is null && deltaLink is null)
+        if(nextLink is not null && deltaLink is not null)
             throw new ReadRejected(502,"invalid_delta_continuation");
+        if(mode=="delta" && nextLink is null && deltaLink is null)
+            return new([],null,null,UnsupportedDelta:true);
         return new(changes,nextLink,deltaLink);
     }
 

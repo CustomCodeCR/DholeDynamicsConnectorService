@@ -290,6 +290,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
               status=CASE WHEN CAST(@next AS text) IS NULL THEN 'completed' ELSE 'pending' END,
               available_at=now(),lease_owner=NULL,lease_until=NULL,
               finished_at=CASE WHEN CAST(@next AS text) IS NULL THEN now() ELSE NULL END,
+              attempts=CASE WHEN CAST(@next AS text) IS NULL THEN attempts ELSE 0 END,
               page_count=page_count+1,updated_at=now()
             WHERE id=@id AND lease_owner=@owner AND lease_version=@version AND
               status='running' AND lease_until>now() RETURNING id

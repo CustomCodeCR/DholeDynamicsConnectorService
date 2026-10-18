@@ -153,6 +153,19 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
             now=DateTimeOffset.UtcNow.AddMinutes(-1);
             page=await client.ReadAsync(policy,mode,null,null,watermark,ct);
         }
+        if(page.UnsupportedDelta)
+        {
+            if(mode!="delta" || !settings.FallbackToWatermark || next is not null)
+                throw new ReadRejected(502,"delta_tracking_not_supported");
+            if(!policy.Allowed.Contains("modifiedon"))
+                throw new ReadRejected(403,"watermark_fallback_field_denied");
+            await jobs.UseWatermarkAsync(job,ct);
+            mode="watermark";
+            (storedMode,next,delta,watermark,started)=
+                await jobs.CursorAsync(job.ConnectionId,job.ResourceKey,ct);
+            now=DateTimeOffset.UtcNow.AddMinutes(-1);
+            page=await client.ReadAsync(policy,mode,null,null,watermark,ct);
+        }
         await jobs.SavePageAsync(job,mode,page,now,ct);
     }
 

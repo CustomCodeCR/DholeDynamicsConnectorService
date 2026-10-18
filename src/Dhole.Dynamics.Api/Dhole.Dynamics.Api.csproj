@@ -18,6 +18,7 @@
     <ProjectReference Include="../Dhole.Dynamics.Contracts/Dhole.Dynamics.Contracts.csproj" />
     <ProjectReference Include="../Dhole.Dynamics.Infrastructure/Dhole.Dynamics.Infrastructure.csproj" />
     <ProjectReference Include="../Dhole.Dynamics.Persistence/Dhole.Dynamics.Persistence.csproj" />
+    <ProjectReference Include="../Dhole.Dynamics.Workers/Dhole.Dynamics.Workers.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../sql/001_init.sql" Link="sql/001_init.sql" CopyToOutputDirectory="PreserveNewest" />

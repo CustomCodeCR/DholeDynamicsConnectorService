@@ -220,6 +220,11 @@ public static class ServiceRegistration
         services.AddScoped<LegacyMigrationService>();
         services.AddScoped<ExternalReferenceRepository>();
         services.AddScoped<QuoteLinkReconciliationService>();
+        services.AddScoped<DurableJobRepository>();
+        services.AddHostedService<DurableJobWorker>();
+        services.AddHttpClient<DataverseDeltaReader>(h => h.Timeout=TimeSpan.FromSeconds(50))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            { AllowAutoRedirect=false, UseCookies=false });
         services.AddScoped<TemplateOrchestrator>();
         services.AddScoped<ActionPolicyRepository>();
         services.AddHttpClient<BoundActionExecutor>(http => http.Timeout=TimeSpan.FromSeconds(45))

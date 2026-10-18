@@ -35,6 +35,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       READ_CURSOR_KEY_BASE64: "${READ_CURSOR_KEY_BASE64:-}"
       Metadata__SchedulerEnabled: "${METADATA_SCHEDULER_ENABLED:-true}"
+      Jobs__Enabled: "${DYNAMICS_JOBS_ENABLED:-false}"
       ConnectionStrings__Dynamics: "Host=postgres;Port=5432;Database=dhole_dynamics_connector;Username=connector_app;Password=${POSTGRES_PASSWORD:?}"
       # Local auth remains disabled without a real external OIDC/OAuth provider.
       AdminOidc__Authority: "${ADMIN_OIDC_AUTHORITY:-}"

@@ -10,6 +10,9 @@ ENV_FILE="${1:?Usage: bash scripts/release-deploy.sh /path/to/secured.env}"
 set -a; source "$ENV_FILE"; set +a
 [[ "$DYNAMICS_ENVIRONMENT" == "Staging" || "$DYNAMICS_ENVIRONMENT" == "Production" ]] ||
   { echo "Staging or Production environment required"; exit 2; }
+[[ "${DYNAMICS_DEPLOY_APPROVAL_TICKET:-}" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]{11,119}$ &&
+    "${DYNAMICS_DEPLOY_APPROVAL_TICKET:-}" == "${DYNAMICS_GO_LIVE_TICKET:-${DYNAMICS_STAGING_APPROVAL_TICKET:-}}" ]] ||
+    { echo "Deployment requires the same reviewed change ticket on the target host"; exit 2; }
 [[ "$DYNAMICS_RELEASE_TAG" =~ ^sha-[0-9a-f]{40}$ ]] ||
   { echo "Release images must use the exact commit SHA tag"; exit 2; }
 [[ "$DYNAMICS_STACK_NAME" =~ ^dhole-dynamics-(staging|production)$ ]] ||

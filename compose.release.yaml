@@ -121,13 +121,13 @@ services:
     security_opt: [no-new-privileges:true]
 
 secrets:
-  postgres_password: {file: ${DYNAMICS_POSTGRES_PASSWORD_FILE:?Host secret file required}}
-  connector_db: {file: ${DYNAMICS_CONNECTOR_DB_FILE:?Host secret file required}}
-  dynamics_encryption_key: {file: ${DYNAMICS_ENCRYPTION_KEY_FILE:?Host secret file required}}
-  read_cursor_key: {file: ${DYNAMICS_CURSOR_KEY_FILE:?Host secret file required}}
-  admin_oidc_client_secret: {file: ${DYNAMICS_ADMIN_OIDC_SECRET_FILE:?Host secret file required}}
-  data_protection_cert: {file: ${DYNAMICS_DP_CERT_FILE:?Host cert PFX required}}
-  data_protection_password: {file: ${DYNAMICS_DP_PASSWORD_FILE:?Host cert password required}}
+  postgres_password: {file: "${DYNAMICS_POSTGRES_PASSWORD_FILE:?Host secret file required}"}
+  connector_db: {file: "${DYNAMICS_CONNECTOR_DB_FILE:?Host secret file required}"}
+  dynamics_encryption_key: {file: "${DYNAMICS_ENCRYPTION_KEY_FILE:?Host secret file required}"}
+  read_cursor_key: {file: "${DYNAMICS_CURSOR_KEY_FILE:?Host secret file required}"}
+  admin_oidc_client_secret: {file: "${DYNAMICS_ADMIN_OIDC_SECRET_FILE:?Host secret file required}"}
+  data_protection_cert: {file: "${DYNAMICS_DP_CERT_FILE:?Host cert PFX required}"}
+  data_protection_password: {file: "${DYNAMICS_DP_PASSWORD_FILE:?Host cert password required}"}
 
 volumes:
   connector_data:

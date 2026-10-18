@@ -1,6 +1,6 @@
 # DholeDynamicsConnectorService
 
-Servicio independiente para integrar Dynamics 365 / Dataverse. **Fases 01 y 02 validadas; Fase 03 implementada para validación de identidad y permisos.** No es un despliegue a producción.
+Servicio independiente para integrar Dynamics 365 / Dataverse. **Fases 01–07 implementadas y validadas mediante CI; integración externa IAM/Dataverse pendiente.** No es un despliegue a producción.
 
 ## Capas
 La solución .NET 10 separa `Api`, `Application`, `Domain`, `Contracts`, `Infrastructure`, `Persistence`, `Workers` y las herramientas de mantenimiento `Dhole.Dynamics.Tools`. El dashboard Vue 3 + TypeScript permite consultar el estado real del servicio sin simular funciones administrativas.
@@ -33,4 +33,4 @@ cd web && pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build
 - [Modelo de amenazas](docs/security/THREAT_MODEL.md)
 - [CI Fase 02 — master](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063682728) · [develop](https://github.com/CustomCodeCR/DholeDynamicsConnectorService/actions/runs/39063679477)
 
-Las fases anteriores tienen CI aprobado. Fase 03 agrega una consola administrativa OIDC, registro de consumidores OAuth y autorización mínima por organización, operación y campos; las pruebas de CI y la validación externa IAM/Dataverse deben completarse antes del uso en producción. Fase 04 implementa el catálogo dinámico y la aprobación explícita de entidades/campos; no se inició Fase 05 ni se desplegó. Antes de conectar información real se deben aprobar controles pendientes de F00, especialmente la **revocación de credenciales históricas** del repositorio legacy; no se han usado ni revocado desde aquí.
+Fases 01–07 validadas en CI, incluidas pruebas de PostgreSQL real. Las pruebas del proyecto no sustituyen una prueba E2E con Microsoft Entra y Dataverse en staging ni implican un despliegue productivo. Antes de conectar datos reales, resolver controles pendientes de F00, incluida la **revocación de credenciales históricas** del repositorio legado. No se inició Fase 08.

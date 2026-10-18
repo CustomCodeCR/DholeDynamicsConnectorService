@@ -46,10 +46,41 @@ paths:
         '200': {description: Link found, content: {application/json: {schema: {$ref: '#/components/schemas/DholeQuoteTemplateResult'}}}}
         '403': {description: Connection or field grant denied}
         '404': {description: Link not found}
+  /api/admin/v1/connections/{code}/dhole/quotes/{rateId}/reconcile:
+    post:
+      operationId: reconcileDholeQuote
+      summary: Confirm an existing Dataverse quote after UNKNOWN result and manual verification
+      security:
+        - adminSession: []
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+        - {name: rateId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QuoteLinkReconciliationRequest'}
+      responses:
+        '200': {description: Quote link marked as confirmed}
+        '400': {description: Explicit proof or confirmation missing}
+        '401': {description: Admin login required}
+        '403': {description: SecurityAdmin role required}
+        '404': {description: Quote link missing}
+        '409': {description: Quote link is pending or a conflicting GUID exists}
 components:
   securitySchemes:
+    adminSession: {type: apiKey, in: cookie, name: __Host-dhole-dynamics-admin}
     machineToken: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:
+    QuoteLinkReconciliationRequest:
+      type: object
+      required: [dynamicsQuoteId, confirmedInDataverse, evidence]
+      additionalProperties: false
+      properties:
+        dynamicsQuoteId: {type: string, format: uuid}
+        confirmedInDataverse: {type: boolean, enum: [true]}
+        evidence: {type: string, minLength: 20, maxLength: 500}
     DholeQuoteTemplateRequest:
       type: object
       required: [connectionCode, dholeRateId, confirmed, inputs]

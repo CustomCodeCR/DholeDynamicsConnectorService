@@ -15,7 +15,13 @@ public sealed class RequestDiagnosticsMiddleware(RequestDelegate next)
         try { await next(context); }
         finally
         {
-            if (!track) return;
+            if (track) await RecordAsync(context,database,log,watch);
+        }
+    }
+
+    private static async Task RecordAsync(HttpContext context,NpgsqlDataSource database,
+        ILogger<RequestDiagnosticsMiddleware> log,Stopwatch watch)
+    {
             watch.Stop();
             var route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText;
             if (string.IsNullOrWhiteSpace(route) || route.Length > 250) return;
@@ -42,6 +48,5 @@ public sealed class RequestDiagnosticsMiddleware(RequestDelegate next)
             {
                 log.LogWarning("Sanitized API request metric could not be stored.");
             }
-        }
     }
 }

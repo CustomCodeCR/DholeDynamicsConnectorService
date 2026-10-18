@@ -20,9 +20,9 @@ public sealed class Phase09MigrationTests
         Assert.Single(Bundle.Entries, e => e.Method == "PATCH");
         Assert.Equal(88, Bundle.Entries.Select(e => e.Route).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(88, Bundle.Entries.Select(e => e.Id).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(79, Bundle.Entries.Count(e => e.Query is not null));
+        Assert.Equal(78, Bundle.Entries.Count(e => e.Query is not null));
         Assert.All(Bundle.Entries,e=>Assert.NotEqual(e.SourceEntitySet,e.EntityName));
-        Assert.Equal(9, Bundle.Entries.Count(e => e.Status == "blocked_source"));
+        Assert.Equal(10, Bundle.Entries.Count(e => e.Status == "blocked_source"));
         foreach (var (entry,index) in Bundle.Entries.Select((e,i) => (e,i)))
         {
             Assert.Equal("LEG-" + (index+1).ToString("D3"), entry.Id);
@@ -52,7 +52,7 @@ public sealed class Phase09MigrationTests
     [Fact]
     public void ProvenIncompatibilitiesAreNotSilentlyReinterpreted()
     {
-        foreach(var id in new[]{"LEG-014","LEG-020","LEG-028","LEG-036","LEG-080","LEG-081"})
+        foreach(var id in new[]{"LEG-014","LEG-020","LEG-028","LEG-036","LEG-080","LEG-081","LEG-084"})
         {
             var entry=Assert.Single(Bundle.Entries, e=>e.Id==id);
             Assert.Null(entry.Query);

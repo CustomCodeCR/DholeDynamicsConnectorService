@@ -5,10 +5,10 @@
 ## Inventario y cobertura verificable
 
 - **88 rutas:** 87 GET y un PATCH, identificadores `LEG-001` a `LEG-088`.
-- **79 GET con traducción candidata** a `ReadSpec` y plantilla `find` parametrizada, limitada a 25 registros por página y máximo 5 páginas (cursor seguro del motor de Fase 05). No hay concatenación de `$filter` ni OData libre.
-- **9 rutas bloqueadas por evidencia en el controlador:** LEG-008 y LEG-009 contienen parámetros declarados no usados por sus filtros; LEG-014 tiene una separación `,` inválida en el filtro Choice; LEG-020 y LEG-028 proyectan 31 campos, superando el límite seguro actual de 30; LEG-036 depende de un GUID fijo de otra organización (no se replica); LEG-074 usa PATCH de BCF con `If-Match: *`, reemplazado por contrato con ETag específico; LEG-080 y LEG-081 utilizan expresiones `(campo,'{name}')` sin operador OData válido.
+- **78 GET con traducción candidata** a `ReadSpec` y plantilla `find` parametrizada, limitada a 25 registros por página y máximo 5 páginas (cursor seguro del motor de Fase 05). No hay concatenación de `$filter` ni OData libre.
+- **10 rutas bloqueadas por evidencia en el controlador:** LEG-008 y LEG-009 contienen parámetros declarados no usados por sus filtros; LEG-014 tiene una separación `,` inválida en el filtro Choice; LEG-020 y LEG-028 proyectan 31 campos, superando el límite seguro actual de 30; LEG-036 depende de un GUID fijo de otra organización (no se replica); LEG-074 usa PATCH de BCF con `If-Match: *`, reemplazado por contrato con ETag específico; LEG-084 utiliza el sufijo de lookup OData mal escrito `_valu` en lugar de `_value`; LEG-080 y LEG-081 utilizan expresiones `(campo,'{name}')` sin operador OData válido.
 - **0 rutas declaradas paridad productiva:** la validación final contra los metadatos reales, Choices, valores de estado, entidades/relationship names y permisos de la organización destino sigue pendiente. Los 79 candidatos no se activan si faltan campos o difieren sus tipos.
-- No se excluyó ninguna ruta por simple semejanza de nombre. Las nueve incompatibilidades tienen causa y línea de origen en la matriz; su remediación necesita corrección explícita y nueva revisión del paquete.
+- No se excluyó ninguna ruta por simple semejanza de nombre. Las diez incompatibilidades tienen causa y línea de origen en la matriz; su remediación necesita corrección explícita y nueva revisión del paquete.
 
 **Matriz de cobertura por ruta:** [PHASE09_COVERAGE.csv](PHASE09_COVERAGE.csv). **Datos fuente:** [LEGACY_COVERAGE.csv](LEGACY_COVERAGE.csv) y [LEGACY_INVENTORY.md](LEGACY_INVENTORY.md). El paquete normaliza nombres de entity set del controlador al nombre lógico de Dataverse: `incidents→incident`, `accounts→account`, `quotes→quote`, `competitors→competitor` y `salesliteratures→salesliterature`. Además, los lookup OData `_campo_value` se materializan exclusivamente desde los atributos Lookup/Customer/Owner que realmente descubra Fase 04, como campos derivados **solo lectura**, cada uno sujeto a autorización independiente. El paquete tipado está en [legacy/phase09-v1.json](../../legacy/phase09-v1.json).
 
@@ -51,6 +51,6 @@ No hay compatibilidad de rutas directas `/dynamics/*` en producción: el cambio 
 
 ## Validación automatizada
 
-Las pruebas unitarias recorren 88 entradas, controlan 87 GET/1 PATCH, verifican bloqueos, compilan los 79 DSL candidatos con metadatos sintéticos, prueban parámetros con apóstrofes y preservan el ETag. La prueba PostgreSQL comprueba preview sin efectos, staging desactivado, idempotencia, persistencia de tareas y separación entre conexiones. CI aplica **9 migraciones**, Docker smoke y backup/restauración cifrado.
+Las pruebas unitarias recorren 88 entradas, controlan 87 GET/1 PATCH, verifican bloqueos, compilan los 78 DSL candidatos con metadatos sintéticos, prueban parámetros con apóstrofes y preservan el ETag. La prueba PostgreSQL comprueba preview sin efectos, staging desactivado, idempotencia, persistencia de tareas y separación entre conexiones. CI aplica **9 migraciones**, Docker smoke y backup/restauración cifrado.
 
-**Limitación explícita:** el paquete está listo para validación y staging por organización, pero sin acceso a la metadata real no se puede demostrar paridad semántica productiva de las 79 operaciones. No se inicia Fase 10.
+**Limitación explícita:** el paquete está listo para validación y staging por organización, pero sin acceso a la metadata real no se puede demostrar paridad semántica productiva de las 78 operaciones. No se inicia Fase 10.

@@ -7692,29 +7692,13 @@
       "sourceFilterFields": [
         "_new_idtravinculadocorrecto_valu"
       ],
-      "status": "candidate_metadata_validation",
-      "reasons": [],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:legacy_lookup_annotation_typo:_new_idtravinculadocorrecto_valu"
+      ],
       "queryName": "legacy-084",
       "templateName": "Legacy084",
-      "query": {
-        "select": [
-          "new_autorizacin",
-          "new_solicitud",
-          "_new_idtravinculadocorrecto_value",
-          "new_statusexoneracion",
-          "new_tipoexoneracin",
-          "name",
-          "new_validahasta"
-        ],
-        "filter": {
-          "field": "_new_idtravinculadocorrecto_valu",
-          "op": "eq",
-          "parameter": "name"
-        },
-        "order": [],
-        "pageSize": 25,
-        "count": false
-      },
+      "query": null,
       "parameterSchema": [
         {
           "name": "name",
@@ -7722,19 +7706,7 @@
           "required": true
         }
       ],
-      "template": {
-        "entityName": "salesliterature",
-        "operation": "find",
-        "inputs": [
-          {
-            "name": "name",
-            "type": "string",
-            "required": true
-          }
-        ],
-        "mappings": [],
-        "savedQuery": "legacy-084"
-      },
+      "template": null,
       "sourceEntitySet": "salesliteratures"
     },
     {

@@ -52,7 +52,8 @@ public sealed class TemplateRepository(NpgsqlDataSource database)
     public async Task<TemplateSummary> NewRevisionAsync(Guid connection,string name,
         IntegrationTemplate definition,int metadataVersion,string actor,CancellationToken ct)
     {
-        if(!ReadQueryCompiler.ValidParam(name)||metadataVersion<1)
+        if(!System.Text.RegularExpressions.Regex.IsMatch(name??"",
+            @"^[A-Za-z][A-Za-z0-9_-]{0,79}$")||metadataVersion<1)
             throw new ReadRejected(400,"invalid_template_name");
         var body=JsonSerializer.Serialize(definition,Json);
         var hash=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));

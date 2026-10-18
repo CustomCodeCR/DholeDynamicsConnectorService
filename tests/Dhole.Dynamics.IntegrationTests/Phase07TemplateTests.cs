@@ -140,7 +140,7 @@ public sealed class Phase07TemplateTests
             var actions=new BoundActionExecutor(actionPolicies,oauth,ledger,new HttpClient(fake),tokens);
             var orchestrator=new TemplateOrchestrator(templates,links,access,writer,reader,saveQuery,
                 readAccess,actionPolicies,actions);
-            const string name="create_shipment";
+            const string name="CreateShipment";
             var first=new IntegrationTemplate("new_shipment","create",
                 [new TemplateInput("po","string")],
                 [new TemplateMapping("new_name","po",[new TemplateStep("upper")])]);

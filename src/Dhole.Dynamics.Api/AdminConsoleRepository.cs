@@ -19,7 +19,11 @@ public sealed class AdminConsoleRepository(NpgsqlDataSource database)
                  AND started_at > now()-interval '24 hours'),
               (SELECT coalesce(sum(request_count),0) FROM dynamics.api_quota_windows
                  WHERE window_minute >= extract(epoch from now())::bigint/60-60),
-              (SELECT max(created_at) FROM dynamics.audit_events)
+              (SELECT max(created_at) FROM dynamics.audit_events),
+              (SELECT coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY elapsed_ms),0)
+                 FROM dynamics.http_observations WHERE observed_at > now()-interval '1 hour'),
+              (SELECT count(*) FROM dynamics.http_observations
+                 WHERE status_code>=500 AND observed_at > now()-interval '24 hours')
             """, db);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         await r.ReadAsync(ct);
@@ -27,6 +31,7 @@ public sealed class AdminConsoleRepository(NpgsqlDataSource database)
             needsReconciliation=r.GetInt64(3), rejectedWrites24h=r.GetInt64(4),
             requestsLastHour=Convert.ToInt64(r.GetDecimal(5)),
             lastEventAt=r.IsDBNull(6) ? (DateTimeOffset?)null : r.GetFieldValue<DateTimeOffset>(6),
+            requestP95Ms=r.GetDouble(7),httpErrors24h=r.GetInt64(8),
             dynamicsQuotaNote="These are connector-local request counts, not the Dataverse tenant quota." };
     }
 
@@ -73,6 +78,23 @@ public sealed class AdminConsoleRepository(NpgsqlDataSource database)
                     recordId=r.IsDBNull(8)?(Guid?)null:r.GetGuid(8),kind="write"});
         }
         return jobs;
+    }
+
+    public async Task<object> ObservationsAsync(int limit,CancellationToken ct)
+    {
+        var rows=new List<object>();
+        await using var db=await database.OpenConnectionAsync(ct);
+        await using var cmd=new NpgsqlCommand("""
+            SELECT correlation_id,route_pattern,method,status_code,elapsed_ms,observed_at
+            FROM dynamics.http_observations ORDER BY observed_at DESC,id DESC LIMIT @limit
+            """,db);
+        cmd.Parameters.AddWithValue("limit",Math.Clamp(limit,1,100));
+        await using var reader=await cmd.ExecuteReaderAsync(ct);
+        while(await reader.ReadAsync(ct))
+            rows.Add(new {correlationId=reader.GetGuid(0),route=reader.GetString(1),
+                method=reader.GetString(2),status=reader.GetInt32(3),
+                durationMs=reader.GetInt32(4),at=reader.GetFieldValue<DateTimeOffset>(5)});
+        return rows;
     }
 
     public async Task<object> SchedulesAsync(Guid? connection,CancellationToken ct)

@@ -20,6 +20,7 @@ public static class AdminConsoleEndpoints
         admin.MapGet("/overview",Overview);
         admin.MapGet("/jobs",Jobs);
         admin.MapGet("/audit",Audit);
+        admin.MapGet("/observations",Observations);
         admin.MapGet("/schedules",Schedules);
         admin.MapGet("/diagnostics",Diagnostics);
 
@@ -42,6 +43,9 @@ public static class AdminConsoleEndpoints
         AdminConsoleRepository repository,IConnectionRepository connections,HttpContext ctx,CancellationToken ct) =>
         Guard(ctx,async()=>Results.Ok(await repository.AuditAsync(
             await ConnectionId(connectionCode,connections,ct),limit??50,ct)));
+    private static Task<IResult> Observations(int? limit,
+        AdminConsoleRepository repository,HttpContext ctx,CancellationToken ct) =>
+        Guard(ctx,async()=>Results.Ok(await repository.ObservationsAsync(limit??50,ct)));
     private static Task<IResult> Schedules(string? connectionCode,
         AdminConsoleRepository repository,IConnectionRepository connections,HttpContext ctx,CancellationToken ct) =>
         Guard(ctx,async()=>Results.Ok(await repository.SchedulesAsync(

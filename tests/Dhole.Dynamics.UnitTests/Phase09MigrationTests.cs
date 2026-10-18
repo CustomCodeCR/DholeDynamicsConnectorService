@@ -74,7 +74,7 @@ public sealed class Phase09MigrationTests
             var fields=new HashSet<string>(spec.Select,StringComparer.Ordinal);
             foreach(var order in spec.Order??[])fields.Add(order.Field);
             Collect(spec.Filter,types,fields,e.ParameterSchema);
-            var columns=fields.Select(f=>new MetadataColumn(f,types.GetValueOrDefault(f)??"String",
+            var columns=fields.Select(f=>new MetadataColumn(f,f.StartsWith('_')?"Uniqueidentifier":types.GetValueOrDefault(f)??"String",
                 true,!f.StartsWith('_'),!f.StartsWith('_'),f.StartsWith('_'),
                 null,null,null,[],new Dictionary<int,string>(),[])).ToArray();
             var table=new MetadataTable(e.EntityName,e.EntityName,"incidentid",null,true,
@@ -147,4 +147,28 @@ public sealed class Phase09MigrationTests
             else if(value.ValueKind is JsonValueKind.True or JsonValueKind.False)types[node.Field]="Boolean";
         }
     }
+
+    [Fact]
+    public void LookupShadowsCannotBeInjectedWithoutDiscoveredAndApprovedColumn()
+    {
+        var lookup = new MetadataTable("incident","incidents","incidentid",null,false,
+            new Dictionary<int,string>(),[
+                new MetadataColumn("customerid","Customer",true,false,false,false,
+                    null,null,null,[],new Dictionary<int,string>(),[])
+            ],[]);
+        var query = new ReadSpec(["_customerid_value"]);
+        Assert.Throws<UnauthorizedAccessException>(()=>ReadQueryCompiler.Compile(
+            lookup,query,new HashSet<string>(["_customerid_value"],StringComparer.Ordinal)));
+        var allowed = lookup with { Columns = [
+            ..lookup.Columns,
+            new MetadataColumn("_customerid_value","Uniqueidentifier",true,false,false,true,
+                null,null,null,[],new Dictionary<int,string>(),[])
+        ]};
+        var compiled = ReadQueryCompiler.Compile(allowed,query,
+            new HashSet<string>(["_customerid_value"],StringComparer.Ordinal));
+        Assert.Contains("_customerid_value",compiled.RelativeUrl);
+        Assert.Throws<UnauthorizedAccessException>(()=>ReadQueryCompiler.Compile(
+            allowed,query,new HashSet<string>(StringComparer.Ordinal)));
+    }
+
 }

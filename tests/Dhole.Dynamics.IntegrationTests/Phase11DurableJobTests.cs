@@ -100,6 +100,23 @@ public sealed class Phase11DurableJobTests
                     pageIndex==8?continuation:null),DateTimeOffset.UtcNow,CancellationToken.None);
             }
             Assert.Equal("completed",(await b.FindAsync(conn,paged!.Id,CancellationToken.None))!.Status);
+            // Existing scheduled metadata refreshes enter the durable queue, not a second
+            // unleased background loop.
+            await using(var schedule=new NpgsqlCommand("""
+                INSERT INTO dynamics.metadata_refresh_schedules
+                  (connection_id,enabled,interval_minutes,next_run_at)
+                VALUES(@id,true,60,now()-interval '5 minutes')
+                ON CONFLICT(connection_id) DO UPDATE SET
+                  enabled=true,next_run_at=now()-interval '5 minutes'
+                """,db))
+            {
+                schedule.Parameters.AddWithValue("id",conn);
+                await schedule.ExecuteNonQueryAsync();
+            }
+            await b.ScheduleDueAsync(CancellationToken.None);
+            var scheduled=(await b.ListAsync(conn,30,CancellationToken.None))
+                .Single(j=>j.Kind=="metadata_refresh");
+            Assert.Equal("pending",scheduled.Status);
             var snapshots=await b.CheckpointsAsync(conn,CancellationToken.None);
             Assert.NotNull(snapshots);
             await using(var count=new NpgsqlCommand("""

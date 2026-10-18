@@ -518,6 +518,40 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             update.Parameters.AddWithValue("interval",item.Interval);
             await update.ExecuteNonQueryAsync(ct);
         }
+        // Reuse the existing per-organization metadata schedule with the durable
+        // queue when Jobs is enabled; no direct scheduled Dataverse request bypasses leases.
+        await using(var dueMetadata=new NpgsqlCommand("""
+            SELECT connection_id,interval_minutes FROM dynamics.metadata_refresh_schedules
+            WHERE enabled AND next_run_at<=now()
+            ORDER BY next_run_at LIMIT 10 FOR UPDATE SKIP LOCKED
+            """,db,tx))
+        {
+            var metadata=new List<(Guid Conn,int Interval)>();
+            await using(var r=await dueMetadata.ExecuteReaderAsync(ct))
+                while(await r.ReadAsync(ct))
+                    metadata.Add((r.GetGuid(0),r.GetInt32(1)));
+            foreach(var item in metadata)
+            {
+                await using var insert=new NpgsqlCommand("""
+                    INSERT INTO dynamics.job_queue
+                      (id,connection_id,kind,resource_key,dedupe_key,created_by)
+                    VALUES(@id,@conn,'metadata_refresh','',@dedupe,'system:job-scheduler')
+                    ON CONFLICT DO NOTHING RETURNING id
+                    """,db,tx);
+                insert.Parameters.AddWithValue("id",Guid.NewGuid());
+                insert.Parameters.AddWithValue("conn",item.Conn);
+                insert.Parameters.AddWithValue("dedupe","metadata-"+Guid.NewGuid().ToString("N"));
+                if(await insert.ExecuteScalarAsync(ct) is null)continue;
+                await using var update=new NpgsqlCommand("""
+                    UPDATE dynamics.metadata_refresh_schedules
+                    SET next_run_at=now()+make_interval(mins=>@interval),updated_at=now()
+                    WHERE connection_id=@conn
+                    """,db,tx);
+                update.Parameters.AddWithValue("conn",item.Conn);
+                update.Parameters.AddWithValue("interval",item.Interval);
+                await update.ExecuteNonQueryAsync(ct);
+            }
+        }
         await tx.CommitAsync(ct);
     }
 

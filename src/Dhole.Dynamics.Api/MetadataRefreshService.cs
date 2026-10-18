@@ -28,7 +28,10 @@ public sealed class MetadataScheduler(IServiceScopeFactory scopeFactory,
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("Metadata:SchedulerEnabled", false)) return;
+        // When the durable queue is enabled, its scheduler owns the same metadata
+        // schedule rows, preventing duplicate and unleased provider calls.
+        if (configuration.GetValue("Jobs:Enabled", false) ||
+            !configuration.GetValue("Metadata:SchedulerEnabled", false)) return;
         while (!stoppingToken.IsCancellationRequested)
         {
             try

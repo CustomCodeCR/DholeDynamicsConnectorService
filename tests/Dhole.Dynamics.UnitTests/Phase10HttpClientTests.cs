@@ -54,8 +54,8 @@ public sealed class Phase10HttpClientTests
         var result = await Client(handler).CreateConfirmedQuoteAsync("sandbox", rate,
             new Dictionary<string, JsonElement> {
                 ["name"] = JsonSerializer.SerializeToElement("Demo"),
-                ["customerAccountId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
-                ["currencyId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
+                ["customer_account_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
+                ["currency_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
                 ["freight"] = JsonSerializer.SerializeToElement<decimal?>(null)
             }, Guid.NewGuid(), CancellationToken.None);
         Assert.Equal("succeeded", result.Status);
@@ -76,8 +76,8 @@ public sealed class Phase10HttpClientTests
         var result = await Client(handler).CreateConfirmedQuoteAsync("sandbox", rate,
             new Dictionary<string, JsonElement> {
                 ["name"] = JsonSerializer.SerializeToElement("Demo"),
-                ["customerAccountId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
-                ["currencyId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString())
+                ["customer_account_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
+                ["currency_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString())
             }, Guid.NewGuid(), CancellationToken.None);
         Assert.Equal(op, result.OperationId);
         Assert.Equal(1, handler.Calls);
@@ -115,8 +115,8 @@ public sealed class Phase10HttpClientTests
         var args = new Dictionary<string, JsonElement>
         {
             ["name"] = JsonSerializer.SerializeToElement("Demo"),
-            ["customerAccountId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
-            ["currencyId"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString())
+            ["customer_account_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString()),
+            ["currency_id"] = JsonSerializer.SerializeToElement(Guid.NewGuid().ToString())
         };
         await Assert.ThrowsAsync<TaskCanceledException>(()=>
             Client(handler).CreateConfirmedQuoteAsync("sandbox",Guid.NewGuid(),args,

@@ -21,7 +21,7 @@ Content-Type: application/json
 Idempotency-Key: dhole-rate-11111111111141118111111111111111
 X-Correlation-ID: 33333333-3333-4333-8333-333333333333
 
-{"connectionCode":"staging","dholeRateId":"11111111-1111-4111-8111-111111111111","confirmed":true,"inputs":{"name":"QUOTE TEST","customerAccountId":"22222222-2222-4222-8222-222222222222","currencyId":"44444444-4444-4444-8444-444444444444","pol":"Shanghai","pod":"Caldera","freight":1000}}
+{"connectionCode":"staging","dholeRateId":"11111111-1111-4111-8111-111111111111","confirmed":true,"inputs":{"name":"QUOTE TEST","customer_account_id":"22222222-2222-4222-8222-222222222222","currency_id":"44444444-4444-4444-8444-444444444444","pol":"Shanghai","pod":"Caldera","freight":1000}}
 ```
 
 `201` primera creación confirmada, `200` vínculo previamente creado, `409` cuando PENDING/UNKNOWN/ambigüedad exige reconciliación. Una respuesta exitosa incluye `dholeRateId`, `dynamicsQuoteId`, `status`, `operationId`, `alreadyExisted` y `quoteNumber` (nulo hasta lectura autorizada). Nunca asumir que `502`, timeout o pérdida de respuesta permite reintentar con una nueva clave.

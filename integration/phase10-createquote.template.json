@@ -11,47 +11,47 @@
         "required": true
       },
       {
-        "name": "customerAccountId",
+        "name": "customer_account_id",
         "type": "guid",
         "required": true
       },
       {
-        "name": "currencyId",
+        "name": "currency_id",
         "type": "guid",
         "required": true
       },
       {
-        "name": "preState",
+        "name": "pre_state",
         "type": "integer",
         "required": false
       },
       {
-        "name": "rateCategory",
+        "name": "rate_category",
         "type": "integer",
         "required": false
       },
       {
-        "name": "customerType",
+        "name": "customer_type",
         "type": "integer",
         "required": false
       },
       {
-        "name": "proposalType",
+        "name": "proposal_type",
         "type": "integer",
         "required": false
       },
       {
-        "name": "specificProject",
+        "name": "specific_project",
         "type": "integer",
         "required": false
       },
       {
-        "name": "cargoType",
+        "name": "cargo_type",
         "type": "integer",
         "required": false
       },
       {
-        "name": "equipmentQuantity",
+        "name": "equipment_quantity",
         "type": "string",
         "required": false
       },
@@ -61,7 +61,7 @@
         "required": false
       },
       {
-        "name": "transitTime",
+        "name": "transit_time",
         "type": "string",
         "required": false
       },
@@ -86,12 +86,12 @@
         "required": false
       },
       {
-        "name": "effectiveFrom",
+        "name": "effective_from",
         "type": "datetime",
         "required": false
       },
       {
-        "name": "expiresOn",
+        "name": "expires_on",
         "type": "datetime",
         "required": false
       },
@@ -123,39 +123,39 @@
       },
       {
         "target": "customerid_account@odata.bind",
-        "source": "customerAccountId"
+        "source": "customer_account_id"
       },
       {
         "target": "transactioncurrencyid@odata.bind",
-        "source": "currencyId"
+        "source": "currency_id"
       },
       {
         "target": "new_preestado",
-        "source": "preState"
+        "source": "pre_state"
       },
       {
         "target": "new_categoriatarifa",
-        "source": "rateCategory"
+        "source": "rate_category"
       },
       {
         "target": "new_tipodecliente",
-        "source": "customerType"
+        "source": "customer_type"
       },
       {
         "target": "new_tipopropuesta",
-        "source": "proposalType"
+        "source": "proposal_type"
       },
       {
         "target": "new_proyecctoespecifico",
-        "source": "specificProject"
+        "source": "specific_project"
       },
       {
         "target": "new_tipocarga",
-        "source": "cargoType"
+        "source": "cargo_type"
       },
       {
         "target": "new_cantidadequipos",
-        "source": "equipmentQuantity"
+        "source": "equipment_quantity"
       },
       {
         "target": "new_equipo",
@@ -163,7 +163,7 @@
       },
       {
         "target": "new_tiempodetransitoaprox",
-        "source": "transitTime"
+        "source": "transit_time"
       },
       {
         "target": "new_pol",
@@ -183,11 +183,11 @@
       },
       {
         "target": "effectivefrom",
-        "source": "effectiveFrom"
+        "source": "effective_from"
       },
       {
         "target": "expireson",
-        "source": "expiresOn"
+        "source": "expires_on"
       },
       {
         "target": "new_monto1",

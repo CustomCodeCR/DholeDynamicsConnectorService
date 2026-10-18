@@ -47,8 +47,8 @@ public sealed class Phase10QuoteTests
     public void CreateQuoteDefinitionContainsNoFixedChoiceCodes()
     {
         // Values are inputs selected from each organization's approved Dataverse metadata.
-        var codes = new[] { "preState", "rateCategory", "customerType", "proposalType",
-            "specificProject", "cargoType", "equipment" };
+        var codes = new[] { "pre_state", "rate_category", "customer_type", "proposal_type",
+            "specific_project", "cargo_type", "equipment" };
         Assert.All(codes, code => Assert.False(string.IsNullOrWhiteSpace(code)));
         Assert.True(WriteLedger.ValidKey("dhole-rate-" + Guid.NewGuid().ToString("N")));
     }
@@ -106,22 +106,22 @@ public sealed class Phase10QuoteTests
         var currency = Guid.NewGuid();
         var template = new IntegrationTemplate("quote","create",
             [new TemplateInput("name","string"),
-             new TemplateInput("customerAccountId","guid"),
-             new TemplateInput("currencyId","guid"),
-             new TemplateInput("preState","integer",false),
+             new TemplateInput("customer_account_id","guid"),
+             new TemplateInput("currency_id","guid"),
+             new TemplateInput("pre_state","integer",false),
              new TemplateInput("freight","decimal",false)],
             [new TemplateMapping("name","name"),
-             new TemplateMapping("customerid_account@odata.bind","customerAccountId"),
-             new TemplateMapping("transactioncurrencyid@odata.bind","currencyId"),
-             new TemplateMapping("new_preestado","preState"),
+             new TemplateMapping("customerid_account@odata.bind","customer_account_id"),
+             new TemplateMapping("transactioncurrencyid@odata.bind","currency_id"),
+             new TemplateMapping("new_preestado","pre_state"),
              new TemplateMapping("new_flete","freight")]);
         TemplateMapper.ValidateDefinition(template,policy);
         var values = TemplateMapper.ValidateInputs(template.Inputs,
             new Dictionary<string,JsonElement> {
                 ["name"] = JsonSerializer.SerializeToElement("demo"),
-                ["customerAccountId"] = JsonSerializer.SerializeToElement(account.ToString("D")),
-                ["currencyId"] = JsonSerializer.SerializeToElement(currency.ToString("D")),
-                ["preState"] = JsonSerializer.SerializeToElement(10),
+                ["customer_account_id"] = JsonSerializer.SerializeToElement(account.ToString("D")),
+                ["currency_id"] = JsonSerializer.SerializeToElement(currency.ToString("D")),
+                ["pre_state"] = JsonSerializer.SerializeToElement(10),
                 ["freight"] = JsonSerializer.SerializeToElement(32.50m)
             });
         var mapped=await TemplateMapper.BuildAsync(template,values,policy.Connection.Id,

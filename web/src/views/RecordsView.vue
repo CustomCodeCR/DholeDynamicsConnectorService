@@ -114,6 +114,7 @@ async function save(){
     result.value=res
     ambiguous.value=res.state==='ambiguous'
     if (res.state==='ambiguous')api.error.value=t('uiWriteAmbiguous')
+    else if (res.state==='rejected')api.error.value=t('uiWriteRejected')+' · HTTP '+res.httpStatus
     else api.message.value=t('saved')+' · '+res.operationId
     if(res.state==='succeeded' && mode.value!=='create')etag.value=''
   })

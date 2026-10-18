@@ -39,7 +39,14 @@ export function useAdminApi() {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     })
     if (!response.ok) {
-      const problem = await response.json().catch(() => null) as { title?: string; code?: string } | null
+      const problem = await response.json().catch(() => null) as
+        { title?: string; code?: string; operationId?: string; state?: string } | null
+      // Ambiguous/rejected writes still carry a durable operation ID. Preserve it
+      // so the editor can prevent a second dispatch.
+      if (path.startsWith('/api/admin/v1/console/records/') &&
+          (method==='POST' || method==='PATCH' || method==='DELETE') &&
+          problem?.operationId && (problem.state==='ambiguous' || problem.state==='rejected'))
+        return problem as T
       throw new Error((problem?.title ?? 'Request rejected') + ' (HTTP ' + response.status + ')')
     }
     return response.status === 204 ? null as T : await response.json() as T

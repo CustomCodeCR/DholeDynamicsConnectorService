@@ -34,6 +34,7 @@ app.MapMetadataEndpoints();
 app.MapReadEndpoints();
 app.MapWriteEndpoints();
 app.MapTemplateEndpoints();
+app.MapDholeQuoteTemplateEndpoints();
 app.MapAdminConsoleEndpoints();
 app.MapLegacyMigrationEndpoints();
 

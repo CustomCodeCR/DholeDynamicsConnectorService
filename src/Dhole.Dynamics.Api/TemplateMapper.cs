@@ -112,6 +112,12 @@ public static class TemplateMapper
                 else if(spec.Required)throw new ReadRejected(400,"template_input_required");
                 else continue;
             }
+            // Optional values never emit explicit Dataverse nulls. Required nulls still fail.
+            if(val.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                if(spec.Required)throw new ReadRejected(400,"template_input_required");
+                continue;
+            }
             if(!Typed(spec.Type,val))throw new ReadRejected(400,"template_input_type");
             if(spec.Pattern is string pat && val.ValueKind==JsonValueKind.String)
             {
@@ -167,7 +173,13 @@ public static class TemplateMapper
             if(mapping.Source is not null)
             {
                 if(!values.TryGetValue(mapping.Source,out current))
+                {
+                    // Missing optional input means omit the outbound Dataverse property entirely.
+                    // It must not become a null update or a string "null".
+                    if(definition.Inputs.Any(i=>i.Name==mapping.Source && !i.Required))
+                        continue;
                     throw new ReadRejected(400,"template_source_missing");
+                }
             }
             else current=mapping.Constant!.Value;
             foreach(var step in mapping.Steps??[])

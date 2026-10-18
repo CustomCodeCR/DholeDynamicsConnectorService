@@ -1,0 +1,210 @@
+{
+  "format": "dhole.template.v1",
+  "name": "CreateQuote",
+  "definition": {
+    "entityName": "quote",
+    "operation": "create",
+    "inputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "customerAccountId",
+        "type": "guid",
+        "required": true
+      },
+      {
+        "name": "currencyId",
+        "type": "guid",
+        "required": true
+      },
+      {
+        "name": "preState",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "rateCategory",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "customerType",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "proposalType",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "specificProject",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "cargoType",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "equipmentQuantity",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "equipment",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "transitTime",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "pol",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "poe",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "pod",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": false
+      },
+      {
+        "name": "effectiveFrom",
+        "type": "datetime",
+        "required": false
+      },
+      {
+        "name": "expiresOn",
+        "type": "datetime",
+        "required": false
+      },
+      {
+        "name": "total",
+        "type": "decimal",
+        "required": false
+      },
+      {
+        "name": "freight",
+        "type": "decimal",
+        "required": false
+      },
+      {
+        "name": "origin",
+        "type": "decimal",
+        "required": false
+      },
+      {
+        "name": "destination",
+        "type": "decimal",
+        "required": false
+      }
+    ],
+    "mappings": [
+      {
+        "target": "name",
+        "source": "name"
+      },
+      {
+        "target": "customerid_account@odata.bind",
+        "source": "customerAccountId"
+      },
+      {
+        "target": "transactioncurrencyid@odata.bind",
+        "source": "currencyId"
+      },
+      {
+        "target": "new_preestado",
+        "source": "preState"
+      },
+      {
+        "target": "new_categoriatarifa",
+        "source": "rateCategory"
+      },
+      {
+        "target": "new_tipodecliente",
+        "source": "customerType"
+      },
+      {
+        "target": "new_tipopropuesta",
+        "source": "proposalType"
+      },
+      {
+        "target": "new_proyecctoespecifico",
+        "source": "specificProject"
+      },
+      {
+        "target": "new_tipocarga",
+        "source": "cargoType"
+      },
+      {
+        "target": "new_cantidadequipos",
+        "source": "equipmentQuantity"
+      },
+      {
+        "target": "new_equipo",
+        "source": "equipment"
+      },
+      {
+        "target": "new_tiempodetransitoaprox",
+        "source": "transitTime"
+      },
+      {
+        "target": "new_pol",
+        "source": "pol"
+      },
+      {
+        "target": "new_poe",
+        "source": "poe"
+      },
+      {
+        "target": "new_pod",
+        "source": "pod"
+      },
+      {
+        "target": "description",
+        "source": "description"
+      },
+      {
+        "target": "effectivefrom",
+        "source": "effectiveFrom"
+      },
+      {
+        "target": "expireson",
+        "source": "expiresOn"
+      },
+      {
+        "target": "new_monto1",
+        "source": "total"
+      },
+      {
+        "target": "new_flete",
+        "source": "freight"
+      },
+      {
+        "target": "new_origen",
+        "source": "origin"
+      },
+      {
+        "target": "new_destino",
+        "source": "destination"
+      }
+    ]
+  }
+}

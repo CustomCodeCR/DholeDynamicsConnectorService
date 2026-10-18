@@ -99,9 +99,22 @@ public sealed class LegacyMigrationService(ReadAccessRepository access,
                 or UnauthorizedAccessException or InvalidOperationException)
             {
                 // No direct source values or parser internals leak into errors.
+                var desired = item.Query.Select.Concat(item.Query.Order?.Select(o => o.Field) ?? []);
+                var filterFields = new HashSet<string>(StringComparer.Ordinal);
+                static void Gather(ReadPredicate? node, ISet<string> fields)
+                {
+                    if (node is null) return;
+                    if (node.Field is string f) fields.Add(f);
+                    foreach (var child in node.Children ?? []) Gather(child, fields);
+                }
+                Gather(item.Query.Filter, filterFields);
+                var missing = desired.Concat(filterFields).Distinct(StringComparer.Ordinal)
+                    .Where(f => !policy.Allowed.Contains(f)).Take(30).ToArray();
+                var reasons = missing.Length > 0
+                    ? new[] { "missing_or_unapproved_fields:" + string.Join(",", missing) }
+                    : new[] { "unsupported_filter_type_or_odata_semantics" };
                 result.Add(Item(item, "needs_configuration",
-                    ["missing_or_unapproved_fields_or_unsupported_dataverse_type"],
-                    columns, policy.Snapshot.Version));
+                    reasons, columns, policy.Snapshot.Version));
             }
         }
         return Report(result);
@@ -113,6 +126,18 @@ public sealed class LegacyMigrationService(ReadAccessRepository access,
     {
         if (!confirmed) throw new ReadRejected(400, "legacy_import_confirmation_required");
         var conn = await access.ConnectionAsync(code, ct);
+        // Serialize import runs for a single organization across all API instances.
+        // This lock does not wrap Dataverse requests: importing never executes Dataverse.
+        await using var mutex = await database.OpenConnectionAsync(ct);
+        await using (var acquire = new NpgsqlCommand(
+            "SELECT pg_try_advisory_lock(hashtext(@identity), 9009)", mutex))
+        {
+            acquire.Parameters.AddWithValue("identity", conn.Id.ToString("D"));
+            if (await acquire.ExecuteScalarAsync(ct) is not true)
+                throw new ReadRejected(409, "legacy_import_already_running");
+        }
+        try
+        {
         var preview = await PreviewAsync(code, ct);
         var results = new List<LegacyMigrationItem>(preview.Items.Count);
         foreach (var item in preview.Items)
@@ -159,6 +184,15 @@ public sealed class LegacyMigrationService(ReadAccessRepository access,
             results.Add(result);
         }
         return Report(results);
+        }
+        finally
+        {
+            // Use an independent token even if the caller disconnects during import.
+            await using var release = new NpgsqlCommand(
+                "SELECT pg_advisory_unlock(hashtext(@identity), 9009)", mutex);
+            release.Parameters.AddWithValue("identity", conn.Id.ToString("D"));
+            await release.ExecuteScalarAsync(CancellationToken.None);
+        }
     }
 
     public async Task<IReadOnlyList<LegacyMigrationItem>> HistoryAsync(string code,

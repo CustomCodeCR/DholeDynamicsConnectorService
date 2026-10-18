@@ -3,6 +3,7 @@ using System.Text.Json;
 using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Contracts;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Dhole.Dynamics.Api;
 
@@ -77,7 +78,7 @@ public static class AdminConsoleEndpoints
         ClaimsPrincipal actor,HttpContext http,CancellationToken ct) =>
         Guard(http,async()=>Respond(http,await service.ExecuteAsync(actor,input.ConnectionCode,
             entity,"update",id,input.Values,http.Request.Headers.IfMatch.ToString(),false,null,Key(http),ct)));
-    private static Task<IResult> Delete(string entity,Guid id,AdminRecordWrite input,AdminRecordService service,
+    private static Task<IResult> Delete(string entity,Guid id,[FromBody] AdminRecordWrite input,AdminRecordService service,
         ClaimsPrincipal actor,HttpContext http,CancellationToken ct) =>
         Guard(http,async()=>Respond(http,await service.ExecuteAsync(actor,input.ConnectionCode,
             entity,"delete",id,null,http.Request.Headers.IfMatch.ToString(),

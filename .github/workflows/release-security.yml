@@ -1,0 +1,49 @@
+name: connector-release-security
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated release Compose
+        run: bash scripts/release-preflight.sh
+      - name: Check shell scripts
+        run: |
+          bash -n scripts/release-deploy.sh scripts/release-smoke.sh scripts/release-rollback.sh scripts/release-preflight.sh
+      - name: Secret scanning
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 dir /repo --no-banner --redact
+      - name: Inspect source for high-risk network and credential constructs
+        run: |
+          set -euo pipefail
+          ! grep -R -En 'DangerousAcceptAnyServerCertificateValidator|ServerCertificateValidationCallback.*=>[[:space:]]*true|curl[[:space:]].*--insecure|wget[[:space:]].*--no-check-certificate' src/ scripts/ deploy/ || {
+            echo "Unsafe TLS bypass found"; exit 1;
+          }
+  sast:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['csharp', 'javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"

@@ -1,0 +1,93 @@
+name: connector-deploy-reviewed
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Reviewed environment, never automatic"
+        required: true
+        type: choice
+        options: [staging, production]
+      approved_commit:
+        description: "Exact 40-hex master commit with published GHCR images"
+        required: true
+        type: string
+      approval_ticket:
+        description: "Change-management approval reference"
+        required: true
+        type: string
+      staging_evidence:
+        description: "Staging E2E report/ticket, required for production"
+        required: false
+        type: string
+      production_confirmation:
+        description: "For production type DEPLOY_PRODUCTION; required in addition to Environment approval"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dynamics-release-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Verify immutable release and distinct production approval
+        shell: bash
+        env:
+          APPROVED_COMMIT: ${{ inputs.approved_commit }}
+          APPROVAL_TICKET: ${{ inputs.approval_ticket }}
+          STAGING_EVIDENCE: ${{ inputs.staging_evidence }}
+          PROD_CONFIRM: ${{ inputs.production_confirmation }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          [[ "$(git rev-parse HEAD)" == "$APPROVED_COMMIT" ]] || {
+            echo "Only the current reviewed master commit is deployable"; exit 1;
+          }
+          [[ "$APPROVAL_TICKET" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]{11,119}$ ]] || exit 1
+          if [[ "$TARGET" == production ]]; then
+            [[ "$PROD_CONFIRM" == DEPLOY_PRODUCTION ]] || exit 1
+            [[ "$STAGING_EVIDENCE" == https://github.com/*/actions/runs/* ]] || exit 1
+          fi
+      - name: Install reviewed SSH trust anchors and private key
+        env:
+          DEPLOY_KEY: ${{ secrets.DYNAMICS_RELEASE_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DYNAMICS_RELEASE_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$DEPLOY_KEY"
+          test -n "$KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Deliver reviewed deployment files and execute host-verified script
+        shell: bash
+        env:
+          RELEASE_HOST: ${{ secrets.DYNAMICS_RELEASE_HOST }}
+          RELEASE_USER: ${{ secrets.DYNAMICS_RELEASE_USER }}
+          REMOTE_ENV_FILE: ${{ vars.DYNAMICS_RELEASE_ENV_FILE }}
+          APPROVAL_TICKET: ${{ inputs.approval_ticket }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_HOST" =~ ^[a-zA-Z0-9.-]+$ ]] || exit 1
+          [[ "$RELEASE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || exit 1
+          [[ "$REMOTE_ENV_FILE" =~ ^/etc/dhole-dynamics/(staging|production)/release\.env$ ]] || exit 1
+          dest="$RELEASE_USER@$RELEASE_HOST"
+          ssh -o StrictHostKeyChecking=yes "$dest" 'mkdir -p /opt/dhole-dynamics/deploy /opt/dhole-dynamics/scripts'
+          tar -czf - compose.release.yaml deploy/Caddyfile scripts/release-deploy.sh scripts/release-smoke.sh |
+            ssh -o StrictHostKeyChecking=yes "$dest" 'tar -xz -C /opt/dhole-dynamics'
+          ssh -o StrictHostKeyChecking=yes "$dest" \
+            "DYNAMICS_DEPLOY_APPROVAL_TICKET='$APPROVAL_TICKET' bash /opt/dhole-dynamics/scripts/release-deploy.sh '$REMOTE_ENV_FILE'"

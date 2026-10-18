@@ -1,0 +1,81 @@
+name: connector-release-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_commit:
+        description: "40-character reviewed commit SHA on master (not a branch name)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact reviewed master commit
+        shell: bash
+        env:
+          APPROVED_COMMIT: ${{ inputs.approved_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$APPROVED_COMMIT" == "$GITHUB_SHA" ]] || {
+            echo 'Dispatch the exact reviewed current master commit'; exit 1;
+          }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore DholeDynamicsConnectorService.slnx
+      - run: dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
+      - run: dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build
+      - name: Secret scan (no credentials in repository)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 dir /repo --no-banner --redact
+      - name: Verify release Compose against fake paths
+        run: bash scripts/release-preflight.sh
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish API by commit
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Dhole.Dynamics.Api/Dockerfile
+          push: true
+          tags: ghcr.io/customcodecr/dhole-dynamics-api:sha-${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Build and publish migrator by commit
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Dhole.Dynamics.Tools/Dockerfile
+          push: true
+          tags: ghcr.io/customcodecr/dhole-dynamics-tools:sha-${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Build and publish admin UI by commit
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: web/Dockerfile
+          push: true
+          tags: ghcr.io/customcodecr/dhole-dynamics-admin:sha-${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Summarize immutable release candidate
+        run: |
+          echo "Candidate sha-$GITHUB_SHA published to GHCR; NO environments deployed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment requires a separate environment-gated workflow and staging evidence." >> "$GITHUB_STEP_SUMMARY"

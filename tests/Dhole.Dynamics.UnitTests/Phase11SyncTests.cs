@@ -80,8 +80,8 @@ public sealed class Phase11SyncTests
                 prefer.Any(x=>x.Contains("odata.track-changes",StringComparison.Ordinal)));
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content=new StringContent(System.Text.Json.JsonSerializer.Serialize(new {
-                    value=new[]{new Dictionary<string,object> {["quoteid"]=quote.ToString("D"),
+                Content=new StringContent(System.Text.Json.JsonSerializer.Serialize(new Dictionary<string,object> {
+                    ["value"]=new[]{new Dictionary<string,object> {["quoteid"]=quote.ToString("D"),
                         ["@odata.etag"]="W/\"123\"",["name"]="private customer name"}},
                     ["@odata.deltaLink"]="https://ci.crm.dynamics.com/api/data/v9.2/quotes?$deltatoken=ABC"
                 }),Encoding.UTF8,"application/json")

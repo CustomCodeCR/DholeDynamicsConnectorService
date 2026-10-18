@@ -22,16 +22,16 @@ ALTER TABLE dynamics.integration_templates
     ADD CONSTRAINT fk_template_active_version
     FOREIGN KEY(id,active_version) REFERENCES dynamics.template_versions(template_id,version)
     DEFERRABLE INITIALLY DEFERRED;
-CREATE TABLE dynamics.external_references (
-    connection_id uuid NOT NULL REFERENCES dynamics.connections(id) ON DELETE CASCADE,
-    reference_space varchar(64) NOT NULL CHECK(reference_space ~ '^[a-z][a-z0-9_-]*$'),
-    internal_id varchar(128) NOT NULL CHECK(length(internal_id)>0),
-    entity_name varchar(128) NOT NULL CHECK(entity_name ~ '^[a-z][a-z0-9_]*$'),
-    dataverse_id uuid NOT NULL,
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY(connection_id,reference_space,internal_id,entity_name),
-    UNIQUE(connection_id,reference_space,dataverse_id,entity_name)
-);
+-- Reuse Phase 01 dynamics.external_references without replacing its UUID-based contract.
+-- Nullable extension columns leave all existing quote/reference rows untouched.
+ALTER TABLE dynamics.external_references
+  ADD COLUMN IF NOT EXISTS integration_reference_space varchar(64),
+  ADD COLUMN IF NOT EXISTS integration_internal_id varchar(128),
+  ADD COLUMN IF NOT EXISTS integration_entity_name varchar(128);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_integration_reference_identity
+ ON dynamics.external_references
+ (connection_id,integration_reference_space,integration_internal_id,integration_entity_name)
+ WHERE integration_reference_space IS NOT NULL;
 CREATE INDEX ix_template_versions_template_created ON dynamics.template_versions(template_id,version DESC);
 
 -- Named, bound Dataverse actions are opt-in and cannot become an open HTTP proxy.

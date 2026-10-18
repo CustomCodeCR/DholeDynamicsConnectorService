@@ -16,6 +16,11 @@ public static class DholeQuoteTemplateEndpoints
             .RequireAuthorization("M2M");
         route.MapPost("", Submit);
         route.MapGet("/links/{rateId:guid}", Find);
+
+        var admin=app.MapGroup("/api/admin/v1/connections/{code}/dhole/quotes")
+            .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
+            .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
+        admin.MapPost("/{rateId:guid}/reconcile", Reconcile);
         return app;
     }
 
@@ -104,6 +109,19 @@ public static class DholeQuoteTemplateEndpoints
                 : Results.Ok(new DholeQuoteTemplateResult(rateId, linked.DynamicsQuoteId,
                     linked.Status == "CREATED" ? "succeeded" : "requires_reconciliation",
                     true, null));
+        });
+
+
+    private static async Task<IResult> Reconcile(string code, Guid rateId,
+        QuoteLinkReconciliationRequest request, ReadAccessRepository read,
+        QuoteLinkReconciliationService links, ClaimsPrincipal actor,
+        HttpContext http, CancellationToken ct) =>
+        await Guard(http, async () =>
+        {
+            var conn=await read.ConnectionAsync(code,ct);
+            var result=await links.ConfirmExistingAsync(conn.Id,rateId,request,
+                ScopeSecurity.ActorId(actor),ct);
+            return Results.Ok(result);
         });
 
     private static async Task<IResult> Guard(HttpContext http, Func<Task<IResult>> operation)

@@ -41,3 +41,17 @@ X-Correlation-ID: 33333333-3333-4333-8333-333333333333
 El vínculo se reserva antes del POST mediante el índice único `(connection_id,dhole_rate_id)` de `dynamics.quote_links`, también compartido con la ruta histórica. Si se pierde la respuesta, `UNKNOWN` queda bloqueado para reenvíos. Las operaciones de escritura quedan en `dynamics.write_operations` con un ID para consultar y reconciliar. El vínculo configurable en `external_references` se escribe **después** de confirmar en PostgreSQL; si falla este paso, no se duplica la oferta: un operador restaura la referencia desde Admin verificando GUID real. El POST nuevo no ejecuta callbacks ni depende de Pricing para funcionar.
 
 **Sin OAuth/metadata reales de staging no es válido afirmar que se crearon ofertas Dataverse ni que el E2E está aprobado.** El pipeline CI y las pruebas automáticas deben dar evidencia específica antes de declarar la fase cerrada.
+
+### Reconciliación supervisada (solo SecurityAdmin)
+
+Después de verificar **fuera del conector** en la organización real de Dataverse que la oferta existe y corresponde al rate, el administrador puede desbloquear el vínculo con:
+
+```http
+POST /api/admin/v1/connections/staging/dhole/quotes/11111111-1111-4111-8111-111111111111/reconcile
+Content-Type: application/json
+X-CSRF-TOKEN: <token-de-sesion-administrativa>
+
+{"dynamicsQuoteId":"22222222-2222-4222-8222-222222222222","confirmedInDataverse":true,"evidence":"Dataverse quote manually verified in sandbox; approved by operator"}
+```
+
+Solo funciona desde `UNKNOWN`, nunca desde `PENDING`, y crea un evento de auditoría. Se rechazan IDs duplicados y el cambio de un vínculo ya confirmado. **No** asume que el GUID suministrado sea válido solo por formato: el operador tiene obligación de verificar que la oferta exista y sea la correcta. Esta acción no vuelve a enviar una escritura; el estado de la operación genérica se reconcilia por separado desde Admin.

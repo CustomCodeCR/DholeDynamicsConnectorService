@@ -219,6 +219,7 @@ public static class ServiceRegistration
         services.AddScoped<TemplateRepository>();
         services.AddScoped<LegacyMigrationService>();
         services.AddScoped<ExternalReferenceRepository>();
+        services.AddScoped<QuoteLinkReconciliationService>();
         services.AddScoped<TemplateOrchestrator>();
         services.AddScoped<ActionPolicyRepository>();
         services.AddHttpClient<BoundActionExecutor>(http => http.Timeout=TimeSpan.FromSeconds(45))

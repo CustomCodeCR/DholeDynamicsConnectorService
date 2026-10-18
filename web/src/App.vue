@@ -24,6 +24,7 @@ function changeLanguage(event: Event) {
             <RouterLink to="/" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('dashboard') }}</RouterLink>
             <RouterLink to="/architecture" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('architecture') }}</RouterLink>
             <RouterLink to="/admin" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('admin') }}</RouterLink>
+            <RouterLink to="/permissions" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('uiPermissionsTitle') }}</RouterLink>
             <RouterLink to="/metadata" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('metadataTitle') }}</RouterLink>
             <RouterLink to="/saved-queries" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('savedQueries') }}</RouterLink>
             <RouterLink to="/templates" class="rounded px-2 py-2 hover:bg-slate-700">{{ t('templateTitle') }}</RouterLink>

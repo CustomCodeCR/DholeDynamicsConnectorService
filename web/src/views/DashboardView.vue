@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useHealthStore, type HealthState } from '../stores/health'
 import { useAdminApi } from '../lib/adminApi'
 type Overview = { connections:number;clients:number;activeTemplates:number;needsReconciliation:number;
-  rejectedWrites24h:number;requestsLastHour:number;lastEventAt:string|null;dynamicsQuotaNote:string }
+  rejectedWrites24h:number;requestsLastHour:number;lastEventAt:string|null;requestP95Ms:number;httpErrors24h:number;dynamicsQuotaNote:string }
 type Job = {id:string;entity:string;operation:string;state:string;startedAt:string}
 const { t }=useI18n()
 const health=useHealthStore()
@@ -53,7 +53,9 @@ onMounted(()=>{void refresh()})
         {label:t('uiOAuthClients'),value:overview.clients},
         {label:t('uiActiveTemplates'),value:overview.activeTemplates},
         {label:t('uiLocalRequests'),value:overview.requestsLastHour},
-        {label:t('uiRejected24h'),value:overview.rejectedWrites24h}
+        {label:t('uiRejected24h'),value:overview.rejectedWrites24h},
+        {label:t('uiP95Latency'),value:Math.round(overview.requestP95Ms)+' ms'},
+        {label:t('uiHttpErrors'),value:overview.httpErrors24h}
       ]" :key="item.label" class="rounded-xl border bg-white p-5">
         <h3 class="text-sm text-slate-600">{{item.label}}</h3>
         <p class="mt-2 text-2xl font-semibold">{{item.value}}</p>

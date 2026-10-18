@@ -3,17 +3,23 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminApi, type Connection } from '../lib/adminApi'
 type Event = {id:string;connectionId:string|null;actor:string;action:string;at:string}
+type Observation = {correlationId:string;route:string;method:string;status:number;durationMs:number;at:string}
 const {t}=useI18n()
 const api=useAdminApi()
 const authenticated=ref(false)
 const connections=ref<Connection[]>([])
 const code=ref('')
 const events=ref<Event[]>([])
+const observations=ref<Observation[]>([])
 const limit=ref(50)
 async function load(){
   await api.run(async()=>{
-    events.value=await api.request<Event[]>('/api/admin/v1/console/audit?limit='+limit.value+
-      (code.value?'&connectionCode='+encodeURIComponent(code.value):''))
+    const [recent,requests]=await Promise.all([
+      api.request<Event[]>('/api/admin/v1/console/audit?limit='+limit.value+
+        (code.value?'&connectionCode='+encodeURIComponent(code.value):'')),
+      api.request<Observation[]>('/api/admin/v1/console/observations?limit='+limit.value)
+    ])
+    events.value=recent;observations.value=requests
   })
 }
 onMounted(async()=>{
@@ -54,6 +60,22 @@ onMounted(async()=>{
           </tr></tbody>
         </table>
       </div>
+      <section class="space-y-3">
+        <h3 class="font-semibold">{{t('uiHttpObservations')}}</h3>
+        <div class="overflow-x-auto rounded-xl border bg-white">
+          <table class="w-full text-left text-sm">
+            <thead><tr><th class="p-3">{{t('uiStarted')}}</th><th class="p-3">{{t('uiAction')}}</th>
+              <th class="p-3">{{t('uiState')}}</th><th class="p-3">{{t('uiLatency')}}</th>
+              <th class="p-3">{{t('uiCorrelation')}}</th></tr></thead>
+            <tbody><tr v-for="item in observations" :key="item.correlationId+item.at" class="border-t">
+              <td class="p-3">{{new Date(item.at).toLocaleString()}}</td>
+              <td class="p-3">{{item.method}} {{item.route}}</td>
+              <td class="p-3">{{item.status}}</td><td class="p-3">{{item.durationMs}} ms</td>
+              <td class="p-3 font-mono text-xs">{{item.correlationId}}</td>
+            </tr></tbody>
+          </table>
+        </div>
+      </section>
       <p class="text-xs text-slate-600">{{t('uiAuditLimits')}}</p>
     </template>
   </section>

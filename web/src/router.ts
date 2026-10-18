@@ -10,6 +10,7 @@ import RecordsView from './views/RecordsView.vue'
 import JobsView from './views/JobsView.vue'
 import AuditView from './views/AuditView.vue'
 import SettingsView from './views/SettingsView.vue'
+import PermissionsView from './views/PermissionsView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -25,6 +26,7 @@ export const router = createRouter({
     { path: '/jobs', component: JobsView, name: 'jobs' },
     { path: '/audit', component: AuditView, name: 'audit' },
     { path: '/settings', component: SettingsView, name: 'settings' },
+    { path: '/permissions', component: PermissionsView, name: 'permissions' },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

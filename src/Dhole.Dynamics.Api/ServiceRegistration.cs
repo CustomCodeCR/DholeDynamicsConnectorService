@@ -214,6 +214,9 @@ public static class ServiceRegistration
         services.AddScoped<WriteLedger>();
         services.AddScoped<DeletePolicyRepository>();
         services.AddScoped<GenericWriteService>();
+        services.AddScoped<TemplateRepository>();
+        services.AddScoped<ExternalReferenceRepository>();
+        services.AddScoped<TemplateOrchestrator>();
         services.AddHttpClient<DataverseWriteTransport>(http => http.Timeout = TimeSpan.FromSeconds(60))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             { AllowAutoRedirect = false, UseCookies = false });

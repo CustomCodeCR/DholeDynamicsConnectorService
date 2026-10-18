@@ -210,6 +210,8 @@ public static class ServiceRegistration
         services.AddScoped<ClientAccessRepository>();
         services.AddScoped<MetadataRepository>();
         services.AddScoped<ReadAccessRepository>();
+        services.AddScoped<AdminConsoleRepository>();
+        services.AddScoped<AdminRecordService>();
         services.AddScoped<WriteAccessService>();
         services.AddScoped<WriteLedger>();
         services.AddScoped<DeletePolicyRepository>();

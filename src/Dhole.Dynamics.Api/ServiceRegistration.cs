@@ -228,7 +228,6 @@ public static class ServiceRegistration
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<SavedQueryRepository>();
-        services.AddScoped<LegacyMigrationService>();
         services.AddSingleton<ReadCursorProtector>();
         services.AddHttpClient<ReadSearchService>(h => h.Timeout = TimeSpan.FromSeconds(45))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });

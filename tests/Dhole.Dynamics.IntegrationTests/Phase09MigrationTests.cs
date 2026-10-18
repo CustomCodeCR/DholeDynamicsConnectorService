@@ -75,7 +75,8 @@ public sealed class Phase09MigrationTests
 
             var before=await migration.PreviewAsync(first.Code,CancellationToken.None);
             Assert.Equal(88,before.Total);
-            Assert.Contains(before.Items,e=>e.Id=="LEG-001"&&e.Status=="ready_to_stage");
+            Assert.True(before.Items.Any(e=>e.Id=="LEG-001"&&e.Status=="ready_to_stage"),
+                "LEG-001: "+string.Join(",",before.Items.Single(e=>e.Id=="LEG-001").Reasons));
             Assert.Contains(before.Items,e=>e.Id=="LEG-080"&&e.Status=="blocked_source");
             Assert.Equal(0,(await migration.PreviewAsync(second.Code,CancellationToken.None)).Ready);
             await Assert.ThrowsAsync<ReadRejected>(()=>migration.ImportAsync(first.Code,false,"ci",CancellationToken.None));

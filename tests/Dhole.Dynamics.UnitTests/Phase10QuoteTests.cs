@@ -115,6 +115,15 @@ public sealed class Phase10QuoteTests
              new TemplateMapping("transactioncurrencyid@odata.bind","currency_id"),
              new TemplateMapping("new_preestado","pre_state"),
              new TemplateMapping("new_flete","freight")]);
+        foreach(var mapping in template.Mappings)
+        {
+            var specific = template with {Mappings = [mapping]};
+            try { TemplateMapper.ValidateDefinition(specific, policy); }
+            catch(ReadRejected ex)
+            {
+                throw new InvalidOperationException("Metadata denies quote field " + mapping.Target, ex);
+            }
+        }
         TemplateMapper.ValidateDefinition(template,policy);
         var values = TemplateMapper.ValidateInputs(template.Inputs,
             new Dictionary<string,JsonElement> {

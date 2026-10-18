@@ -46,7 +46,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-001",
+      "queryName": "legacy_001",
       "templateName": "Legacy001",
       "query": {
         "select": [
@@ -100,7 +100,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-001"
+        "savedQuery": "legacy_001"
       },
       "sourceEntitySet": "incidents"
     },
@@ -139,7 +139,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-002",
+      "queryName": "legacy_002",
       "templateName": "Legacy002",
       "query": {
         "select": [
@@ -193,7 +193,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-002"
+        "savedQuery": "legacy_002"
       },
       "sourceEntitySet": "incidents"
     },
@@ -231,7 +231,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-003",
+      "queryName": "legacy_003",
       "templateName": "Legacy003",
       "query": {
         "select": [
@@ -285,7 +285,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-003"
+        "savedQuery": "legacy_003"
       },
       "sourceEntitySet": "incidents"
     },
@@ -323,7 +323,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-004",
+      "queryName": "legacy_004",
       "templateName": "Legacy004",
       "query": {
         "select": [
@@ -377,7 +377,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-004"
+        "savedQuery": "legacy_004"
       },
       "sourceEntitySet": "incidents"
     },
@@ -431,7 +431,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-005",
+      "queryName": "legacy_005",
       "templateName": "Legacy005",
       "query": {
         "select": [
@@ -523,7 +523,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-005"
+        "savedQuery": "legacy_005"
       },
       "sourceEntitySet": "incidents"
     },
@@ -577,7 +577,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-006",
+      "queryName": "legacy_006",
       "templateName": "Legacy006",
       "query": {
         "select": [
@@ -674,7 +674,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-006"
+        "savedQuery": "legacy_006"
       },
       "sourceEntitySet": "incidents"
     },
@@ -696,7 +696,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-007",
+      "queryName": "legacy_007",
       "templateName": "Legacy007",
       "query": {
         "select": [
@@ -729,7 +729,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-007"
+        "savedQuery": "legacy_007"
       },
       "sourceEntitySet": "accounts"
     },
@@ -766,7 +766,7 @@
       "reasons": [
         "unused_legacy_parameter"
       ],
-      "queryName": "legacy-008",
+      "queryName": "legacy_008",
       "templateName": "Legacy008",
       "query": null,
       "parameterSchema": [
@@ -812,7 +812,7 @@
       "reasons": [
         "unused_legacy_parameter"
       ],
-      "queryName": "legacy-009",
+      "queryName": "legacy_009",
       "templateName": "Legacy009",
       "query": null,
       "parameterSchema": [
@@ -871,7 +871,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-010",
+      "queryName": "legacy_010",
       "templateName": "Legacy010",
       "query": {
         "select": [
@@ -936,7 +936,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-010"
+        "savedQuery": "legacy_010"
       },
       "sourceEntitySet": "incidents"
     },
@@ -986,7 +986,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-011",
+      "queryName": "legacy_011",
       "templateName": "Legacy011",
       "query": {
         "select": [
@@ -1051,7 +1051,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-011"
+        "savedQuery": "legacy_011"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1101,7 +1101,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-012",
+      "queryName": "legacy_012",
       "templateName": "Legacy012",
       "query": {
         "select": [
@@ -1166,7 +1166,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-012"
+        "savedQuery": "legacy_012"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1216,7 +1216,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-013",
+      "queryName": "legacy_013",
       "templateName": "Legacy013",
       "query": {
         "select": [
@@ -1281,7 +1281,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-013"
+        "savedQuery": "legacy_013"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1314,7 +1314,7 @@
       "reasons": [
         "source_filter:unrecognized legacy literal"
       ],
-      "queryName": "legacy-014",
+      "queryName": "legacy_014",
       "templateName": "Legacy014",
       "query": null,
       "parameterSchema": [
@@ -1354,7 +1354,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-015",
+      "queryName": "legacy_015",
       "templateName": "Legacy015",
       "query": {
         "select": [
@@ -1419,7 +1419,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-015"
+        "savedQuery": "legacy_015"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1472,7 +1472,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-016",
+      "queryName": "legacy_016",
       "templateName": "Legacy016",
       "query": {
         "select": [
@@ -1558,7 +1558,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-016"
+        "savedQuery": "legacy_016"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1611,7 +1611,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-017",
+      "queryName": "legacy_017",
       "templateName": "Legacy017",
       "query": {
         "select": [
@@ -1697,7 +1697,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-017"
+        "savedQuery": "legacy_017"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1750,7 +1750,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-018",
+      "queryName": "legacy_018",
       "templateName": "Legacy018",
       "query": {
         "select": [
@@ -1836,7 +1836,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-018"
+        "savedQuery": "legacy_018"
       },
       "sourceEntitySet": "incidents"
     },
@@ -1889,7 +1889,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-019",
+      "queryName": "legacy_019",
       "templateName": "Legacy019",
       "query": {
         "select": [
@@ -1975,7 +1975,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-019"
+        "savedQuery": "legacy_019"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2034,7 +2034,7 @@
       "reasons": [
         "projection_limit:31"
       ],
-      "queryName": "legacy-020",
+      "queryName": "legacy_020",
       "templateName": "Legacy020",
       "query": null,
       "parameterSchema": [
@@ -2099,7 +2099,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-021",
+      "queryName": "legacy_021",
       "templateName": "Legacy021",
       "query": {
         "select": [
@@ -2196,7 +2196,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-021"
+        "savedQuery": "legacy_021"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2231,7 +2231,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-022",
+      "queryName": "legacy_022",
       "templateName": "Legacy022",
       "query": {
         "select": [
@@ -2317,7 +2317,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-022"
+        "savedQuery": "legacy_022"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2367,7 +2367,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-023",
+      "queryName": "legacy_023",
       "templateName": "Legacy023",
       "query": {
         "select": [
@@ -2432,7 +2432,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-023"
+        "savedQuery": "legacy_023"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2482,7 +2482,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-024",
+      "queryName": "legacy_024",
       "templateName": "Legacy024",
       "query": {
         "select": [
@@ -2547,7 +2547,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-024"
+        "savedQuery": "legacy_024"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2597,7 +2597,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-025",
+      "queryName": "legacy_025",
       "templateName": "Legacy025",
       "query": {
         "select": [
@@ -2662,7 +2662,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-025"
+        "savedQuery": "legacy_025"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2712,7 +2712,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-026",
+      "queryName": "legacy_026",
       "templateName": "Legacy026",
       "query": {
         "select": [
@@ -2777,7 +2777,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-026"
+        "savedQuery": "legacy_026"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2806,7 +2806,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-027",
+      "queryName": "legacy_027",
       "templateName": "Legacy027",
       "query": {
         "select": [
@@ -2856,7 +2856,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-027"
+        "savedQuery": "legacy_027"
       },
       "sourceEntitySet": "incidents"
     },
@@ -2911,7 +2911,7 @@
       "reasons": [
         "projection_limit:31"
       ],
-      "queryName": "legacy-028",
+      "queryName": "legacy_028",
       "templateName": "Legacy028",
       "query": null,
       "parameterSchema": [
@@ -2962,7 +2962,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-029",
+      "queryName": "legacy_029",
       "templateName": "Legacy029",
       "query": {
         "select": [
@@ -3019,7 +3019,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-029"
+        "savedQuery": "legacy_029"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3050,7 +3050,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-030",
+      "queryName": "legacy_030",
       "templateName": "Legacy030",
       "query": {
         "select": [
@@ -3096,7 +3096,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-030"
+        "savedQuery": "legacy_030"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3130,7 +3130,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-031",
+      "queryName": "legacy_031",
       "templateName": "Legacy031",
       "query": {
         "select": [
@@ -3192,7 +3192,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-031"
+        "savedQuery": "legacy_031"
       },
       "sourceEntitySet": "quotes"
     },
@@ -3227,7 +3227,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-032",
+      "queryName": "legacy_032",
       "templateName": "Legacy032",
       "query": {
         "select": [
@@ -3291,7 +3291,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-032"
+        "savedQuery": "legacy_032"
       },
       "sourceEntitySet": "quotes"
     },
@@ -3322,7 +3322,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-033",
+      "queryName": "legacy_033",
       "templateName": "Legacy033",
       "query": {
         "select": [
@@ -3367,7 +3367,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-033"
+        "savedQuery": "legacy_033"
       },
       "sourceEntitySet": "quotes"
     },
@@ -3399,7 +3399,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-034",
+      "queryName": "legacy_034",
       "templateName": "Legacy034",
       "query": {
         "select": [
@@ -3446,7 +3446,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-034"
+        "savedQuery": "legacy_034"
       },
       "sourceEntitySet": "quotes"
     },
@@ -3468,7 +3468,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-035",
+      "queryName": "legacy_035",
       "templateName": "Legacy035",
       "query": {
         "select": [
@@ -3501,7 +3501,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-035"
+        "savedQuery": "legacy_035"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3540,7 +3540,7 @@
       "reasons": [
         "source_filter:legacy hardcoded organization GUID"
       ],
-      "queryName": "legacy-036",
+      "queryName": "legacy_036",
       "templateName": "Legacy036",
       "query": null,
       "parameterSchema": [],
@@ -3565,7 +3565,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-037",
+      "queryName": "legacy_037",
       "templateName": "Legacy037",
       "query": {
         "select": [
@@ -3613,7 +3613,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-037"
+        "savedQuery": "legacy_037"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3635,7 +3635,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-038",
+      "queryName": "legacy_038",
       "templateName": "Legacy038",
       "query": {
         "select": [
@@ -3683,7 +3683,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-038"
+        "savedQuery": "legacy_038"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3705,7 +3705,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-039",
+      "queryName": "legacy_039",
       "templateName": "Legacy039",
       "query": {
         "select": [
@@ -3753,7 +3753,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-039"
+        "savedQuery": "legacy_039"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3775,7 +3775,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-040",
+      "queryName": "legacy_040",
       "templateName": "Legacy040",
       "query": {
         "select": [
@@ -3823,7 +3823,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-040"
+        "savedQuery": "legacy_040"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3856,7 +3856,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-041",
+      "queryName": "legacy_041",
       "templateName": "Legacy041",
       "query": {
         "select": [
@@ -3933,7 +3933,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-041"
+        "savedQuery": "legacy_041"
       },
       "sourceEntitySet": "incidents"
     },
@@ -3961,7 +3961,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-042",
+      "queryName": "legacy_042",
       "templateName": "Legacy042",
       "query": {
         "select": [
@@ -4048,7 +4048,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-042"
+        "savedQuery": "legacy_042"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4081,7 +4081,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-043",
+      "queryName": "legacy_043",
       "templateName": "Legacy043",
       "query": {
         "select": [
@@ -4160,7 +4160,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-043"
+        "savedQuery": "legacy_043"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4191,7 +4191,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-044",
+      "queryName": "legacy_044",
       "templateName": "Legacy044",
       "query": {
         "select": [
@@ -4251,7 +4251,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-044"
+        "savedQuery": "legacy_044"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4282,7 +4282,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-045",
+      "queryName": "legacy_045",
       "templateName": "Legacy045",
       "query": {
         "select": [
@@ -4342,7 +4342,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-045"
+        "savedQuery": "legacy_045"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4364,7 +4364,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-046",
+      "queryName": "legacy_046",
       "templateName": "Legacy046",
       "query": {
         "select": [
@@ -4403,7 +4403,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-046"
+        "savedQuery": "legacy_046"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4427,7 +4427,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-047",
+      "queryName": "legacy_047",
       "templateName": "Legacy047",
       "query": {
         "select": [
@@ -4461,7 +4461,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-047"
+        "savedQuery": "legacy_047"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4484,7 +4484,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-048",
+      "queryName": "legacy_048",
       "templateName": "Legacy048",
       "query": {
         "select": [
@@ -4508,7 +4508,7 @@
         "operation": "find",
         "inputs": [],
         "mappings": [],
-        "savedQuery": "legacy-048"
+        "savedQuery": "legacy_048"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4542,7 +4542,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-049",
+      "queryName": "legacy_049",
       "templateName": "Legacy049",
       "query": {
         "select": [
@@ -4587,7 +4587,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-049"
+        "savedQuery": "legacy_049"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4621,7 +4621,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-050",
+      "queryName": "legacy_050",
       "templateName": "Legacy050",
       "query": {
         "select": [
@@ -4666,7 +4666,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-050"
+        "savedQuery": "legacy_050"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4700,7 +4700,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-051",
+      "queryName": "legacy_051",
       "templateName": "Legacy051",
       "query": {
         "select": [
@@ -4745,7 +4745,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-051"
+        "savedQuery": "legacy_051"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4779,7 +4779,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-052",
+      "queryName": "legacy_052",
       "templateName": "Legacy052",
       "query": {
         "select": [
@@ -4824,7 +4824,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-052"
+        "savedQuery": "legacy_052"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4858,7 +4858,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-053",
+      "queryName": "legacy_053",
       "templateName": "Legacy053",
       "query": {
         "select": [
@@ -4903,7 +4903,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-053"
+        "savedQuery": "legacy_053"
       },
       "sourceEntitySet": "incidents"
     },
@@ -4943,7 +4943,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-054",
+      "queryName": "legacy_054",
       "templateName": "Legacy054",
       "query": {
         "select": [
@@ -5020,7 +5020,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-054"
+        "savedQuery": "legacy_054"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5060,7 +5060,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-055",
+      "queryName": "legacy_055",
       "templateName": "Legacy055",
       "query": {
         "select": [
@@ -5141,7 +5141,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-055"
+        "savedQuery": "legacy_055"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5181,7 +5181,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-056",
+      "queryName": "legacy_056",
       "templateName": "Legacy056",
       "query": {
         "select": [
@@ -5274,7 +5274,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-056"
+        "savedQuery": "legacy_056"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5311,7 +5311,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-057",
+      "queryName": "legacy_057",
       "templateName": "Legacy057",
       "query": {
         "select": [
@@ -5359,7 +5359,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-057"
+        "savedQuery": "legacy_057"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5396,7 +5396,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-058",
+      "queryName": "legacy_058",
       "templateName": "Legacy058",
       "query": {
         "select": [
@@ -5444,7 +5444,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-058"
+        "savedQuery": "legacy_058"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5481,7 +5481,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-059",
+      "queryName": "legacy_059",
       "templateName": "Legacy059",
       "query": {
         "select": [
@@ -5529,7 +5529,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-059"
+        "savedQuery": "legacy_059"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5566,7 +5566,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-060",
+      "queryName": "legacy_060",
       "templateName": "Legacy060",
       "query": {
         "select": [
@@ -5614,7 +5614,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-060"
+        "savedQuery": "legacy_060"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5651,7 +5651,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-061",
+      "queryName": "legacy_061",
       "templateName": "Legacy061",
       "query": {
         "select": [
@@ -5699,7 +5699,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-061"
+        "savedQuery": "legacy_061"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5736,7 +5736,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-062",
+      "queryName": "legacy_062",
       "templateName": "Legacy062",
       "query": {
         "select": [
@@ -5784,7 +5784,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-062"
+        "savedQuery": "legacy_062"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5821,7 +5821,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-063",
+      "queryName": "legacy_063",
       "templateName": "Legacy063",
       "query": {
         "select": [
@@ -5869,7 +5869,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-063"
+        "savedQuery": "legacy_063"
       },
       "sourceEntitySet": "incidents"
     },
@@ -5910,7 +5910,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-064",
+      "queryName": "legacy_064",
       "templateName": "Legacy064",
       "query": {
         "select": [
@@ -5991,7 +5991,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-064"
+        "savedQuery": "legacy_064"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6032,7 +6032,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-065",
+      "queryName": "legacy_065",
       "templateName": "Legacy065",
       "query": {
         "select": [
@@ -6113,7 +6113,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-065"
+        "savedQuery": "legacy_065"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6154,7 +6154,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-066",
+      "queryName": "legacy_066",
       "templateName": "Legacy066",
       "query": {
         "select": [
@@ -6245,7 +6245,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-066"
+        "savedQuery": "legacy_066"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6283,7 +6283,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-067",
+      "queryName": "legacy_067",
       "templateName": "Legacy067",
       "query": {
         "select": [
@@ -6332,7 +6332,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-067"
+        "savedQuery": "legacy_067"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6370,7 +6370,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-068",
+      "queryName": "legacy_068",
       "templateName": "Legacy068",
       "query": {
         "select": [
@@ -6419,7 +6419,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-068"
+        "savedQuery": "legacy_068"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6457,7 +6457,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-069",
+      "queryName": "legacy_069",
       "templateName": "Legacy069",
       "query": {
         "select": [
@@ -6506,7 +6506,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-069"
+        "savedQuery": "legacy_069"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6544,7 +6544,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-070",
+      "queryName": "legacy_070",
       "templateName": "Legacy070",
       "query": {
         "select": [
@@ -6593,7 +6593,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-070"
+        "savedQuery": "legacy_070"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6631,7 +6631,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-071",
+      "queryName": "legacy_071",
       "templateName": "Legacy071",
       "query": {
         "select": [
@@ -6680,7 +6680,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-071"
+        "savedQuery": "legacy_071"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6718,7 +6718,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-072",
+      "queryName": "legacy_072",
       "templateName": "Legacy072",
       "query": {
         "select": [
@@ -6767,7 +6767,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-072"
+        "savedQuery": "legacy_072"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6805,7 +6805,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-073",
+      "queryName": "legacy_073",
       "templateName": "Legacy073",
       "query": {
         "select": [
@@ -6854,7 +6854,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-073"
+        "savedQuery": "legacy_073"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6916,7 +6916,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-075",
+      "queryName": "legacy_075",
       "templateName": "Legacy075",
       "query": {
         "select": [
@@ -6949,7 +6949,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-075"
+        "savedQuery": "legacy_075"
       },
       "sourceEntitySet": "incidents"
     },
@@ -6997,7 +6997,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-076",
+      "queryName": "legacy_076",
       "templateName": "Legacy076",
       "query": {
         "select": [
@@ -7070,7 +7070,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-076"
+        "savedQuery": "legacy_076"
       },
       "sourceEntitySet": "competitors"
     },
@@ -7118,7 +7118,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-077",
+      "queryName": "legacy_077",
       "templateName": "Legacy077",
       "query": {
         "select": [
@@ -7197,7 +7197,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-077"
+        "savedQuery": "legacy_077"
       },
       "sourceEntitySet": "competitors"
     },
@@ -7243,7 +7243,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-078",
+      "queryName": "legacy_078",
       "templateName": "Legacy078",
       "query": {
         "select": [
@@ -7300,7 +7300,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-078"
+        "savedQuery": "legacy_078"
       },
       "sourceEntitySet": "competitors"
     },
@@ -7344,7 +7344,7 @@
       "sourceFilterFields": [],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-079",
+      "queryName": "legacy_079",
       "templateName": "Legacy079",
       "query": {
         "select": [
@@ -7401,7 +7401,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-079"
+        "savedQuery": "legacy_079"
       },
       "sourceEntitySet": "competitors"
     },
@@ -7450,7 +7450,7 @@
         "source_filter:invalid legacy filter grammar",
         "unused_legacy_parameter"
       ],
-      "queryName": "legacy-080",
+      "queryName": "legacy_080",
       "templateName": "Legacy080",
       "query": null,
       "parameterSchema": [],
@@ -7502,7 +7502,7 @@
         "source_filter:invalid legacy filter grammar",
         "unused_legacy_parameter"
       ],
-      "queryName": "legacy-081",
+      "queryName": "legacy_081",
       "templateName": "Legacy081",
       "query": null,
       "parameterSchema": [],
@@ -7534,7 +7534,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-082",
+      "queryName": "legacy_082",
       "templateName": "Legacy082",
       "query": {
         "select": [
@@ -7588,7 +7588,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-082"
+        "savedQuery": "legacy_082"
       },
       "sourceEntitySet": "salesliteratures"
     },
@@ -7617,7 +7617,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-083",
+      "queryName": "legacy_083",
       "templateName": "Legacy083",
       "query": {
         "select": [
@@ -7666,7 +7666,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-083"
+        "savedQuery": "legacy_083"
       },
       "sourceEntitySet": "salesliteratures"
     },
@@ -7696,7 +7696,7 @@
       "reasons": [
         "source_filter:legacy_lookup_annotation_typo:_new_idtravinculadocorrecto_valu"
       ],
-      "queryName": "legacy-084",
+      "queryName": "legacy_084",
       "templateName": "Legacy084",
       "query": null,
       "parameterSchema": [
@@ -7731,7 +7731,7 @@
       "sourceFilterFields": [],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-085",
+      "queryName": "legacy_085",
       "templateName": "Legacy085",
       "query": {
         "select": [
@@ -7770,7 +7770,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-085"
+        "savedQuery": "legacy_085"
       },
       "sourceEntitySet": "salesliteratures"
     },
@@ -7798,7 +7798,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-086",
+      "queryName": "legacy_086",
       "templateName": "Legacy086",
       "query": {
         "select": [
@@ -7837,7 +7837,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-086"
+        "savedQuery": "legacy_086"
       },
       "sourceEntitySet": "salesliteratures"
     },
@@ -7865,7 +7865,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-087",
+      "queryName": "legacy_087",
       "templateName": "Legacy087",
       "query": {
         "select": [
@@ -7904,7 +7904,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-087"
+        "savedQuery": "legacy_087"
       },
       "sourceEntitySet": "salesliteratures"
     },
@@ -7926,7 +7926,7 @@
       ],
       "status": "candidate_metadata_validation",
       "reasons": [],
-      "queryName": "legacy-088",
+      "queryName": "legacy_088",
       "templateName": "Legacy088",
       "query": {
         "select": [
@@ -7959,7 +7959,7 @@
           }
         ],
         "mappings": [],
-        "savedQuery": "legacy-088"
+        "savedQuery": "legacy_088"
       },
       "sourceEntitySet": "incidents"
     }

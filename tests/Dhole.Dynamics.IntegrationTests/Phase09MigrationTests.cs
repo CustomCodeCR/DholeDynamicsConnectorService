@@ -82,14 +82,14 @@ public sealed class Phase09MigrationTests
             await Assert.ThrowsAsync<ReadRejected>(()=>migration.ImportAsync(first.Code,false,"ci",CancellationToken.None));
             var imported=await migration.ImportAsync(first.Code,true,"ci",CancellationToken.None);
             Assert.Contains(imported.Items,e=>e.Id=="LEG-001"&&e.Status=="staged");
-            var query=await saved.FindAsync(first.Id,"legacy-001",CancellationToken.None);
+            var query=await saved.FindAsync(first.Id,"legacy_001",CancellationToken.None);
             Assert.NotNull(query);
             Assert.False(query!.Enabled);
             var template=await templates.FindAsync(first.Id,"Legacy001",CancellationToken.None);
             Assert.NotNull(template);
             Assert.Null(template!.ActiveVersion);
             Assert.Single(template.History);
-            Assert.Null(await saved.FindAsync(second.Id,"legacy-001",CancellationToken.None));
+            Assert.Null(await saved.FindAsync(second.Id,"legacy_001",CancellationToken.None));
 
             var again=await migration.ImportAsync(first.Code,true,"ci",CancellationToken.None);
             Assert.Contains(again.Items,e=>e.Id=="LEG-001"&&e.Status=="already_staged");

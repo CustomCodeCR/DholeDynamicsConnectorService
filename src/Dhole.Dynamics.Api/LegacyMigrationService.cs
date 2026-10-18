@@ -64,6 +64,9 @@ public sealed class LegacyMigrationService(ReadAccessRepository access,
             var columns = new List<string>();
             try
             {
+                if (!ReadQueryCompiler.ValidParam(item.QueryName) ||
+                    !System.Text.RegularExpressions.Regex.IsMatch(item.TemplateName, @"^[A-Za-z][A-Za-z0-9_-]{0,79}$"))
+                    throw new ReadRejected(400, "invalid_migration_operation_name");
                 var bound = ReadSavedQueryBinder.Bind(item.Query, item.ParameterSchema,
                     new Dictionary<string, JsonElement>(), validateOnly: true);
                 var compiled = ReadQueryCompiler.Compile(policy.Table, bound, policy.Allowed);

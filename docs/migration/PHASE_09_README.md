@@ -32,8 +32,8 @@ Los estados posibles son `blocked_source`, `needs_configuration`, `name_conflict
 
 `GET /dynamics/listarId?name=ABC` se reemplaza, **tras aprobar metadata y grants**, por:
 
-1. Consulta `legacy-001` con parámetro `name` tipado `string` y `contains(title,@p0)`.
-2. `POST /api/v1/saved-queries/legacy-001/execute` con `{"connectionCode":"org","parameters":{"name":"ABC"}}`; o tras activar su plantilla, `POST /api/v1/templates/Legacy001/execute` con `{"connectionCode":"org","inputs":{"name":"ABC"}}`.
+1. Consulta `legacy_001` con parámetro `name` tipado `string` y `contains(title,@p0)`.
+2. `POST /api/v1/saved-queries/legacy_001/execute` con `{"connectionCode":"org","parameters":{"name":"ABC"}}`; o tras activar su plantilla, `POST /api/v1/templates/Legacy001/execute` con `{"connectionCode":"org","inputs":{"name":"ABC"}}`.
 3. Seguir el cursor `nextCursor` por la misma API para paginación. El formato de respuesta cambia a `ReadSearchResponse` (items/count/page/nextCursor), no el string JSON del controlador legado. El cliente debe adaptar su serialización.
 
 **LEG-074** (`PATCH /dynamics/UpdateDynamics`): la semántica segura es plantilla `update` sobre `incidents.new_bcf` con `recordId` GUID, `eTag` concreto e `Idempotency-Key`. El PATCH histórico con coincidencia indiscriminada queda incompatible hasta completar la nueva negociación de concurrencia; no se importa automáticamente como si fuera equivalente.

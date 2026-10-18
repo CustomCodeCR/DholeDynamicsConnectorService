@@ -9,7 +9,7 @@ public static class HealthEndpoints
         app.MapGet("/health/live", () => Results.Ok(new
             { service = "DholeDynamicsConnectorService", status = "live" })).AllowAnonymous();
 
-        app.MapGet("/health/ready", async (NpgsqlDataSource db, CancellationToken ct) =>
+        async Task<IResult> Ready(NpgsqlDataSource db, CancellationToken ct)
         {
             try
             {
@@ -19,7 +19,11 @@ public static class HealthEndpoints
                 return Results.Ok(new { status = "ready" });
             }
             catch (Exception) { return Results.StatusCode(503); }
-        }).AllowAnonymous();
+        }
+
+        app.MapGet("/health/ready", Ready).AllowAnonymous();
+        // Dhole Gateway health alias appends /health to service URL.
+        app.MapGet("/health", Ready).AllowAnonymous();
 
         return app;
     }

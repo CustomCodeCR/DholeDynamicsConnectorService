@@ -1,0 +1,4165 @@
+{
+  "format": "dhole.legacy.phase09.v1",
+  "source": {
+    "repository": "MauLang18/DynaConnect",
+    "ref": "e0490c3260372e547f8672974633104268f89233",
+    "path": "DynamicsCF/DynamicsCF/Controllers/ValuesController.cs"
+  },
+  "rules": {
+    "execution": "never_auto_enable",
+    "credentials": "never_import",
+    "metadata": "validate_live"
+  },
+  "entries": [
+    {
+      "id": "LEG-001",
+      "method": "GET",
+      "route": "/dynamics/listarId",
+      "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
+      "entityName": "incidents",
+      "sourceLine": 16,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_instcliente",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_nombrebuque",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_transporte",
+        "title",
+        "new_preestado2",
+        "modifiedon"
+      ],
+      "sourceFilterFields": [
+        "title",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-001",
+      "templateName": "Legacy001",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-002",
+      "method": "GET",
+      "route": "/dynamics/listarPo",
+      "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
+      "entityName": "incidents",
+      "sourceLine": 62,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_instcliente",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_nombrebuque",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_transporte",
+        "title",
+        "new_preestado2",
+        "modifiedon"
+      ],
+      "sourceFilterFields": [
+        "new_po",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-002",
+      "templateName": "Legacy002",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-003",
+      "method": "GET",
+      "route": "/dynamics/listarBcf",
+      "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
+      "entityName": "incidents",
+      "sourceLine": 108,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_instcliente",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_nombrebuque",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_transporte",
+        "title",
+        "new_preestado2",
+        "modifiedon"
+      ],
+      "sourceFilterFields": [
+        "new_bcf"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-003",
+      "templateName": "Legacy003",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-004",
+      "method": "GET",
+      "route": "/dynamics/listarContenedor",
+      "family": "Tracking y búsqueda por ID/PO/BCF/contenedor",
+      "entityName": "incidents",
+      "sourceLine": 154,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_instcliente",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_nombrebuque",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_transporte",
+        "title",
+        "new_preestado2",
+        "modifiedon"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-004",
+      "templateName": "Legacy004",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-005",
+      "method": "GET",
+      "route": "/dynamics/listarClienteF",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 200,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_new_facturacompaia",
+        "new_transporte",
+        "title",
+        "new_lugarcolocacion",
+        "new_redestino",
+        "new_diasdetransito",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "_customerid_value"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-005",
+      "templateName": "Legacy005",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-006",
+      "method": "GET",
+      "route": "/dynamics/listarClienteA",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 246,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_new_facturacompaia",
+        "title",
+        "new_lugarcolocacion",
+        "new_redestino",
+        "new_diasdetransito",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "_customerid_value"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-006",
+      "templateName": "Legacy006",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-007",
+      "method": "GET",
+      "route": "/dynamics/listarClienteNombre",
+      "family": "Clientes y trámites",
+      "entityName": "accounts",
+      "sourceLine": 292,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "name"
+      ],
+      "sourceFilterFields": [
+        "accountid"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-007",
+      "templateName": "Legacy007",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-008",
+      "method": "GET",
+      "route": "/dynamics/listarClienteFiltroA",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 338,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_ingreso",
+        "new_contenedor",
+        "new_bcf",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "title",
+        "_customerid_value"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable.",
+        "legacy_parameter_not_in_filter"
+      ],
+      "queryName": "legacy-008",
+      "templateName": "Legacy008",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-009",
+      "method": "GET",
+      "route": "/dynamics/listarClienteFiltroF",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 384,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_ingreso",
+        "new_contenedor",
+        "new_bcf",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "title",
+        "_customerid_value"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable.",
+        "legacy_parameter_not_in_filter"
+      ],
+      "queryName": "legacy-009",
+      "templateName": "Legacy009",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-010",
+      "method": "GET",
+      "route": "/dynamics/listarClienteIdtra",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 430,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "title",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-010",
+      "templateName": "Legacy010",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-011",
+      "method": "GET",
+      "route": "/dynamics/listarClienteBcf",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 476,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-011",
+      "templateName": "Legacy011",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-012",
+      "method": "GET",
+      "route": "/dynamics/listarClienteContenedor",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 522,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-012",
+      "templateName": "Legacy012",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-013",
+      "method": "GET",
+      "route": "/dynamics/listarClientePo",
+      "family": "Clientes y trámites",
+      "entityName": "incidents",
+      "sourceLine": 568,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_po",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-013",
+      "templateName": "Legacy013",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-014",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivoFiltroA",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 614,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_producto1",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:unexpected filter literal"
+      ],
+      "queryName": "legacy-014",
+      "templateName": "Legacy014",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-015",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivoFiltroF",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 660,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_producto1",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-015",
+      "templateName": "Legacy015",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-016",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivoIdtra",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 706,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "title",
+        "new_producto1",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-016",
+      "templateName": "Legacy016",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-017",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivobCF",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 752,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "new_producto1",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-017",
+      "templateName": "Legacy017",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-018",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivoContenedor",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 798,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor",
+        "new_producto1",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-018",
+      "templateName": "Legacy018",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-019",
+      "method": "GET",
+      "route": "/dynamics/listarEjecutivoPo",
+      "family": "Ejecutivos",
+      "entityName": "incidents",
+      "sourceLine": 844,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_po",
+        "new_producto1",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-019",
+      "templateName": "Legacy019",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-020",
+      "method": "GET",
+      "route": "/dynamics/VistaGeneral",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 890,
+      "legacyParameters": [
+        "name",
+        "name2",
+        "name3"
+      ],
+      "sourceSelect": [
+        "new_actualizacionbconfirmation",
+        "new_etadestino",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "title",
+        "new_contenedorcargado",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_lugarcolocacion",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "new_ofertatarifaid",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_redestino",
+        "new_statuscliente",
+        "new_tipodemovimiento1",
+        "new_pricecalculationdate",
+        "_new_consignatario_value",
+        "new_infoconsignatario",
+        "new_infonotificar",
+        "new_inforeceptorbl",
+        "new_infoshipper",
+        "_new_notificar_value",
+        "_new_receptorbl_value",
+        "_new_shipper_value",
+        "new_diasdetransito"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "_customerid_value",
+        "_new_agenteduelodelacueta_value",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable.",
+        "projection_limit:31"
+      ],
+      "queryName": "legacy-020",
+      "templateName": "Legacy020",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "guid",
+          "required": true
+        },
+        {
+          "name": "name3",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-021",
+      "method": "GET",
+      "route": "/dynamics/Contenedores",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 936,
+      "legacyParameters": [
+        "name",
+        "name2",
+        "name3"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_cbm1",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contenedorcargado",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_lugarcolocacion",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "new_origen",
+        "new_peso",
+        "new_poe",
+        "new_pol",
+        "new_redestino",
+        "new_statuscliente",
+        "new_tamaoequipo"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "_customerid_value",
+        "_new_agenteduelodelacueta_value",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-021",
+      "templateName": "Legacy021",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "guid",
+          "required": true
+        },
+        {
+          "name": "name3",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-022",
+      "method": "GET",
+      "route": "/dynamics/Precios",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 982,
+      "legacyParameters": [
+        "name",
+        "name2",
+        "name3"
+      ],
+      "sourceSelect": [
+        "new_destinooferta",
+        "new_fleteoferta",
+        "new_origenoferta",
+        "_new_pagadopor_value",
+        "_new_pagadopor2_value",
+        "_new_pagadopor3_value",
+        "new_terminodepago",
+        "new_terminodepago1",
+        "new_terminodepago2"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "_customerid_value",
+        "_new_agenteduelodelacueta_value",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-022",
+      "templateName": "Legacy022",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "guid",
+          "required": true
+        },
+        {
+          "name": "name3",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-023",
+      "method": "GET",
+      "route": "/dynamics/listarRJIdtra",
+      "family": "Trámites RJ",
+      "entityName": "incidents",
+      "sourceLine": 1028,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "title",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-023",
+      "templateName": "Legacy023",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-024",
+      "method": "GET",
+      "route": "/dynamics/listarRJBcf",
+      "family": "Trámites RJ",
+      "entityName": "incidents",
+      "sourceLine": 1074,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-024",
+      "templateName": "Legacy024",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-025",
+      "method": "GET",
+      "route": "/dynamics/listarRJContenedor",
+      "family": "Trámites RJ",
+      "entityName": "incidents",
+      "sourceLine": 1120,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-025",
+      "templateName": "Legacy025",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-026",
+      "method": "GET",
+      "route": "/dynamics/listarRJPo",
+      "family": "Trámites RJ",
+      "entityName": "incidents",
+      "sourceLine": 1166,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "new_cantequipo",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contidadbultos",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "modifiedon",
+        "new_incoterm",
+        "new_origen",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "new_seal",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_transporte",
+        "new_ingreso",
+        "new_new_facturacompaia",
+        "new_ingresoabodegas",
+        "new_instcliente",
+        "new_nombrebuque",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_po",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-026",
+      "templateName": "Legacy026",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-027",
+      "method": "GET",
+      "route": "/dynamics/listarFiltroA",
+      "family": "Trámites RJ",
+      "entityName": "incidents",
+      "sourceLine": 1212,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_factura",
+        "new_ingreso",
+        "new_contenedor",
+        "new_bcf",
+        "new_po",
+        "new_poe",
+        "new_pol",
+        "new_preestado2",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-027",
+      "templateName": "Legacy027",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-028",
+      "method": "GET",
+      "route": "/dynamics/VistaGeneral2",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 1258,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_actualizacionbconfirmation",
+        "new_etadestino",
+        "new_bcf",
+        "new_confirmacinzarpe",
+        "title",
+        "new_contenedorcargado",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_lugarcolocacion",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "new_ofertatarifaid",
+        "new_origen",
+        "new_poe",
+        "new_pol",
+        "new_redestino",
+        "new_statuscliente",
+        "new_tipodemovimiento1",
+        "new_pricecalculationdate",
+        "_new_consignatario_value",
+        "new_infoconsignatario",
+        "new_infonotificar",
+        "new_inforeceptorbl",
+        "new_infoshipper",
+        "_new_notificar_value",
+        "_new_receptorbl_value",
+        "_new_shipper_value",
+        "new_diasdetransito"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable.",
+        "projection_limit:31"
+      ],
+      "queryName": "legacy-028",
+      "templateName": "Legacy028",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-029",
+      "method": "GET",
+      "route": "/dynamics/Contenedores2",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 1304,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_cbm1",
+        "new_commodity",
+        "new_confirmacinzarpe",
+        "new_contenedorcargado",
+        "new_destino",
+        "new_eta",
+        "new_etd1",
+        "new_ingreso",
+        "new_ingresoabodegas",
+        "new_lugarcolocacion",
+        "new_nombrebuque",
+        "new_numeroviaje",
+        "new_origen",
+        "new_peso",
+        "new_poe",
+        "new_pol",
+        "new_redestino",
+        "new_statuscliente",
+        "new_tamaoequipo"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-029",
+      "templateName": "Legacy029",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-030",
+      "method": "GET",
+      "route": "/dynamics/Precios2",
+      "family": "Detalle, contenedores y precios",
+      "entityName": "incidents",
+      "sourceLine": 1350,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_destinooferta",
+        "new_fleteoferta",
+        "new_origenoferta",
+        "_new_pagadopor_value",
+        "_new_pagadopor2_value",
+        "_new_pagadopor3_value",
+        "new_terminodepago",
+        "new_terminodepago1",
+        "new_terminodepago2"
+      ],
+      "sourceFilterFields": [
+        "new_bcf",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-030",
+      "templateName": "Legacy030",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-031",
+      "method": "GET",
+      "route": "/dynamics/listarCotizacionesS",
+      "family": "Cotizaciones y casos",
+      "entityName": "quotes",
+      "sourceLine": 1396,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cantidadequipos",
+        "_msdyn_account_value",
+        "quotenumber",
+        "revisionnumber",
+        "name",
+        "new_poe",
+        "new_pol",
+        "new_total",
+        "effectivefrom",
+        "effectiveto",
+        "new_equipo"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_notifrespuestacotizacion",
+        "_msdyn_account_value"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-031",
+      "templateName": "Legacy031",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-032",
+      "method": "GET",
+      "route": "/dynamics/listarCotizacionesA",
+      "family": "Cotizaciones y casos",
+      "entityName": "quotes",
+      "sourceLine": 1442,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cantidadequipos",
+        "_msdyn_account_value",
+        "quotenumber",
+        "revisionnumber",
+        "_new_idtra1_value",
+        "name",
+        "new_poe",
+        "new_pol",
+        "new_total",
+        "effectivefrom",
+        "effectiveto",
+        "new_equipo"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_notifrespuestacotizacion",
+        "_msdyn_account_value"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-032",
+      "templateName": "Legacy032",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-033",
+      "method": "GET",
+      "route": "/dynamics/listarCotizacionesRJS",
+      "family": "Cotizaciones y casos",
+      "entityName": "quotes",
+      "sourceLine": 1488,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_cantidadequipos",
+        "_msdyn_account_value",
+        "quotenumber",
+        "revisionnumber",
+        "name",
+        "new_poe",
+        "new_pol",
+        "new_total",
+        "effectivefrom",
+        "effectiveto",
+        "new_equipo"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_notifrespuestacotizacion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-033",
+      "templateName": "Legacy033",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-034",
+      "method": "GET",
+      "route": "/dynamics/listarCotizacionesRJA",
+      "family": "Cotizaciones y casos",
+      "entityName": "quotes",
+      "sourceLine": 1534,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_cantidadequipos",
+        "_msdyn_account_value",
+        "_new_idtra1_value",
+        "quotenumber",
+        "revisionnumber",
+        "name",
+        "new_poe",
+        "new_pol",
+        "new_total",
+        "effectivefrom",
+        "effectiveto",
+        "new_equipo"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_notifrespuestacotizacion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-034",
+      "templateName": "Legacy034",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-035",
+      "method": "GET",
+      "route": "/dynamics/listarCaso",
+      "family": "Cotizaciones y casos",
+      "entityName": "incidents",
+      "sourceLine": 1580,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "title"
+      ],
+      "sourceFilterFields": [
+        "incidentid"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-035",
+      "templateName": "Legacy035",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-036",
+      "method": "GET",
+      "route": "/dynamics/listarTarifasMercadoS",
+      "family": "Cotizaciones y casos",
+      "entityName": "quotes",
+      "sourceLine": 1626,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_cantidadequipos",
+        "_msdyn_account_value",
+        "_new_idtra1_value",
+        "quotenumber",
+        "revisionnumber",
+        "name",
+        "new_poe",
+        "new_pol",
+        "new_total",
+        "effectivefrom",
+        "effectiveto",
+        "new_equipo",
+        "freighttermscode",
+        "new_modalidaddeenvio",
+        "shippingmethodcode",
+        "new_pod"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_msdyn_account_value",
+        "new_notifrespuestacotizacion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:hardcoded environment-specific GUID requires parameterization"
+      ],
+      "queryName": "legacy-036",
+      "templateName": "Legacy036",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-037",
+      "method": "GET",
+      "route": "/dynamics/TramitesOrigenSS",
+      "family": "Trámites por origen",
+      "entityName": "incidents",
+      "sourceLine": 1672,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_origen",
+        "new_preestado2"
+      ],
+      "sourceFilterFields": [
+        "new_operaciones",
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-037",
+      "templateName": "Legacy037",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-038",
+      "method": "GET",
+      "route": "/dynamics/TramitesOrigenAM",
+      "family": "Trámites por origen",
+      "entityName": "incidents",
+      "sourceLine": 1718,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_origen",
+        "new_preestado2"
+      ],
+      "sourceFilterFields": [
+        "new_operaciones",
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-038",
+      "templateName": "Legacy038",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-039",
+      "method": "GET",
+      "route": "/dynamics/TramitesOrigenDS",
+      "family": "Trámites por origen",
+      "entityName": "incidents",
+      "sourceLine": 1764,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_origen",
+        "new_preestado2"
+      ],
+      "sourceFilterFields": [
+        "new_operaciones",
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-039",
+      "templateName": "Legacy039",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-040",
+      "method": "GET",
+      "route": "/dynamics/TramitesOrigenAH",
+      "family": "Trámites por origen",
+      "entityName": "incidents",
+      "sourceLine": 1810,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_origen",
+        "new_preestado2"
+      ],
+      "sourceFilterFields": [
+        "new_operaciones",
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-040",
+      "templateName": "Legacy040",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-041",
+      "method": "GET",
+      "route": "/dynamics/listarCertificadosA",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 1856,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_decertificadodereexportacion",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_observacionescertificadosreexportacion",
+        "new_preestado2",
+        "new_statusdecertificado",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_aplicacertificadoreexportacion",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-041",
+      "templateName": "Legacy041",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-042",
+      "method": "GET",
+      "route": "/dynamics/listarCertificadosARJ",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 1902,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_decertificadodereexportacion",
+        "new_factura",
+        "new_observacionescertificadosreexportacion",
+        "new_statusdecertificado",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "_customerid_value",
+        "new_aplicacertificadoreexportacion",
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-042",
+      "templateName": "Legacy042",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-043",
+      "method": "GET",
+      "route": "/dynamics/listarCertificadosF",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 1948,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_decertificadodereexportacion",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_observacionescertificadosreexportacion",
+        "new_preestado2",
+        "new_statusdecertificado",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "_customerid_value",
+        "new_aplicacertificadoreexportacion",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-043",
+      "templateName": "Legacy043",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-044",
+      "method": "GET",
+      "route": "/dynamics/listarCertificadosFactura",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 1994,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_decertificadodereexportacion",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_observacionescertificadosreexportacion",
+        "new_preestado2",
+        "new_statusdecertificado",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "_customerid_value",
+        "new_factura"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-044",
+      "templateName": "Legacy044",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-045",
+      "method": "GET",
+      "route": "/dynamics/listarCertificadosIdtra",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 2043,
+      "legacyParameters": [
+        "name",
+        "name2"
+      ],
+      "sourceSelect": [
+        "new_decertificadodereexportacion",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_observacionescertificadosreexportacion",
+        "new_preestado2",
+        "new_statusdecertificado",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "_customerid_value",
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-045",
+      "templateName": "Legacy045",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        },
+        {
+          "name": "name2",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-046",
+      "method": "GET",
+      "route": "/dynamics/DatosCertificados",
+      "family": "Certificados",
+      "entityName": "incidents",
+      "sourceLine": 2089,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_preestado2",
+        "new_statusdecertificado"
+      ],
+      "sourceFilterFields": [
+        "new_preestado2",
+        "new_aplicacertificadoreexportacion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-046",
+      "templateName": "Legacy046",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-047",
+      "method": "GET",
+      "route": "/dynamics/ColocacionesPtoAlmacen",
+      "family": "Movimientos portuarios",
+      "entityName": "incidents",
+      "sourceLine": 2135,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_preestado2",
+        "new_redestino"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:unsupported source filter syntax"
+      ],
+      "queryName": "legacy-047",
+      "templateName": "Legacy047",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-048",
+      "method": "GET",
+      "route": "/dynamics/MovimientoPanamaCrc",
+      "family": "Movimientos portuarios",
+      "entityName": "incidents",
+      "sourceLine": 2181,
+      "legacyParameters": [],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "_customerid_value",
+        "title"
+      ],
+      "sourceFilterFields": [
+        "new_preestado2"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-048",
+      "templateName": "Legacy048",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-049",
+      "method": "GET",
+      "route": "/dynamics/AlmacenFiscalIdtra",
+      "family": "Almacén fiscal",
+      "entityName": "incidents",
+      "sourceLine": 2227,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_cantequipo",
+        "_customerid_value",
+        "new_commodity",
+        "new_contidadbultos",
+        "new_fechacolocacin",
+        "new_preestado2",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_tipoembalaje",
+        "title",
+        "new_peso"
+      ],
+      "sourceFilterFields": [
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-049",
+      "templateName": "Legacy049",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-050",
+      "method": "GET",
+      "route": "/dynamics/AlmacenFiscalPo",
+      "family": "Almacén fiscal",
+      "entityName": "incidents",
+      "sourceLine": 2273,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_cantequipo",
+        "_customerid_value",
+        "new_commodity",
+        "new_contidadbultos",
+        "new_fechacolocacin",
+        "new_preestado2",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_tipoembalaje",
+        "title",
+        "new_peso"
+      ],
+      "sourceFilterFields": [
+        "new_po"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-050",
+      "templateName": "Legacy050",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-051",
+      "method": "GET",
+      "route": "/dynamics/AlmacenFiscalFactura",
+      "family": "Almacén fiscal",
+      "entityName": "incidents",
+      "sourceLine": 2319,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_cantequipo",
+        "_customerid_value",
+        "new_commodity",
+        "new_contidadbultos",
+        "new_fechacolocacin",
+        "new_preestado2",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_tipoembalaje",
+        "title",
+        "new_peso"
+      ],
+      "sourceFilterFields": [
+        "new_factura"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-051",
+      "templateName": "Legacy051",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-052",
+      "method": "GET",
+      "route": "/dynamics/AlmacenFiscalBcf",
+      "family": "Almacén fiscal",
+      "entityName": "incidents",
+      "sourceLine": 2365,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_cantequipo",
+        "_customerid_value",
+        "new_commodity",
+        "new_contidadbultos",
+        "new_fechacolocacin",
+        "new_preestado2",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_tipoembalaje",
+        "title",
+        "new_peso"
+      ],
+      "sourceFilterFields": [
+        "new_bcf"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-052",
+      "templateName": "Legacy052",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-053",
+      "method": "GET",
+      "route": "/dynamics/AlmacenFiscalContenedor",
+      "family": "Almacén fiscal",
+      "entityName": "incidents",
+      "sourceLine": 2411,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_bcf",
+        "new_cantequipo",
+        "_customerid_value",
+        "new_commodity",
+        "new_contidadbultos",
+        "new_fechacolocacin",
+        "new_preestado2",
+        "new_statuscliente",
+        "new_tamaoequipo",
+        "new_tipoembalaje",
+        "title",
+        "new_peso"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-053",
+      "templateName": "Legacy053",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-054",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiPreAlerta",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2457,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-054",
+      "templateName": "Legacy054",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-055",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiBodega",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2503,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-055",
+      "templateName": "Legacy055",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-056",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiDespacho",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2549,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-056",
+      "templateName": "Legacy056",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-057",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiBcf",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2595,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_bcf"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-057",
+      "templateName": "Legacy057",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-058",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiContenedor",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2641,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-058",
+      "templateName": "Legacy058",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-059",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiTracking",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2687,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_obersvaciones"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-059",
+      "templateName": "Legacy059",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-060",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiIdtra",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2733,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-060",
+      "templateName": "Legacy060",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-061",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiFactura",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2779,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_factura"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-061",
+      "templateName": "Legacy061",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-062",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiPo",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2825,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_po"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-062",
+      "templateName": "Legacy062",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-063",
+      "method": "GET",
+      "route": "/dynamics/WHSMiamiWhs",
+      "family": "Almacén Miami",
+      "entityName": "incidents",
+      "sourceLine": 2871,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_warehousetrackingident"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-063",
+      "templateName": "Legacy063",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-064",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaTransito",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 2917,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_peso",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-064",
+      "templateName": "Legacy064",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-065",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaBodega",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 2963,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_peso",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-065",
+      "templateName": "Legacy065",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-066",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaDespacho",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3009,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_peso",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_subiralaweb",
+        "new_habilitarbodega",
+        "_customerid_value",
+        "new_preestado2",
+        "tit"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-066",
+      "templateName": "Legacy066",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-067",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaBcf",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3055,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_bcf"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-067",
+      "templateName": "Legacy067",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-068",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaContenedor",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3101,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_contenedor"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-068",
+      "templateName": "Legacy068",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-069",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaTracking",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3147,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_obersvaciones"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-069",
+      "templateName": "Legacy069",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-070",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaIdtra",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3193,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-070",
+      "templateName": "Legacy070",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-071",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaFactura",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3239,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_factura"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-071",
+      "templateName": "Legacy071",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-072",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaPo",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3285,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_po"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-072",
+      "templateName": "Legacy072",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-073",
+      "method": "GET",
+      "route": "/dynamics/WHSPanamaWhs",
+      "family": "Almacén Panamá",
+      "entityName": "incidents",
+      "sourceLine": 3331,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_montodebodegajepanama",
+        "new_cbm1",
+        "new_contenedor",
+        "new_factura",
+        "new_bcf",
+        "_customerid_value",
+        "new_contidadbultos",
+        "new_fechaingresobodegawhs",
+        "new_habilitarbodega",
+        "new_po",
+        "new_preestado2",
+        "_new_shipper_value",
+        "new_statuscliente",
+        "new_tipoembalaje",
+        "new_obersvaciones",
+        "title",
+        "new_warehousetrackingident"
+      ],
+      "sourceFilterFields": [
+        "new_warehousetrackingident"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-073",
+      "templateName": "Legacy073",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-074",
+      "method": "PATCH",
+      "route": "/dynamics/UpdateDynamics",
+      "family": "Actualización BCF",
+      "entityName": "incidents",
+      "sourceLine": 3376,
+      "legacyParameters": [
+        "id",
+        "bcf"
+      ],
+      "sourceSelect": [],
+      "sourceFilterFields": [],
+      "status": "blocked_source",
+      "reasons": [
+        "legacy_unconditional_patch_if_match_star_replaced_with_etag"
+      ],
+      "queryName": null,
+      "templateName": "Legacy074",
+      "query": null,
+      "parameterSchema": [],
+      "template": {
+        "entityName": "incidents",
+        "operation": "update",
+        "inputs": [
+          {
+            "name": "bcf",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "mappings": [
+          {
+            "target": "new_bcf",
+            "source": "bcf"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LEG-075",
+      "method": "GET",
+      "route": "/dynamics/listarCodigoCaso",
+      "family": "Casos",
+      "entityName": "incidents",
+      "sourceLine": 3427,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "incidentid"
+      ],
+      "sourceFilterFields": [
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-075",
+      "templateName": "Legacy075",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-076",
+      "method": "GET",
+      "route": "/dynamics/listarTramitesAduanalesF",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3472,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_solicitud",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [
+        "_new_cliente_value",
+        "new_statusaduanal"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-076",
+      "templateName": "Legacy076",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-077",
+      "method": "GET",
+      "route": "/dynamics/listarTramitesAduanalesA",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3517,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_solicitud",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [
+        "_new_cliente_value",
+        "new_statusaduanal"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-077",
+      "templateName": "Legacy077",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-078",
+      "method": "GET",
+      "route": "/dynamics/listarAduanaIdtra",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3562,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [
+        "_new_idtra_value"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-078",
+      "templateName": "Legacy078",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-079",
+      "method": "GET",
+      "route": "/dynamics/listarAduanaRecibo",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3607,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-079",
+      "templateName": "Legacy079",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-080",
+      "method": "GET",
+      "route": "/dynamics/listarAduanaSolicitud",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3652,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [
+        "new_solicitud"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:unsupported source filter syntax",
+        "legacy_parameter_not_in_filter"
+      ],
+      "queryName": "legacy-080",
+      "templateName": "Legacy080",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-081",
+      "method": "GET",
+      "route": "/dynamics/listarAduanaBl",
+      "family": "Aduanas",
+      "entityName": "competitors",
+      "sourceLine": 3697,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_factura",
+        "new_facturac12",
+        "new_aplicacertificadodeorigen2",
+        "new_aplicacertificadodeorigen",
+        "new_cantequipo2",
+        "new_cantequipo",
+        "new_commodity",
+        "new_commodity2",
+        "_new_idtra_value",
+        "new_llevaexoneracion",
+        "new_llevaexoneracion2",
+        "new_llevapermisos",
+        "new_llevapermisos2",
+        "name",
+        "new_statusaduanal",
+        "new_tamaoequipo",
+        "new_tamaoequipo2",
+        "new_facturac22",
+        "new_facturac2",
+        "new_facturac32",
+        "new_facturac3",
+        "new_facturac42",
+        "new_facturac4",
+        "new_facturac5",
+        "new_facturac52"
+      ],
+      "sourceFilterFields": [
+        "new_bl"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:unsupported source filter syntax",
+        "legacy_parameter_not_in_filter"
+      ],
+      "queryName": "legacy-081",
+      "templateName": "Legacy081",
+      "query": null,
+      "parameterSchema": [],
+      "template": null
+    },
+    {
+      "id": "LEG-082",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesA",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3742,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [
+        "_new_cliente_value",
+        "new_statusexoneracion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-082",
+      "templateName": "Legacy082",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-083",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesF",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3787,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [
+        "_new_cliente_value",
+        "new_statusexoneracion"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-083",
+      "templateName": "Legacy083",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "guid",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-084",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesIdtra",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3832,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [
+        "_new_idtravinculadocorrecto_valu"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-084",
+      "templateName": "Legacy084",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-085",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesProducto",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3877,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-085",
+      "templateName": "Legacy085",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-086",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesSolicitud",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3922,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [
+        "new_solicitud"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-086",
+      "templateName": "Legacy086",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-087",
+      "method": "GET",
+      "route": "/dynamics/listarExoneracionesAutorizacion",
+      "family": "Exoneraciones",
+      "entityName": "salesliteratures",
+      "sourceLine": 3967,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "new_autorizacin",
+        "new_solicitud",
+        "_new_idtravinculadocorrecto_value",
+        "new_statusexoneracion",
+        "new_tipoexoneracin",
+        "name",
+        "new_validahasta"
+      ],
+      "sourceFilterFields": [
+        "new_autorizacin"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-087",
+      "templateName": "Legacy087",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    },
+    {
+      "id": "LEG-088",
+      "method": "GET",
+      "route": "/dynamics/ClienteIdtra",
+      "family": "Clientes / IDTRA",
+      "entityName": "incidents",
+      "sourceLine": 4012,
+      "legacyParameters": [
+        "name"
+      ],
+      "sourceSelect": [
+        "_customerid_value"
+      ],
+      "sourceFilterFields": [
+        "title"
+      ],
+      "status": "blocked_source",
+      "reasons": [
+        "source_filter:Assignment to constant variable."
+      ],
+      "queryName": "legacy-088",
+      "templateName": "Legacy088",
+      "query": null,
+      "parameterSchema": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "template": null
+    }
+  ]
+}

@@ -17,8 +17,13 @@ public sealed class DataverseDeltaReader(HttpClient http,IDataverseAccessTokenPr
             raw.Length is < 1 or > 4096)
             throw new ReadRejected(400,"unsafe_delta_url");
         var baseUri=new Uri(origin,UriKind.Absolute);
-        if(!Uri.TryCreate(raw,UriKind.Absolute,out var uri))
+        // A root-relative /api path must be resolved against the trusted HTTPS origin.
+        // UriKind.Absolute can interpret slash-prefixed strings as file: URIs.
+        Uri uri;
+        if(raw.StartsWith("/",StringComparison.Ordinal))
             uri=new Uri(baseUri,raw);
+        else if(!Uri.TryCreate(raw,UriKind.Absolute,out uri))
+            throw new ReadRejected(400,"unsafe_delta_url");
         var path="/api/data/v9.2/"+policy.Table.EntitySetName;
         if(uri.Scheme!="https" || uri.UserInfo.Length>0 || uri.Fragment.Length>0 ||
             !uri.IsDefaultPort || !string.Equals(uri.Host,baseUri.Host,StringComparison.OrdinalIgnoreCase) ||

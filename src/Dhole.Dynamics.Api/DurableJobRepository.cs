@@ -660,6 +660,33 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         await tx.CommitAsync(ct);
     }
 
+
+    public async Task<SyncChangesPage> ChangesAsync(Guid connection,string entity,long after,int limit,
+        CancellationToken ct)
+    {
+        if(connection==Guid.Empty || after<0 || limit is < 1 or > 100 ||
+            !Dhole.Dynamics.Infrastructure.DataverseMetadataDiscovery.SafeName(entity))
+            throw new ReadRejected(400,"invalid_change_cursor");
+        var items=new List<SyncChangeEntry>();
+        await using var db=await data.OpenConnectionAsync(ct);
+        await using var cmd=new NpgsqlCommand("""
+            SELECT id,record_id,change_hash,action,observed_at
+            FROM dynamics.sync_changes WHERE connection_id=@conn AND entity_name=@entity
+              AND id>@after ORDER BY id LIMIT @limit
+            """,db);
+        cmd.Parameters.AddWithValue("conn",connection);
+        cmd.Parameters.AddWithValue("entity",entity);
+        cmd.Parameters.AddWithValue("after",after);
+        cmd.Parameters.AddWithValue("limit",limit+1);
+        await using var r=await cmd.ExecuteReaderAsync(ct);
+        while(await r.ReadAsync(ct))
+            items.Add(new(r.GetInt64(0),r.GetGuid(1),r.GetString(2).Trim(),r.GetString(3),
+                r.GetFieldValue<DateTimeOffset>(4)));
+        var more=items.Count>limit;
+        if(more)items.RemoveAt(items.Count-1);
+        return new(entity,items,items.Count>0?items[^1].Sequence:after,more);
+    }
+
     public async Task<RetentionPolicy> RetentionAsync(CancellationToken ct)
     {
         await using var db=await data.OpenConnectionAsync(ct);

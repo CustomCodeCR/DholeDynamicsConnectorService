@@ -71,6 +71,7 @@ CREATE TABLE dynamics.sync_changes (
    REFERENCES dynamics.sync_config(connection_id,entity_name) ON DELETE CASCADE
 );
 CREATE INDEX ix_sync_changes_recent ON dynamics.sync_changes(connection_id,entity_name,observed_at DESC);
+CREATE INDEX ix_sync_changes_poll ON dynamics.sync_changes(connection_id,entity_name,id);
 CREATE TABLE dynamics.job_alerts (
  id uuid PRIMARY KEY,
  connection_id uuid NOT NULL REFERENCES dynamics.connections(id) ON DELETE CASCADE,

@@ -20,3 +20,9 @@ public sealed class SyncRequestFailure(int statusCode, int? retrySeconds = null)
  public int StatusCode { get; } = statusCode;
  public int? RetrySeconds { get; } = retrySeconds;
 }
+
+/// <summary>Read-only, privacy-minimized change manifest visible only through an M2M read grant.</summary>
+public sealed record SyncChangeEntry(long Sequence,Guid RecordId,string ChangeHash,
+    string Action,DateTimeOffset ObservedAt);
+public sealed record SyncChangesPage(string EntityName,IReadOnlyList<SyncChangeEntry> Items,
+    long NextAfter,bool HasMore);

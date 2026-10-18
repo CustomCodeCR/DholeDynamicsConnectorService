@@ -38,6 +38,7 @@ app.MapDholeQuoteTemplateEndpoints();
 app.MapAdminConsoleEndpoints();
 app.MapLegacyMigrationEndpoints();
 app.MapDurableJobEndpoints();
+app.MapSyncChangeEndpoints();
 
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();

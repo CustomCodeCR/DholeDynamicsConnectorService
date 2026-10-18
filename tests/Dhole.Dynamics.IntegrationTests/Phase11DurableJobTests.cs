@@ -126,6 +126,17 @@ public sealed class Phase11DurableJobTests
                 count.Parameters.AddWithValue("conn",conn);
                 Assert.Equal(1L,(long)(await count.ExecuteScalarAsync())!);
             }
+            var manifest=await b.ChangesAsync(conn,"quote",0,50,CancellationToken.None);
+            Assert.Single(manifest.Items);
+            Assert.Equal(id,manifest.Items[0].RecordId);
+            Assert.Equal(manifest.Items[0].Sequence,manifest.NextAfter);
+            Assert.False(manifest.HasMore);
+            Assert.Empty((await b.ChangesAsync(conn,"quote",manifest.NextAfter,50,
+                CancellationToken.None)).Items);
+            Assert.Empty((await b.ChangesAsync(Guid.NewGuid(),"quote",0,50,
+                CancellationToken.None)).Items);
+            await Assert.ThrowsAsync<ReadRejected>(()=>b.ChangesAsync(conn,"quote",-1,50,
+                CancellationToken.None));
 
             var failed=await a.EnqueueAsync(conn,new JobEnqueueRequest(
                 "reconcile_scan",null,"phase11-scan-0000001"),"ci",CancellationToken.None);

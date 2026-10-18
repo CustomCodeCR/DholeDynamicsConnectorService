@@ -15,11 +15,13 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
     ReadAccessRepository policy, ReadCursorProtector cursors)
 {
     public async Task<ReadSearchResponse> SearchAsync(ClaimsPrincipal user, string entity,
-        ReadSearchRequest request, CancellationToken ct, string? savedName = null)
+        ReadSearchRequest request, CancellationToken ct, string? savedName = null, bool admin = false)
     {
         var context = await policy.ResolveAsync(request.ConnectionCode, entity, ct);
-        var issuer = user.FindFirst("connector:issuer")?.Value ?? "";
-        var client = ScopeSecurity.ClientId(user) ?? "";
+        var issuer = admin ? "admin:oidc" : user.FindFirst("connector:issuer")?.Value ?? "";
+        var client = admin ? ScopeSecurity.ActorId(user) : ScopeSecurity.ClientId(user) ?? "";
+        if (admin && !ScopeSecurity.HasAdminRole(user, "dynamics.security.admin"))
+            throw new ReadRejected(403, "admin_records_denied");
         var page = 1;
         string? next = null;
         ReadSpec query;
@@ -42,8 +44,9 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         // Re-compile and authorize on EVERY page, even for a previously authenticated cursor.
         // Caller provided strings are never used as OData filter fragments.
         var primary = ReadQueryCompiler.Compile(context.Table, query with { Expand = null }, context.Allowed);
-        await policy.PermitAsync(user, context, primary.RequiredFields, ct);
-        var expansion = await ExpandAsync(user, context, query.Expand, ct);
+        if (admin) PermitAdmin(user, context, primary.RequiredFields);
+        else await policy.PermitAsync(user, context, primary.RequiredFields, ct);
+        var expansion = await ExpandAsync(user, context, query.Expand, ct, admin);
         var relative = primary.RelativeUrl + expansion;
         var url = next ?? relative;
         var root = await RequestAsync(context, url, query.PageSize, ct);
@@ -71,12 +74,13 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
     }
 
     public async Task<ReadRecordResponse> ByIdAsync(ClaimsPrincipal user, string code, string entity,
-        Guid id, IReadOnlyList<string> select, CancellationToken ct)
+        Guid id, IReadOnlyList<string> select, CancellationToken ct, bool admin = false)
     {
         if (id == Guid.Empty) throw new ReadRejected(400, "invalid_record_id");
         var context = await policy.ResolveAsync(code, entity, ct);
         var compiled = ReadQueryCompiler.Compile(context.Table, new ReadSpec(select), context.Allowed);
-        await policy.PermitAsync(user, context, compiled.RequiredFields, ct);
+        if (admin) PermitAdmin(user, context, compiled.RequiredFields);
+        else await policy.PermitAsync(user, context, compiled.RequiredFields, ct);
         var path = "/api/data/v9.2/" + context.Table.EntitySetName + "(" + id.ToString("D") + ")" +
             compiled.RelativeUrl[compiled.RelativeUrl.IndexOf('?', StringComparison.Ordinal)..];
         using var body = await RequestAsync(context, path, 1, ct, singleRecord: true);
@@ -121,7 +125,7 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
     }
 
     private async Task<string> ExpandAsync(ClaimsPrincipal user, ReadPolicy main,
-        IReadOnlyList<ReadExpand>? requested, CancellationToken ct)
+        IReadOnlyList<ReadExpand>? requested, CancellationToken ct, bool admin)
     {
         if (requested is not { Count: > 0 }) return "";
         if (requested.Count > 2 || requested.Select(e => e.Navigation).Distinct(StringComparer.Ordinal).Count() != requested.Count)
@@ -141,10 +145,19 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
                 expand.Select.Any(f => !related.Allowed.Contains(f)))
                 throw new ReadRejected(403, "expand_fields_denied");
             // A second independent per-entity grant is required for the related table.
-            await policy.PermitAsync(user, related, expand.Select, ct);
+            if (admin) PermitAdmin(user, related, expand.Select);
+            else await policy.PermitAsync(user, related, expand.Select, ct);
             expansions.Add(expand.Navigation + "($select=" + string.Join(",", expand.Select) + ")");
         }
         return "&$expand=" + Uri.EscapeDataString(string.Join(",", expansions));
+    }
+
+    private static void PermitAdmin(System.Security.Claims.ClaimsPrincipal user, ReadPolicy context,
+        IReadOnlyCollection<string> fields)
+    {
+        if (!ScopeSecurity.HasAdminRole(user, "dynamics.security.admin") ||
+            fields.Count == 0 || fields.Any(f => !context.Allowed.Contains(f)))
+            throw new ReadRejected(403, "admin_read_fields_denied");
     }
 
     private async Task<JsonDocument> RequestAsync(ReadPolicy context, string path, int size,

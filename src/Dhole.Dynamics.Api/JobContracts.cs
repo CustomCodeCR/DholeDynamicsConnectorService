@@ -6,7 +6,7 @@ public sealed record QueueJob(Guid Id, Guid ConnectionId, string Kind, string Re
  DateTimeOffset CreatedAt);
 public sealed record SyncSettings(string EntityName, bool Enabled, string Mode,
  bool FallbackToWatermark, int IntervalMinutes);
-public sealed record JobEnqueueRequest(string Kind, string? EntityName, string DedupeKey);
+public sealed record JobEnqueueRequest(string Kind, string? EntityName, string DedupeKey, bool Confirm = false);
 public sealed record JobReplayRequest(bool Confirm, string Reason);
 public sealed record RetentionPolicy(int JobDays, int ObservationDays, int ChangeDays);
 public sealed record JobStatistics(long Pending, long Running, long Dead, long Completed,

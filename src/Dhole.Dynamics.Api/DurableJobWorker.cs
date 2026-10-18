@@ -3,6 +3,7 @@ using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Contracts;
 using Microsoft.Identity.Client;
 using Npgsql;
+using System.Text.Json;
 
 namespace Dhole.Dynamics.Api;
 

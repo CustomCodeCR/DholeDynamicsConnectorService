@@ -37,6 +37,12 @@ try
     }
     return 0;
 }
+catch (PostgresException e)
+{
+    // SQLSTATE and constraint identifier are safe structural diagnostics; never print secrets.
+    Console.Error.WriteLine($"Connector migration rejected by PostgreSQL, SQLSTATE={e.SqlState}, constraint={e.ConstraintName ?? "none"}.");
+    return 1;
+}
 catch (Exception e)
 {
     // Never print exception messages here: Npgsql and upstream exceptions can include connection details.

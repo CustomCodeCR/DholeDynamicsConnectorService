@@ -59,6 +59,9 @@ jobs:
           echo "POSTGRES_PASSWORD=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           echo "DYNAMICS_ENCRYPTION_KEY_BASE64=$(openssl rand -base64 32 | tr -d '\n')" >> "$GITHUB_ENV"
       - run: docker compose up --build -d
+      - name: Show restricted migrator diagnostics on startup failure
+        if: failure()
+        run: docker compose logs --no-color --tail=35 migrate
       - name: Smoke API, DB, and frontend
         run: |
           set -euo pipefail

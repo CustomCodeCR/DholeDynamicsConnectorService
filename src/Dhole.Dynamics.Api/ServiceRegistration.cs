@@ -179,12 +179,12 @@ public static class ServiceRegistration
             options.AddPolicy("Admin", p => p.AddAuthenticationSchemes(dholeMode ? DholeBearer : AdminCookie)
                 .RequireAuthenticatedUser()
                 .RequireAssertion(c => dholeMode
-                    ? ScopeSecurity.HasScope(c.User, "dynamics.admin") || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
+                    ? ScopeSecurity.IsDholeSuperUser(c.User) || ScopeSecurity.HasScope(c.User, "dynamics.admin") || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
                     : ScopeSecurity.HasAdminRole(c.User, "dynamics.admin") || ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
             options.AddPolicy("SecurityAdmin", p => p.AddAuthenticationSchemes(dholeMode ? DholeBearer : AdminCookie)
                 .RequireAuthenticatedUser()
                 .RequireAssertion(c => dholeMode
-                    ? ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
+                    ? ScopeSecurity.IsDholeSuperUser(c.User) || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
                     : ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
             options.AddPolicy("M2M", p => p.AddAuthenticationSchemes(MachineBearer)
                 .RequireAuthenticatedUser()

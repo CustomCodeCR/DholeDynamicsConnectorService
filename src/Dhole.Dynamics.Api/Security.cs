@@ -12,6 +12,15 @@ public static class ScopeSecurity
             .SelectMany(x => x.Value.Split([' ', ',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(x => string.Equals(x, required, StringComparison.Ordinal));
 
+    // DholeAuth reserves SuperUsuario/SuperUser for top-level administrators.
+    // Accept only an authenticated, exact role from the validated Dhole bearer.
+    public static bool IsDholeSuperUser(ClaimsPrincipal user) =>
+        user.Identity?.IsAuthenticated == true &&
+        user.Claims.Where(x => x.Type is "roles" or "role" or ClaimTypes.Role)
+            .SelectMany(x => x.Value.Split([' ', ',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Any(x => string.Equals(x, "SuperUsuario", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(x, "SuperUser", StringComparison.OrdinalIgnoreCase));
+
     // Entra application identity. Do NOT use oid/sub as a substitute for appid/azp.
     public static string? ClientId(ClaimsPrincipal user) =>
         user.FindFirst("azp")?.Value ?? user.FindFirst("appid")?.Value

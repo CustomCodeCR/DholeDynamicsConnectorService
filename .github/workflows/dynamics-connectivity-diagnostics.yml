@@ -10,6 +10,29 @@ permissions:
   contents: read
 
 jobs:
+  public-cors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect public POST CORS without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Public OPTIONS:'
+          curl -sS --max-time 18 -X OPTIONS -o /dev/null -D - \
+            -H 'Origin: https://sistema.logisticacastrofallas.com' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: authorization,content-type' \
+            https://api.logisticacastrofallas.com/api/dynamics-admin/connections/principal/test \
+            | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:)' || true
+          echo 'Public actual POST without authentication:'
+          curl -sS --max-time 18 -X POST -o /dev/null -D - \
+            -H 'Origin: https://sistema.logisticacastrofallas.com' \
+            -H 'Content-Type: application/json' \
+            https://api.logisticacastrofallas.com/api/dynamics-admin/connections/principal/test \
+            | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:)' || true
+          echo 'Successful response must be unauthorized, without a token.'
+
   diagnostic:
     runs-on: [self-hosted, linux, x64, dhole]
     timeout-minutes: 10

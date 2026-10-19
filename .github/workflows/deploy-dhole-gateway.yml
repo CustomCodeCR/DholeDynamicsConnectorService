@@ -59,16 +59,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Build and test
+      - name: Build and test using the existing Docker SDK
+        shell: bash
         run: |
           set -euo pipefail
-          dotnet restore DholeDynamicsConnectorService.slnx
-          dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
-          dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build
+          # The self-hosted runner cannot write /usr/share/dotnet. Use a disposable
+          # SDK container; do not sudo/install the SDK on the host.
+          docker run --rm --network host \
+            -v "$PWD:/repo" -w /repo \
+            mcr.microsoft.com/dotnet/sdk:10.0 \
+            bash -euc 'dotnet restore DholeDynamicsConnectorService.slnx &&
+              dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore &&
+              dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build'
 
       - name: Load environment-matched DholeSystem topology
         shell: bash

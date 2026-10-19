@@ -227,10 +227,17 @@ jobs:
             -p "$DYNAMICS_DHOLE_PROJECT" config -q
           docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" \
             -p "$DYNAMICS_DHOLE_PROJECT" up -d --no-deps --force-recreate --pull never api-gateway
-          health="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
-            curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 10 \
-            http://api-gateway:8080/api/health/dynamics-connector)"
-          [[ "$health" == 200 ]] || { echo "Dynamics gateway health HTTP $health" >&2; exit 1; }
+          # Docker reports 'Started' before Kestrel binds to 8080. Wait for a
+          # successful readiness probe rather than failing on a transient curl 7.
+          health=""
+          for attempt in $(seq 1 30); do
+            health="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
+              curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 5 \
+              http://api-gateway:8080/api/health/dynamics-connector)" || true
+            [[ "$health" == 200 ]] && break
+            sleep 2
+          done
+          [[ "$health" == 200 ]] || { echo "Dynamics gateway failed readiness (HTTP $health)" >&2; exit 1; }
           admin="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
             curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 8 \
             http://api-gateway:8080/api/dynamics-admin/connections)"

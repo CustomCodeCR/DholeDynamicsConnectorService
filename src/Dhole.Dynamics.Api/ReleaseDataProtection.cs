@@ -8,7 +8,8 @@ public static class ReleaseDataProtection
 {
     public static void Configure(IServiceCollection services,IConfiguration config,IHostEnvironment env)
     {
-        if(env.IsDevelopment()||env.IsEnvironment("Testing"))return;
+        if(env.IsDevelopment() || env.IsEnvironment("Testing") ||
+           string.Equals(config["DYNAMICS_AUTH_MODE"], "Dhole", StringComparison.OrdinalIgnoreCase)) return;
         var path=config["DataProtection:KeyPath"];
         var certPath=config["DataProtection:CertificatePath"];
         var password=config["DataProtection:CertificatePassword"];

@@ -12,6 +12,8 @@ public static class AdminSecurity
     {
         app.MapGet("/auth/login", (IConfiguration config) =>
         {
+            if (string.Equals(config["DYNAMICS_AUTH_MODE"], "Dhole", StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(statusCode: 503, title: "Use your DholeAuth bearer token for Dynamics administration.");
             if (string.IsNullOrWhiteSpace(config["AdminOidc:Authority"])
                 || string.IsNullOrWhiteSpace(config["AdminOidc:ClientId"])
                 || string.IsNullOrWhiteSpace(config["AdminOidc:ClientSecret"]))
@@ -48,6 +50,11 @@ public static class AdminSecurity
         group.AddEndpointFilter(async (invocation, next) =>
         {
             var http = invocation.HttpContext;
+            // DholeAuth mode uses explicit bearer tokens instead of cookies. CSRF applies
+            // to browser cookies, never to a signed Authorization bearer token.
+            if (string.Equals(http.RequestServices.GetRequiredService<IConfiguration>()["DYNAMICS_AUTH_MODE"],
+                    "Dhole", StringComparison.OrdinalIgnoreCase))
+                return await next(invocation);
             if (HttpMethods.IsPost(http.Request.Method) || HttpMethods.IsPut(http.Request.Method)
                 || HttpMethods.IsPatch(http.Request.Method) || HttpMethods.IsDelete(http.Request.Method))
             {

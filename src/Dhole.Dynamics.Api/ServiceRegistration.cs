@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Dhole.Dynamics.Application;
@@ -18,10 +19,12 @@ public static class ServiceRegistration
     public const string AdminCookie = "AdminSession";
     public const string AdminOidc = "AdminOidc";
     public const string MachineBearer = "MachineBearer";
+    public const string DholeBearer = "DholeBearer";
 
     public static IServiceCollection AddDholeApiSecurity(this IServiceCollection services, IConfiguration config, IHostEnvironment environment)
     {
         services.AddSingleton(ProductionWritePolicy.FromConfiguration(config,environment));
+        var dholeMode = string.Equals(config["DYNAMICS_AUTH_MODE"], "Dhole", StringComparison.OrdinalIgnoreCase);
         var adminAuthority = config["AdminOidc:Authority"];
         var adminId = config["AdminOidc:ClientId"];
         var adminSecret = config["AdminOidc:ClientSecret"];
@@ -37,12 +40,21 @@ public static class ServiceRegistration
         var adminConfigured = IsHttpsAuthority(adminAuthority) && !string.IsNullOrWhiteSpace(adminId)
             && !string.IsNullOrWhiteSpace(adminSecret);
         var machineConfigured = IsHttpsAuthority(machineAuthority) && !string.IsNullOrWhiteSpace(machineAudience);
-        if (!environment.IsDevelopment() && !environment.IsEnvironment("Testing") && (!adminConfigured || !machineConfigured))
+        if (!dholeMode && !environment.IsDevelopment() && !environment.IsEnvironment("Testing") && (!adminConfigured || !machineConfigured))
             throw new InvalidOperationException("AdminOidc and M2m external providers must be configured in non-development environments.");
         if (!string.IsNullOrWhiteSpace(adminAuthority) && !IsHttpsAuthority(adminAuthority))
             throw new InvalidOperationException("Administrator identity authority must be HTTPS.");
         if (!string.IsNullOrWhiteSpace(machineAuthority) && !IsHttpsAuthority(machineAuthority))
             throw new InvalidOperationException("Machine identity authority must be HTTPS.");
+
+        if (dholeMode)
+        {
+            foreach (var setting in new[] { "DholeAuth:Issuer", "DholeAuth:Audience", "DholeAuth:SecretKey" })
+                if (string.IsNullOrWhiteSpace(config[setting]))
+                    throw new InvalidOperationException($"Dhole authentication is missing required setting {setting}.");
+            if (Encoding.UTF8.GetByteCount(config["DholeAuth:SecretKey"]!) < 32)
+                throw new InvalidOperationException("DholeAuth signing key is too short.");
+        }
 
         var auth = services.AddAuthentication(options =>
         {
@@ -66,6 +78,24 @@ public static class ServiceRegistration
             {
                 ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return Task.CompletedTask;
+            };
+        }).AddJwtBearer(DholeBearer, options =>
+        {
+            options.MapInboundClaims = false;
+            if (!dholeMode) return;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = config["DholeAuth:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = config["DholeAuth:Audience"],
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["DholeAuth:SecretKey"]!)),
+                ValidateLifetime = true,
+                RequireExpirationTime = true,
+                RequireSignedTokens = true,
+                ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+                ClockSkew = TimeSpan.FromMinutes(1)
             };
         }).AddJwtBearer(MachineBearer, options =>
         {
@@ -146,13 +176,16 @@ public static class ServiceRegistration
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy("Admin", p => p.AddAuthenticationSchemes(AdminCookie)
+            options.AddPolicy("Admin", p => p.AddAuthenticationSchemes(dholeMode ? DholeBearer : AdminCookie)
                 .RequireAuthenticatedUser()
-                .RequireAssertion(c => ScopeSecurity.HasAdminRole(c.User, "dynamics.admin")
-                    || ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
-            options.AddPolicy("SecurityAdmin", p => p.AddAuthenticationSchemes(AdminCookie)
+                .RequireAssertion(c => dholeMode
+                    ? ScopeSecurity.HasScope(c.User, "dynamics.admin") || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
+                    : ScopeSecurity.HasAdminRole(c.User, "dynamics.admin") || ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
+            options.AddPolicy("SecurityAdmin", p => p.AddAuthenticationSchemes(dholeMode ? DholeBearer : AdminCookie)
                 .RequireAuthenticatedUser()
-                .RequireAssertion(c => ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
+                .RequireAssertion(c => dholeMode
+                    ? ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
+                    : ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
             options.AddPolicy("M2M", p => p.AddAuthenticationSchemes(MachineBearer)
                 .RequireAuthenticatedUser()
                 .RequireClaim("connector:issuer")

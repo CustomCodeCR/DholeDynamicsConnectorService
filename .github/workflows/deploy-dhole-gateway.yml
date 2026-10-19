@@ -55,6 +55,17 @@ jobs:
             *) exit 1 ;;
           esac
 
+      - name: Repair disposable runner checkout ownership before git checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Earlier SDK-in-Docker runs wrote root-owned bin/obj to this checkout.
+          # The only mounted path is the dedicated workspace for this repository.
+          docker run --rm \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/workspace" busybox:1.36 \
+            sh -ec 'chown -R "$HOST_UID:$HOST_GID" /workspace'
+
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -66,6 +77,8 @@ jobs:
           # The self-hosted runner cannot write /usr/share/dotnet. Use a disposable
           # SDK container; do not sudo/install the SDK on the host.
           docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e DOTNET_CLI_HOME=/tmp -e NUGET_PACKAGES=/tmp/nuget \
             -v "$PWD:/repo" -w /repo \
             mcr.microsoft.com/dotnet/sdk:10.0 \
             bash -euc 'dotnet restore DholeDynamicsConnectorService.slnx &&

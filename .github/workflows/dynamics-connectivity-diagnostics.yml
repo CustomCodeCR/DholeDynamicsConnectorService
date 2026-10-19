@@ -31,6 +31,16 @@ jobs:
             -H 'Content-Type: application/json' \
             https://api.logisticacastrofallas.com/api/dynamics-admin/connections/principal/test \
             | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:)' || true
+          echo 'Public health GET (no user credentials):'
+          curl -sS --max-time 18 -o /dev/null -D - \
+            -H 'Origin: https://sistema.logisticacastrofallas.com' \
+            https://api.logisticacastrofallas.com/api/health/gateway \
+            | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:|www-authenticate:|via:|cf-ray:)' || true
+          echo 'Public Dynamics list GET (no user credentials):'
+          curl -sS --max-time 18 -o /dev/null -D - \
+            -H 'Origin: https://sistema.logisticacastrofallas.com' \
+            https://api.logisticacastrofallas.com/api/dynamics-admin/connections \
+            | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:|www-authenticate:|via:|cf-ray:)' || true
           echo 'Successful response must be unauthorized, without a token.'
 
   diagnostic:

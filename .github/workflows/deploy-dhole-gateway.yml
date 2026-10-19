@@ -1,11 +1,7 @@
 name: Deploy Dynamics Connector via existing Dhole PostgreSQL and Gateway
 
 on:
-  # A one-time staging deployment may be kicked off by reviewing/updating this workflow.
-  # Never trigger production on push; production requires workflow_dispatch and a review.
-  push:
-    branches: [develop]
-    paths: [.github/workflows/deploy-dhole-gateway.yml]
+  # Explicit operator action only; no staging or production deployment on push.
   workflow_dispatch:
     inputs:
       target:
@@ -30,23 +26,18 @@ concurrency:
 
 jobs:
   deploy:
-    environment: ${{ inputs.target || 'staging' }}
+    environment: ${{ inputs.target }}
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
       - name: Ensure manual environment-specific deploy
         shell: bash
         env:
-          TARGET: ${{ inputs.target || 'staging' }}
+          TARGET: ${{ inputs.target }}
           TICKET: ${{ inputs.change_ticket }}
           CONFIRM: ${{ inputs.production_confirmation }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            # Explicitly restricted staging trigger. No production via Git push.
-            [[ "$TARGET" == staging && "$GITHUB_REF" == refs/heads/develop ]] || exit 1
-          else
-            [[ "$TICKET" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]{11,119}$ ]] || exit 1
-          fi
+          [[ "$TICKET" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]{11,119}$ ]] || exit 1
           case "$TARGET" in
             staging) [[ "$GITHUB_REF" == refs/heads/develop ]] ;;
             production)
@@ -88,7 +79,7 @@ jobs:
       - name: Load environment-matched DholeSystem topology
         shell: bash
         env:
-          TARGET: ${{ inputs.target || 'staging' }}
+          TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           branch=develop
@@ -98,7 +89,7 @@ jobs:
       - name: Verify EXISTING Dhole Postgres, environment and read-only defaults
         shell: bash
         env:
-          TARGET: ${{ inputs.target || 'staging' }}
+          TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           envfile=/opt/dhole/.env
@@ -216,7 +207,7 @@ jobs:
       - name: Recreate gateway ONLY after Dynamics ready
         shell: bash
         env:
-          TARGET: ${{ inputs.target || 'staging' }}
+          TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           files=(-f .dhole-system/deploy/docker-compose.services.yml)

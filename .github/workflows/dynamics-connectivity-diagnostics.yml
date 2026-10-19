@@ -1,0 +1,62 @@
+name: Dynamics read-only connectivity diagnostics
+
+on:
+  push:
+    branches: [develop]
+    paths: [.github/workflows/dynamics-connectivity-diagnostics.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: [self-hosted, linux, x64, dhole]
+    timeout-minutes: 10
+    steps:
+      - name: Check production Dynamics route observations and outbound DNS without exposing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=/opt/dhole/.env
+          test -r "$file"
+          env_val() { sed -n "s/^$1=//p" "$file" | head -n 1 | tr -d '\r'; }
+          network="$(env_val DHOLE_NETWORK)"
+          [[ "$network" == dhole ]] || exit 1
+          db="$(env_val DYNAMICS_DB)"
+          [[ "$db" == dhole_dynamics_connector ]] || exit 1
+          pg_host="$(env_val POSTGRES_HOST)"
+          pg_port="$(env_val POSTGRES_PORT)"
+          pg_user="$(env_val POSTGRES_USER)"
+          password="$(env_val POSTGRES_PASSWORD)"
+          [[ -n "$password" && "$pg_host" == postgres && "$pg_port" == 5432 ]] || exit 1
+          echo "---- Sanitized connection-test observations (last 72h; no IDs/URLs/secrets) ----"
+          docker run --rm --network "$network" -e PGPASSWORD="$password" postgres:16-alpine \
+            psql -h "$pg_host" -p "$pg_port" -U "$pg_user" -d "$db" -v ON_ERROR_STOP=1 -Atqc \
+            "SELECT to_char(observed_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'),method,status_code,elapsed_ms
+            FROM dynamics.http_observations
+            WHERE route_pattern LIKE '%/connections/%/test%'
+            AND observed_at>now()-interval '72 hours'
+            ORDER BY observed_at DESC LIMIT 16"
+          unset password
+          echo "---- Gateway preflight status and allowed-method headers ----"
+          docker run --rm --network "$network" curlimages/curl:8.15.0 -sS --max-time 10 \
+            -o /dev/null -D - -X OPTIONS \
+            -H "Origin: https://sistema.logisticacastrofallas.com" \
+            -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: authorization,content-type" \
+            "http://api-gateway:8080/api/dynamics-admin/connections/principal/test" \
+            | grep -Ei '^(HTTP/|access-control-allow-|vary:)' || true
+          echo "---- Anonymous endpoint probe (expected 401, no secret values) ----"
+          status="$(docker run --rm --network "$network" curlimages/curl:8.15.0 \
+            -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
+            -H 'Origin: https://sistema.logisticacastrofallas.com' \
+            "http://api-gateway:8080/api/dynamics-admin/connections/principal/test")" || status="network_failure"
+          echo "Anonymous POST status: $status"
+          [[ "$status" == 401 ]] || exit 1
+          echo "---- Microsoft login endpoint egress (HTTPS only, no application token) ----"
+          status="$(docker run --rm --network "$network" curlimages/curl:8.15.0 \
+            -L -sS -o /dev/null -w '%{http_code}' --max-time 15 \
+            'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration')" || status="network_failure"
+          echo "Microsoft login public discovery HTTP status: $status"
+          [[ "$status" == 200 ]] || exit 1

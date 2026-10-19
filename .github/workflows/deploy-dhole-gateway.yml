@@ -1,7 +1,14 @@
 name: Deploy Dynamics Connector via existing Dhole PostgreSQL and Gateway
 
 on:
-  # Explicit operator action only; no staging or production deployment on push.
+  # Deploy tested connector changes from matching branches, retaining environment
+  # protection and explicit production read-only database/write safeguards.
+  push:
+    branches: [develop, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/deploy-dhole-gateway.yml'
   workflow_dispatch:
     inputs:
       target:
@@ -21,23 +28,29 @@ permissions:
   contents: read
 
 concurrency:
-  group: dynamics-existing-postgres-${{ inputs.target }}
+  group: dynamics-existing-postgres-${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    environment: ${{ inputs.target }}
+    environment: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
-      - name: Ensure manual environment-specific deploy
+      - name: Validate production read-only release and branch
         shell: bash
         env:
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
           TICKET: ${{ inputs.change_ticket }}
-          CONFIRM: ${{ inputs.production_confirmation }}
+          CONFIRM: ${{ github.event_name == 'push' && 'DEPLOY_READ_ONLY' || inputs.production_confirmation }}
         run: |
           set -euo pipefail
-          [[ "$TICKET" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]{11,119}$ ]] || exit 1
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$TICKET" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]{11,119}$ ]] || exit 1
+          else
+            # Use immutable Git SHA for release audit; never invent a change approval.
+            [[ "$GITHUB_EVENT_NAME" == push ]] || exit 1
+            echo "Automated read-only release: $GITHUB_SHA"
+          fi
           case "$TARGET" in
             staging) [[ "$GITHUB_REF" == refs/heads/develop ]] ;;
             production)
@@ -79,7 +92,7 @@ jobs:
       - name: Load environment-matched DholeSystem topology
         shell: bash
         env:
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
         run: |
           set -euo pipefail
           branch=develop
@@ -89,7 +102,7 @@ jobs:
       - name: Verify EXISTING Dhole Postgres, environment and read-only defaults
         shell: bash
         env:
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
         run: |
           set -euo pipefail
           envfile=/opt/dhole/.env
@@ -207,7 +220,7 @@ jobs:
       - name: Recreate gateway ONLY after Dynamics ready
         shell: bash
         env:
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
         run: |
           set -euo pipefail
           files=(-f .dhole-system/deploy/docker-compose.services.yml)

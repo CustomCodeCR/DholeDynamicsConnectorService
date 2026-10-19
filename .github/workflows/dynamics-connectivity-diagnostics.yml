@@ -54,6 +54,27 @@ jobs:
             "http://api-gateway:8080/api/dynamics-admin/connections/principal/test")" || status="network_failure"
           echo "Anonymous POST status: $status"
           [[ "$status" == 401 ]] || exit 1
+          echo "---- Compare CORS on ACTUAL unauthorized POST, at internal gateway and public HTTPS ----"
+          for url in \
+            "http://api-gateway:8080/api/dynamics-admin/connections/principal/test" \
+            "https://api.logisticacastrofallas.com/api/dynamics-admin/connections/principal/test"; do
+            echo "Checking ${url%%://*} transport"
+            # Print ONLY status + CORS / content-type. Do not send authorization values.
+            docker run --rm --network "$network" curlimages/curl:8.15.0 \
+              -sS --max-time 15 -D - -o /dev/null -X POST \
+              -H 'Origin: https://sistema.logisticacastrofallas.com' \
+              -H 'Content-Type: application/json' \
+              -H 'Accept: application/json' \
+              "$url" | grep -Ei '^(HTTP/|access-control-allow-|vary:|content-type:|server:)' || true
+          done
+          echo "---- Recent sanitized Dynamics test failure categories from running API logs ----"
+          # Only the exact purpose-built diagnostic lines; never print raw exception or token details.
+          for cid in $(docker ps --filter 'name=dynamics-api' --format '{{.ID}}' | head -n 3); do
+            docker logs --since 2h "$cid" 2>&1 \
+              | grep -E 'Dynamics connection test (rejected identity|failed at remote HTTP|has invalid persisted configuration|reached its bounded deadline)' \
+              | sed -E 's/correlation=[^[:space:]]+/correlation=[redacted]/g' \
+              | tail -n 12 || true
+          done
           echo "---- Microsoft login endpoint egress (HTTPS only, no application token) ----"
           status="$(docker run --rm --network "$network" curlimages/curl:8.15.0 \
             -L -sS -o /dev/null -w '%{http_code}' --max-time 15 \

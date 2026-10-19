@@ -77,17 +77,64 @@ public static class DynamicsEndpoints
     }
 
     private static async Task<IResult> TestConnection(string code, IConnectionRepository connections,
-        IDataverseClient dataverse, HttpContext http, CancellationToken ct)
+        IDataverseClient dataverse, HttpContext http, ILoggerFactory loggerFactory, CancellationToken ct)
     {
         var connection = await connections.FindAsync(code, ct);
-        if (connection is null) return ApiProblems.Create(http, 404, "connection_not_found", "Connection not found.");
-        try { return Results.Ok(await dataverse.TestConnectionAsync(connection, ct)); }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
-                or InvalidOperationException or Microsoft.Identity.Client.MsalException)
+        if (connection is null)
+            return ApiProblems.Create(http, 404, "connection_not_found", "Connection not found.");
+
+        // Token acquisition + WhoAmI + the read-permission probe share one bounded
+        // deadline. The gateway allows 120s; always return a usable API response
+        // well before that timeout, without recording credentials or tokens.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(50));
+        var logger = loggerFactory.CreateLogger("DynamicsConnectionDiagnostics");
+
+        try { return Results.Ok(await dataverse.TestConnectionAsync(connection, deadline.Token)); }
+        catch (Microsoft.Identity.Client.MsalException ex)
         {
-            // Do not expose third-party details, access tokens, app secrets or error payloads.
-            return ApiProblems.Create(http, 502, "dataverse_connection_failed",
-                "Dataverse identity or connection validation failed.");
+            // Only the short MSAL error code is examined, never the exception
+            // message, body, tenant, app ID, secret or access token.
+            var codeHint = ex.ErrorCode?.ToLowerInvariant() switch
+            {
+                "invalid_client" => "dataverse_invalid_client",
+                "unauthorized_client" => "dataverse_unauthorized_client",
+                "invalid_scope" => "dataverse_invalid_scope",
+                "invalid_tenant" => "dataverse_invalid_tenant",
+                _ => "dataverse_identity_rejected"
+            };
+            logger.LogWarning("Dynamics connection test rejected identity; category={Category} correlation={CorrelationId}",
+                codeHint, http.TraceIdentifier);
+            return ApiProblems.Create(http, 502, codeHint,
+                codeHint == "dataverse_invalid_client"
+                    ? "Microsoft Entra rechazó las credenciales de la aplicación. Revisá Tenant ID, Client ID y el VALOR vigente de Client Secret."
+                    : "Microsoft Entra no pudo autorizar esta aplicación para Dataverse. Verificá el registro de aplicación y la configuración del directorio.");
+        }
+        catch (HttpRequestException ex)
+        {
+            var blocked = ex.StatusCode is System.Net.HttpStatusCode.Forbidden
+                or System.Net.HttpStatusCode.Unauthorized;
+            var category = blocked ? "dataverse_application_access_denied" : "dataverse_http_failure";
+            logger.LogWarning("Dynamics connection test failed at remote HTTP; category={Category} correlation={CorrelationId}",
+                category, http.TraceIdentifier);
+            return ApiProblems.Create(http, 502, category,
+                blocked
+                    ? "Dataverse rechazó el acceso. Comprobá el Application User y sus roles de seguridad en esa organización."
+                    : "No se pudo consultar Dataverse. Verificá la URL de la organización y la conectividad del servicio.");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Dynamics connection test reached its bounded deadline; correlation={CorrelationId}",
+                http.TraceIdentifier);
+            return ApiProblems.Create(http, 504, "dataverse_test_timeout",
+                "La validación de Dataverse superó 50 segundos. Revisá la conectividad de Microsoft desde Argos.");
+        }
+        catch (InvalidOperationException)
+        {
+            logger.LogWarning("Dynamics connection test has invalid persisted configuration; correlation={CorrelationId}",
+                http.TraceIdentifier);
+            return ApiProblems.Create(http, 502, "dataverse_configuration_invalid",
+                "La conexión almacenada no pudo validarse. Revisá los datos de conexión y la clave de cifrado persistente.");
         }
     }
 

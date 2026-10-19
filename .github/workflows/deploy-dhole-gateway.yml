@@ -1,37 +1,34 @@
-name: Deploy Dynamics Connector through Dhole Gateway
+name: Deploy Dynamics Connector via existing Dhole PostgreSQL and Gateway
 
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: "staging or production (manual only)"
         type: choice
-        options: [staging, production]
         required: true
+        options: [staging, production]
       change_ticket:
-        description: "Approved change ticket, min. 12 characters"
         type: string
         required: true
+        description: "Approved change ticket (min 12 characters)"
       production_confirmation:
-        description: "For production type DEPLOY_READ_ONLY"
         type: string
         required: false
+        description: "Production only: DEPLOY_READ_ONLY"
 
 permissions:
   contents: read
 
 concurrency:
-  group: dynamics-gateway-${{ inputs.target }}
+  group: dynamics-existing-postgres-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    # Configure GitHub Environments staging and production with REQUIRED REVIEWERS.
-    # This job does not and must not bypass host + Entra change controls.
     environment: ${{ inputs.target }}
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
-      - name: Validate branch, ticket and read-only production approval
+      - name: Ensure manual environment-specific deploy
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
@@ -40,26 +37,30 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$TICKET" =~ ^[a-zA-Z0-9][a-zA-Z0-9_./-]{11,119}$ ]] || exit 1
-          if [[ "$TARGET" == staging ]]; then
-            [[ "$GITHUB_REF" == refs/heads/develop ]] || exit 1
-          else
-            [[ "$TARGET" == production && "$GITHUB_REF" == refs/heads/master ]] || exit 1
-            [[ "$CONFIRM" == DEPLOY_READ_ONLY ]] || exit 1
-          fi
+          case "$TARGET" in
+            staging) [[ "$GITHUB_REF" == refs/heads/develop ]] ;;
+            production)
+              [[ "$GITHUB_REF" == refs/heads/master ]] || exit 1
+              [[ "$CONFIRM" == DEPLOY_READ_ONLY ]] ;;
+            *) exit 1 ;;
+          esac
 
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Build and unit/integration tests (no tenant access)
+
+      - name: Build and test
         run: |
+          set -euo pipefail
           dotnet restore DholeDynamicsConnectorService.slnx
           dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
           dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build
 
-      - name: Fetch branch-matched DholeSystem deployment topology
+      - name: Load environment-matched DholeSystem topology
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
@@ -69,82 +70,109 @@ jobs:
           if [[ "$TARGET" == production ]]; then branch=master; fi
           git clone --depth 1 --branch "$branch" https://github.com/CustomCodeCR/DholeSystem.git .dhole-system
 
-      - name: Validate secrets and isolated networks on the target host
+      - name: Verify EXISTING Dhole Postgres, environment and read-only defaults
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
-          envfile="/opt/dhole/.env"
-          network="dhole"
-          project="dhole-dynamics-production"
+          envfile=/opt/dhole/.env
+          project=dhole-dynamics-production
+          network=dhole
           tag=latest
+          mainproject=dhole
           if [[ "$TARGET" == staging ]]; then
-            envfile="/opt/dhole/.env.staging"
-            network="dhole-staging"
-            project="dhole-dynamics-staging"
+            envfile=/opt/dhole/.env.staging
+            project=dhole-dynamics-staging
+            network=dhole-staging
             tag=staging
+            mainproject=dhole-staging
           fi
           test -r "$envfile"
           docker network inspect "$network" >/dev/null
-          for key in DYNAMICS_IMAGE_TAG DYNAMICS_POSTGRES_PASSWORD_FILE DYNAMICS_DB_CONNECTION_FILE \
-            DYNAMICS_ENCRYPTION_KEY_FILE DYNAMICS_CURSOR_KEY_FILE DYNAMICS_ADMIN_OIDC_SECRET_FILE \
-            DYNAMICS_DP_CERT_FILE DYNAMICS_DP_PASSWORD_FILE DYNAMICS_ADMIN_OIDC_AUTHORITY \
-            DYNAMICS_ADMIN_OIDC_CLIENT_ID DYNAMICS_M2M_AUTHORITY DYNAMICS_M2M_AUDIENCE; do
-            grep -q "^${key}=[^[:space:]]" "$envfile" || { echo "Missing config: $key"; exit 1; }
+          for key in ASPNETCORE_ENVIRONMENT DHOLE_NETWORK DYNAMICS_IMAGE_TAG DYNAMICS_DB \
+            POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD \
+            JWT_ISSUER JWT_AUDIENCE JWT_SECRET DHOLE_API_PUBLIC_URL; do
+            grep -q "^${key}=[^[:space:]]" "$envfile" || { echo "Missing existing env key: $key" >&2; exit 1; }
           done
-          grep -qx "DYNAMICS_IMAGE_TAG=$tag" "$envfile" || { echo "Wrong image tag"; exit 1; }
-          grep -qx 'DYNAMICS_PRODUCTION_WRITES_APPROVED=NO' "$envfile" || { echo "Production writes must remain disabled for this deploy"; exit 1; }
-          grep -qx 'DYNAMICS_PRODUCTION_DELETES_APPROVED=NO' "$envfile" || exit 1
+          grep -qx "DYNAMICS_IMAGE_TAG=$tag" "$envfile"
+          grep -qx "DHOLE_NETWORK=$network" "$envfile"
+          grep -qx "DYNAMICS_DB=dhole_dynamics_connector" "$envfile"
+          grep -qx "DYNAMICS_PRODUCTION_WRITES_APPROVED=NO" "$envfile"
+          grep -qx "DYNAMICS_PRODUCTION_DELETES_APPROVED=NO" "$envfile"
           if [[ "$TARGET" == production ]]; then
-            grep -qx 'ASPNETCORE_ENVIRONMENT=Production' "$envfile" || exit 1
+            grep -qx "ASPNETCORE_ENVIRONMENT=Production" "$envfile"
           else
-            grep -qx 'ASPNETCORE_ENVIRONMENT=Staging' "$envfile" || exit 1
+            grep -qx "ASPNETCORE_ENVIRONMENT=Staging" "$envfile"
           fi
-          # Resolve required secret paths WITHOUT printing secret contents.
-          for key in DYNAMICS_POSTGRES_PASSWORD_FILE DYNAMICS_DB_CONNECTION_FILE \
-            DYNAMICS_ENCRYPTION_KEY_FILE DYNAMICS_CURSOR_KEY_FILE DYNAMICS_ADMIN_OIDC_SECRET_FILE \
-            DYNAMICS_DP_CERT_FILE DYNAMICS_DP_PASSWORD_FILE; do
-            file="$(sed -n "s/^${key}=//p" "$envfile" | head -1 | tr -d '\r')"
-            [[ "$file" == /opt/dhole/dynamics/"$TARGET"/* &&
-               -s "$file" && ! -L "$file" ]] || { echo "Invalid secret file: $key"; exit 1; }
-          done
           {
             echo "DYNAMICS_DEPLOY_ENV=$envfile"
             echo "DYNAMICS_DEPLOY_NETWORK=$network"
             echo "DYNAMICS_DEPLOY_PROJECT=$project"
             echo "DYNAMICS_DEPLOY_TAG=$tag"
+            echo "DYNAMICS_DHOLE_PROJECT=$mainproject"
           } >> "$GITHUB_ENV"
           docker compose --env-file "$envfile" \
             -f .dhole-system/deploy/docker-compose.dynamics.yml -p "$project" config -q
+          if [[ "$TARGET" == production ]]; then
+            echo "Production read-only: writes/deletes remain disabled."
+          fi
 
-      - name: Build release images locally on approved runner (no registry credentials)
+      - name: Build API and migrator for the selected environment
         shell: bash
         run: |
           set -euo pipefail
-          # Preserve previously-good tag before replacing images for image-only rollback.
           docker build --pull -f src/Dhole.Dynamics.Api/Dockerfile \
-            -t "dhole/dynamics-api:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" \
-            -t "dhole/dynamics-api:$DYNAMICS_DEPLOY_TAG" .
+            -t "dhole/dynamics-api:$DYNAMICS_DEPLOY_TAG" \
+            -t "dhole/dynamics-api:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" .
           docker build --pull -f src/Dhole.Dynamics.Tools/Dockerfile \
-            -t "dhole/dynamics-tools:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" \
-            -t "dhole/dynamics-tools:$DYNAMICS_DEPLOY_TAG" .
+            -t "dhole/dynamics-tools:$DYNAMICS_DEPLOY_TAG" \
+            -t "dhole/dynamics-tools:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" .
 
-      - name: Migrate only dedicated Dynamics PostgreSQL, then start API and worker
+      - name: Create ONLY connector database if missing on existing PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          get_env() {
+            local key="$1"
+            sed -n "s/^${key}=//p" "$DYNAMICS_DEPLOY_ENV" | head -n 1 | tr -d '\r'
+          }
+          db="$(get_env DYNAMICS_DB)"
+          host="$(get_env POSTGRES_HOST)"
+          port="$(get_env POSTGRES_PORT)"
+          user="$(get_env POSTGRES_USER)"
+          password="$(get_env POSTGRES_PASSWORD)"
+          [[ "$db" == dhole_dynamics_connector ]] || exit 1
+          [[ "$host" == postgres ]] || { echo "Unexpected host, refusing to create database" >&2; exit 1; }
+          [[ "$port" == 5432 ]] || exit 1
+          [[ -n "$password" && -n "$user" ]] || exit 1
+          # Only network and database are environment scoped; NEVER touch other DBs.
+          docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" \
+            -e PGPASSWORD="$password" postgres:16-alpine \
+            psql -h "$host" -p "$port" -U "$user" -d postgres \
+                 -v ON_ERROR_STOP=1 -v "dbname=$db" -f - <<'SQL'
+          SELECT format('CREATE DATABASE %I', :'dbname')
+          WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'dbname')\gexec
+          SQL
+          unset password
+
+      - name: Apply Dynamics-only SQL migrations and generate isolated encryption keys
         shell: bash
         run: |
           set -euo pipefail
           compose=(docker compose --env-file "$DYNAMICS_DEPLOY_ENV" \
             -f .dhole-system/deploy/docker-compose.dynamics.yml -p "$DYNAMICS_DEPLOY_PROJECT")
-          "${compose[@]}" up -d --no-deps dynamics-postgres
-          "${compose[@]}" run --rm dynamics-migrate
-          "${compose[@]}" run --rm dynamics-key-init
+          "${compose[@]}" run --rm --no-deps dynamics-migrate
+          "${compose[@]}" run --rm --no-deps dynamics-key-init
           "${compose[@]}" up -d --no-deps --force-recreate --pull never dynamics-api dynamics-worker
-          test -n "$("${compose[@]}" ps -q dynamics-api)"
-          # Verify dedicated service readiness before affecting the Dhole gateway.
-          for i in $(seq 1 30); do
+
+      - name: Verify Dynamics readiness BEFORE changing shared API Gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          for try in $(seq 1 30); do
             if docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
-              curlimages/curl:8.15.0 -fsS --max-time 4 \
+              curlimages/curl:8.15.0 -fsS --max-time 5 \
               http://dynamics-api:8080/health/ready >/dev/null 2>&1; then break; fi
             sleep 3
           done
@@ -152,27 +180,30 @@ jobs:
             curlimages/curl:8.15.0 -fsS --max-time 8 \
             http://dynamics-api:8080/health/ready >/dev/null
 
-      - name: Reload only Dhole API Gateway routing, leave other Dhole services untouched
+      - name: Recreate gateway ONLY after Dynamics ready
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           files=(-f .dhole-system/deploy/docker-compose.services.yml)
-          main_project=dhole
           if [[ "$TARGET" == staging ]]; then
             files+=(-f .dhole-system/deploy/docker-compose.staging.yml)
-            main_project=dhole-staging
           fi
-          docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" -p "$main_project" config -q
-          docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" -p "$main_project" \
-            up -d --no-deps --force-recreate --pull never api-gateway
-          gateway_code="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
-            curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 8 \
+          docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" \
+            -p "$DYNAMICS_DHOLE_PROJECT" config -q
+          docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" \
+            -p "$DYNAMICS_DHOLE_PROJECT" up -d --no-deps --force-recreate --pull never api-gateway
+          health="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
+            curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 10 \
             http://api-gateway:8080/api/health/dynamics-connector)"
-          [[ "$gateway_code" == 200 ]] || { echo "Gateway health failed: HTTP $gateway_code"; exit 1; }
-          auth_code="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
+          [[ "$health" == 200 ]] || { echo "Dynamics gateway health HTTP $health" >&2; exit 1; }
+          admin="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
             curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 8 \
-            'http://api-gateway:8080/api/dynamics-connector/quotes/00000000-0000-0000-0000-000000000001?connectionCode=unknown')"
-          [[ "$auth_code" == 401 ]] || { echo "Gateway did not preserve Dynamics M2M authentication: HTTP $auth_code"; exit 1; }
-          echo "Gateway health passed; anonymous M2M denied. Production write/delete flags remain NO."
+            http://api-gateway:8080/api/dynamics-admin/connections)"
+          [[ "$admin" == 401 ]] || { echo "Anonymous administration was not denied: HTTP $admin" >&2; exit 1; }
+          machine="$(docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" --pull=missing \
+            curlimages/curl:8.15.0 -s -o /dev/null -w '%{http_code}' --max-time 8 \
+            http://api-gateway:8080/api/dynamics-connector/quotes/00000000-0000-0000-0000-000000000001)"
+          [[ "$machine" == 401 ]] || { echo "Anonymous M2M was not denied: HTTP $machine" >&2; exit 1; }
+          echo "Dhole Gateway Dynamics routing and anonymous access protections validated."

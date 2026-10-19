@@ -105,7 +105,8 @@ public static class DynamicsEndpoints
             };
             logger.LogWarning("Dynamics connection test rejected identity; category={Category} correlation={CorrelationId}",
                 codeHint, http.TraceIdentifier);
-            return ApiProblems.Create(http, 502, codeHint,
+            var status = codeHint == "dataverse_invalid_client" ? 422 : 424;
+            return ApiProblems.Create(http, status, codeHint,
                 codeHint == "dataverse_invalid_client"
                     ? "Microsoft Entra rechazó las credenciales de la aplicación. Revisá Tenant ID, Client ID y el VALOR vigente de Client Secret."
                     : "Microsoft Entra no pudo autorizar esta aplicación para Dataverse. Verificá el registro de aplicación y la configuración del directorio.");
@@ -117,7 +118,9 @@ public static class DynamicsEndpoints
             var category = blocked ? "dataverse_application_access_denied" : "dataverse_http_failure";
             logger.LogWarning("Dynamics connection test failed at remote HTTP; category={Category} correlation={CorrelationId}",
                 category, http.TraceIdentifier);
-            return ApiProblems.Create(http, 502, category,
+            // Expected remote 401/403 means the saved application is not authorized;
+            // signal a failed dependency rather than mislabeling it a gateway outage.
+            return ApiProblems.Create(http, blocked ? 424 : 502, category,
                 blocked
                     ? "Dataverse rechazó el acceso. Comprobá el Application User y sus roles de seguridad en esa organización."
                     : "No se pudo consultar Dataverse. Verificá la URL de la organización y la conectividad del servicio.");
@@ -133,7 +136,7 @@ public static class DynamicsEndpoints
         {
             logger.LogWarning("Dynamics connection test has invalid persisted configuration; correlation={CorrelationId}",
                 http.TraceIdentifier);
-            return ApiProblems.Create(http, 502, "dataverse_configuration_invalid",
+            return ApiProblems.Create(http, 422, "dataverse_configuration_invalid",
                 "La conexión almacenada no pudo validarse. Revisá los datos de conexión y la clave de cifrado persistente.");
         }
     }

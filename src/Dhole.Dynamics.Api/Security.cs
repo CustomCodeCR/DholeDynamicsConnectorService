@@ -8,8 +8,8 @@ public static class ScopeSecurity
     // requires an enabled registration and a connection+entity+operation+field grant.
     public static bool HasScope(ClaimsPrincipal user, string required) =>
         user.Identity?.IsAuthenticated == true &&
-        user.Claims.Where(x => x.Type is "roles" or "role" or "scp" or "scope")
-            .SelectMany(x => x.Value.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        user.Claims.Where(x => x.Type is "roles" or "role" or "scp" or "scope" or "scopes")
+            .SelectMany(x => x.Value.Split([' ', ',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(x => string.Equals(x, required, StringComparison.Ordinal));
 
     // Entra application identity. Do NOT use oid/sub as a substitute for appid/azp.

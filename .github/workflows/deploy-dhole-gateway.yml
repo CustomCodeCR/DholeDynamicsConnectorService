@@ -159,13 +159,21 @@ jobs:
           [[ "$port" == 5432 ]] || exit 1
           [[ -n "$password" && -n "$user" ]] || exit 1
           # Only network and database are environment scoped; NEVER touch other DBs.
-          docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" \
+          # -i is essential: without it Docker closes stdin and psql -f -
+          # exits with success without executing any SQL.
+          docker run --rm -i --network "$DYNAMICS_DEPLOY_NETWORK" \
             -e PGPASSWORD="$password" postgres:16-alpine \
             psql -h "$host" -p "$port" -U "$user" -d postgres \
                  -v ON_ERROR_STOP=1 -v "dbname=$db" -f - <<'SQL'
           SELECT format('CREATE DATABASE %I', :'dbname')
           WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'dbname')\gexec
           SQL
+          # Fail closed unless the just-created connector DB is actually reachable.
+          docker run --rm --network "$DYNAMICS_DEPLOY_NETWORK" \
+            -e PGPASSWORD="$password" postgres:16-alpine \
+            psql -h "$host" -p "$port" -U "$user" -d "$db" \
+                 -v ON_ERROR_STOP=1 -qtAc 'SELECT current_database()' |
+            grep -qx "$db"
           unset password
 
       - name: Apply Dynamics-only SQL migrations and generate isolated encryption keys

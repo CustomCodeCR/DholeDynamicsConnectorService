@@ -273,8 +273,9 @@ public static class ServiceRegistration
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<MetadataRefreshService>();
         services.AddHostedService<MetadataScheduler>();
-        services.AddHttpClient<IMetadataDiscoveryClient, DataverseMetadataDiscovery>(h => h.Timeout = TimeSpan.FromSeconds(60))
+        services.AddHttpClient<DataverseMetadataDiscovery>(h => h.Timeout = TimeSpan.FromSeconds(60))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddTransient<IMetadataDiscoveryClient>(sp => sp.GetRequiredService<DataverseMetadataDiscovery>());
         services.AddScoped<QuoteApplicationService>();
         services.AddSingleton<DataverseTokenProvider>();
         services.AddSingleton<IDataverseAccessTokenProvider>(sp => sp.GetRequiredService<DataverseTokenProvider>());

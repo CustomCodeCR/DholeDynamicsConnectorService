@@ -30,7 +30,10 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             request.Kind is not ("delta_sync" or "metadata_refresh" or "legacy_preview" or
                 "legacy_import" or "reconcile_scan") ||
             request.Kind=="delta_sync" && !Dhole.Dynamics.Infrastructure.DataverseMetadataDiscovery.SafeName(request.EntityName) ||
-            request.Kind!="delta_sync" && !string.IsNullOrEmpty(request.EntityName))
+            request.Kind=="metadata_refresh" && !string.IsNullOrEmpty(request.EntityName) &&
+                !Dhole.Dynamics.Infrastructure.DataverseMetadataDiscovery.SafeName(request.EntityName) ||
+            request.Kind is not ("delta_sync" or "metadata_refresh") &&
+                !string.IsNullOrEmpty(request.EntityName))
             throw new ReadRejected(400,"invalid_job_definition");
         var entity = request.EntityName ?? "";
         await using var db=await data.OpenConnectionAsync(ct);

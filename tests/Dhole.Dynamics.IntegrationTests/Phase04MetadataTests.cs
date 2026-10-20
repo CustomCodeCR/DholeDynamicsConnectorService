@@ -108,4 +108,86 @@ public sealed class Phase04MetadataTests
             await del.ExecuteNonQueryAsync();
         }
     }
+    [Fact]
+    public async Task BulkEnableApprovesHundredsAtomicallyAndAllowsReadOnlyLookupShadows()
+    {
+        var cs = Environment.GetEnvironmentVariable("PHASE2_TEST_DB_CONNECTION");
+        if (cs is null) return;
+        await using var data = NpgsqlDataSource.Create(cs);
+        var id = Guid.NewGuid();
+        await using var connection = await data.OpenConnectionAsync();
+        await using (var cmd = new NpgsqlCommand("""
+            INSERT INTO dynamics.connections
+              (id,code,dataverse_url,tenant_id,client_id,secret_nonce,secret_ciphertext,secret_tag,secret_key_version)
+            VALUES(@id,@code,'https://ci.crm.dynamics.com',@tenant,@client,@nonce,@cipher,@tag,1)
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("id", id);
+            cmd.Parameters.AddWithValue("code", "bulk-" + id.ToString("N"));
+            cmd.Parameters.AddWithValue("tenant", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("client", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("nonce", new byte[12]);
+            cmd.Parameters.AddWithValue("cipher", new byte[] { 4 });
+            cmd.Parameters.AddWithValue("tag", new byte[16]);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        try
+        {
+            var repo = new MetadataRepository(data);
+            var columns = Enumerable.Range(0, 520).Select(i => new MetadataColumn(
+                "field_" + i, "String", true, i % 2 == 0, i % 3 == 0, false, null,
+                null, null, [], new Dictionary<int, string>(), [])).ToList();
+            columns.Add(new MetadataColumn("_accountid_value", "Uniqueidentifier",
+                true, false, false, true, null, null, null, [], new Dictionary<int, string>(), []));
+            columns.Add(new MetadataColumn("write_only", "String",
+                false, true, false, false, null, null, null, [], new Dictionary<int, string>(), []));
+            var snap = await repo.SaveAsync(id, new MetadataCatalog([
+                new MetadataTable("quote", "quotes", "quoteid", "name", false,
+                    new Dictionary<int, string>(), columns, [])
+            ]), "manual", "ci", CancellationToken.None);
+            var version = snap.Snapshot.Version;
+            await Assert.ThrowsAsync<ReadRejected>(() => repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version, false, true), "ci", CancellationToken.None));
+            Assert.True(await repo.SetEntityAsync(id, "quote", true, "ci", CancellationToken.None));
+            await Assert.ThrowsAsync<ReadRejected>(() => repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version, false, false), "ci", CancellationToken.None));
+
+            var readOnly = await repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version, false, true), "ci", CancellationToken.None);
+            Assert.Equal(521, readOnly.EnabledFields);
+            Assert.Equal(521, readOnly.ReadFields);
+            Assert.Equal(0, readOnly.CreateFields);
+            var policies = await repo.PoliciesAsync(id, CancellationToken.None);
+            Assert.True(policies.Fields.Single(f => f.FieldName == "_accountid_value").CanRead);
+            Assert.False(policies.Fields.Single(f => f.FieldName == "_accountid_value").CanCreate);
+            Assert.DoesNotContain(policies.Fields, f => f.FieldName == "write_only");
+
+            var all = await repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version, true, true), "ci", CancellationToken.None);
+            Assert.Equal(522, all.EnabledFields);
+            Assert.Equal(261, all.CreateFields);
+            Assert.Equal(174, all.UpdateFields);
+            var after = await repo.PoliciesAsync(id, CancellationToken.None);
+            Assert.True(after.Fields.Single(f => f.FieldName == "field_0").CanCreate);
+            Assert.True(after.Fields.Single(f => f.FieldName == "field_0").CanUpdate);
+            Assert.False(after.Fields.Single(f => f.FieldName == "_accountid_value").CanCreate);
+            Assert.False(after.Fields.Single(f => f.FieldName == "_accountid_value").CanUpdate);
+
+            var againReadOnly = await repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version, false, true), "ci", CancellationToken.None);
+            Assert.Equal(521, againReadOnly.EnabledFields);
+            after = await repo.PoliciesAsync(id, CancellationToken.None);
+            Assert.True(after.Fields.Single(f => f.FieldName == "field_0").CanCreate);
+            await Assert.ThrowsAsync<ReadRejected>(() => repo.EnableFieldsBulkAsync(id, "quote",
+                new MetadataBulkFieldToggle(version + 1, true, true), "ci", CancellationToken.None));
+            Assert.Equal(522, (await repo.PoliciesAsync(id, CancellationToken.None)).Fields.Count);
+        }
+        finally
+        {
+            await using var del = new NpgsqlCommand("DELETE FROM dynamics.connections WHERE id=@id", connection);
+            del.Parameters.AddWithValue("id", id);
+            await del.ExecuteNonQueryAsync();
+        }
+    }
+
 }

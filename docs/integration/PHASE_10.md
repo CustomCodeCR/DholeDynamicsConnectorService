@@ -89,3 +89,62 @@ La aprobación interna de margen **no equivale** a
 la tarifa por el cliente. Las asociaciones de GUIDs entre Pricing y
 Dataverse deben resolverse por referencias autorizadas: nunca utilizar
 `rateId` como `customerid_account` o `transactioncurrencyid`.
+
+## API CRUD reutilizable (sin disparadores ni automatizaciones)
+
+DholeWeb → Dynamics 365 → **API CRUD** permite publicar operaciones
+`create`, `update`, `upsert` o `delete` sobre una tabla aprobada.
+Para consultar se utiliza Query Builder y su API de consultas guardadas.
+
+El administrador elige la operación, tabla y campos autorizados, configura
+un nombre estable para el comando, guarda una revisión inmutable y la activa
+expresamente. La acción **no se ejecuta al configurar el comando**.
+
+Plantillas administradas por DholeAuth (requiere rol `dynamics.admin`):
+- `POST /api/dynamics-admin/connections/{code}/templates/{name}/versions`
+- `PUT /api/dynamics-admin/connections/{code}/templates/{name}/active`
+
+Claves de integración (requiere `dynamics.security.admin`):
+- `GET /api/dynamics-admin/connections/{code}/crud-keys`
+- `POST /api/dynamics-admin/connections/{code}/crud-keys`
+- `DELETE /api/dynamics-admin/connections/{code}/crud-keys/{id}`
+
+La clave secreta se revela **solo cuando se emite**. Cada clave tiene una
+identidad independiente en `dynamics.api_clients` y un grant inmutable por
+`connection`, tabla lógica, operación y campos; está asociada a la versión
+activa de **una sola plantilla**. Se valida SHA-256 del secreto, vencimiento,
+estado habilitado y límite de peticiones con cuota transaccional por minuto.
+La creación del cliente, grant y clave se realiza dentro de una misma
+transacción; todas las escrituras pasan por el validador de columnas
+`WriteAccessService`, la tabla de idempotencia `WriteLedger` y la
+política final de autorización en producción.
+
+Consumidor (Pangolin o cualquier backend):
+
+```bash
+curl -X POST 'https://api.logisticacastrofallas.com/api/dynamics-connector/keyed/templates/crear_oferta/execute' \
+  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>' \
+  -H 'Idempotency-Key: <ID_UNICO_ESTABLE_POR_INTENCION_DE_ESCRITURA>' \
+  -H 'Content-Type: application/json' \
+  --data '{"connectionCode":"principal","inputs":{"name":"Oferta externa"}}'
+```
+
+Este ejemplo solo funciona cuando exista una plantilla `crear_oferta`
+activada con el campo `name` autorizado, una clave válida y las
+aprobaciones de escritura correspondientes. Nunca incluir secretos en URLs.
+
+Para UPDATE y DELETE, el cuerpo debe proporcionar `recordId` (GUID) y
+`eTag` vigente. DELETE también requiere `confirmDelete=true`,
+`deleteReason` y aprobación separada para borrados. UPSERT requiere
+`keys` con exactamente los atributos de la clave alternativa elegida.
+Una respuesta ambigua o un conflicto de idempotencia no debe reintentarse
+automáticamente con otra clave.
+
+Pangolin, si es un proxy inverso, debe reenviar POST, JSON y
+`X-Dhole-Api-Key`; si es consumidor backend, debe almacenar la clave en
+sus secretos y llamar directamente al gateway. No existe CRUD anónimo.
+
+**Importante:** publicar un endpoint no habilita
+`ProductionWrites:Approved` ni `ProductionWrites:DeletesApproved`.
+El operador sigue necesitando cambios controlados y permisos válidos.
+Las reglas de eventos de Pricing no se utilizan en este flujo.

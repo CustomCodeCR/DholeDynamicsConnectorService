@@ -1,11 +1,13 @@
 using Dhole.Dynamics.Application;
 using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Infrastructure;
 
 namespace Dhole.Dynamics.Api;
 
 /// <summary>Refreshes a complete catalog or leaves last known good snapshot intact.</summary>
 public sealed class MetadataRefreshService(IConnectionRepository connections,
-    IMetadataDiscoveryClient discovery, MetadataRepository catalog)
+    IMetadataDiscoveryClient discovery, MetadataRepository catalog,
+    DataverseMetadataDiscovery detailDiscovery)
 {
     public async Task<MetadataRefreshResult?> RefreshAsync(string code, string source,
         string actor, CancellationToken ct)
@@ -19,7 +21,22 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
             throw new InvalidOperationException("Empty Dataverse catalog; previous snapshot preserved.");
         if (found.Tables.Select(t => t.LogicalName).Distinct(StringComparer.Ordinal).Count() != found.Tables.Count)
             throw new InvalidOperationException("Duplicate Dataverse entity definitions.");
-        return await catalog.SaveAsync(connection.Id, found, source, actor, ct);
+        return await catalog.SaveAsync(connection.Id, found, source, actor, ct,
+            preserveDetails: true);
+    }
+
+    public async Task<MetadataRefreshResult?> RefreshTableAsync(string code, string entity,
+        string actor, CancellationToken ct)
+    {
+        if (!DataverseMetadataDiscovery.SafeName(entity))
+            throw new ArgumentException("Invalid Dataverse table.", nameof(entity));
+        var connection = await connections.FindAsync(code, ct);
+        if (connection is null) return null;
+        var current = await catalog.LatestAsync(connection.Id, ct);
+        if (current is null || current.Catalog.Tables.All(t => t.LogicalName != entity))
+            throw new InvalidOperationException("Refresh table index before discovering fields.");
+        var table = await detailDiscovery.DiscoverTableAsync(connection, entity, ct);
+        return await catalog.SaveTableAsync(connection.Id, table, actor, ct);
     }
 }
 

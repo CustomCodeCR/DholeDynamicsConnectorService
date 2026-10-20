@@ -51,6 +51,15 @@ public sealed class DholeScopeClaimTests
     }
 
     [Fact]
+    public void Oidc_role_policy_does_not_promote_scopes_to_roles()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("scp", "dynamics.security.admin")], "AdminSession"));
+        Assert.False(ScopeSecurity.HasLegacyAdminRole(principal, "dynamics.security.admin"));
+        Assert.True(ScopeSecurity.HasAdminRole(principal, "dynamics.security.admin"));
+    }
+
+    [Fact]
     public void Admin_record_permission_rejects_anonymous_claim()
     {
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("scopes", "dynamics.security.admin")]));

@@ -29,7 +29,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         "dkw1_"+id.ToString("N")+"_"+Convert.ToBase64String(
             RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+','-').Replace('/','_');
 
-    public static bool TryParse(string? token,out Guid id)
+    public static bool TryParseSecret(string? token,out Guid id)
     {
         id=Guid.Empty;
         return token is {Length:81} && token.StartsWith("dkw1_",StringComparison.Ordinal) &&
@@ -180,7 +180,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
     public async Task<CrudIntegrationKeyIdentity> ValidateAndChargeAsync(string? token,
         string connectionCode,string name,CancellationToken ct)
     {
-        if(!TryParse(token,out var id) || string.IsNullOrWhiteSpace(connectionCode) ||
+        if(!TryParseSecret(token,out var id) || string.IsNullOrWhiteSpace(connectionCode) ||
            string.IsNullOrWhiteSpace(name))throw new ReadRejected(401,"crud_key_invalid");
         var provided=SHA256.HashData(Encoding.UTF8.GetBytes(token!));
         await using var db=await database.OpenConnectionAsync(ct);

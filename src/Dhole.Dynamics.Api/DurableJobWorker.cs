@@ -88,8 +88,10 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
                     return;
                 case "metadata_refresh":
                     var connection=await queue.ConnectionCodeAsync(job.ConnectionId,ct);
-                    var refreshed=await services.GetRequiredService<MetadataRefreshService>()
-                        .RefreshAsync(connection,"scheduled","system:durable-job",ct);
+                    var refreshService=services.GetRequiredService<MetadataRefreshService>();
+                    var refreshed=string.IsNullOrEmpty(job.ResourceKey)
+                        ? await refreshService.RefreshAsync(connection,"scheduled","system:durable-job",ct)
+                        : await refreshService.RefreshTableAsync(connection,job.ResourceKey,"system:durable-job",ct);
                     if(refreshed is null)throw new ReadRejected(404,"connection_not_found");
                     break;
                 case "legacy_preview":
@@ -175,6 +177,11 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
         SyncRequestFailure x when JobRetryPolicy.Retryable(x.StatusCode) =>
             (true,"dataverse_transient",x.RetrySeconds),
         SyncRequestFailure => (false,"dataverse_request_denied",null),
+        HttpRequestException http when http.StatusCode is System.Net.HttpStatusCode.Unauthorized
+            or System.Net.HttpStatusCode.Forbidden => (false,"dataverse_permission_denied",null),
+        HttpRequestException http when http.StatusCode.HasValue =>
+            (JobRetryPolicy.Retryable((int)http.StatusCode.Value),
+                JobRetryPolicy.Retryable((int)http.StatusCode.Value) ? "dataverse_transient" : "dataverse_request_denied",null),
         HttpRequestException => (true,"network_transient",null),
         TaskCanceledException => (true,"upstream_timeout",null),
         MsalException => (true,"token_acquisition_unavailable",null),

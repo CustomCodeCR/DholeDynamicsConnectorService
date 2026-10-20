@@ -46,6 +46,8 @@ public sealed class Phase12ReleaseSecurityTests
     }
     [Theory]
     [InlineData("POST", "/api/v1/saved-queries/cotizaciones/execute", false)]
+    [InlineData("POST", "/api/v1/keyed/saved-queries/cotizaciones/execute", false)]
+    [InlineData("POST", "/api/v1/keyed/saved-queries/cotizaciones/revoke", true)]
     [InlineData("POST", "/api/v1/records/account/by-key", false)]
     [InlineData("POST", "/api/v1/records/account/search", false)]
     [InlineData("POST", "/api/v1/records/account", true)]

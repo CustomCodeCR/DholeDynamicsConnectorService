@@ -18,6 +18,8 @@ public static class MetadataEndpoints
         group.MapPost("/refresh", Refresh);
         group.MapPut("/entities/{entity}/enabled", SetEntity);
         group.MapPut("/entities/{entity}/fields/{field}/policy", SetField);
+        group.MapPut("/entities/{entity}/fields/bulk-enable", BulkEnableFields)
+            .RequireAuthorization("SecurityAdmin");
         group.MapGet("/schedule", GetSchedule);
         group.MapPut("/schedule", SetSchedule);
         return app;
@@ -92,6 +94,23 @@ public static class MetadataEndpoints
             ? Results.NoContent()
             : ApiProblems.Create(http, 409, "metadata_write_denied",
                 "Enable the entity first and select only capabilities approved by Dataverse metadata.");
+    }
+
+    private static async Task<IResult> BulkEnableFields(string code, string entity,
+        MetadataBulkFieldToggle body, IConnectionRepository connections,
+        MetadataRepository metadata, System.Security.Claims.ClaimsPrincipal actor,
+        HttpContext http, CancellationToken ct)
+    {
+        if (!DataverseMetadataDiscovery.SafeName(entity))
+            return ApiProblems.Create(http, 400, "invalid_entity", "Invalid entity logical name.");
+        if (!body.Confirm || body.SnapshotVersion < 1)
+            return ApiProblems.Create(http, 400, "invalid_bulk_confirmation",
+                "A valid catalog version and explicit confirmation are required.");
+        var conn = await connections.FindAsync(code, ct);
+        if (conn is null) return NotFound(http);
+        var result = await metadata.EnableFieldsBulkAsync(
+            conn.Id, entity, body, ScopeSecurity.ActorId(actor), ct);
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetSchedule(string code, IConnectionRepository connections,

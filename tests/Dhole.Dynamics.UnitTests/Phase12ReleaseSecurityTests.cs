@@ -44,6 +44,22 @@ public sealed class Phase12ReleaseSecurityTests
         Assert.False(policy.IsBlocked(new DefaultHttpContext {
             Request={Method="POST",Path="/api/admin/v1/console/records/quote/search"}}.Request));
     }
+    [Theory]
+    [InlineData("POST", "/api/v1/saved-queries/cotizaciones/execute", false)]
+    [InlineData("POST", "/api/v1/records/account/by-key", false)]
+    [InlineData("POST", "/api/v1/records/account/search", false)]
+    [InlineData("POST", "/api/v1/records/account", true)]
+    [InlineData("PUT", "/api/v1/records/account/by-key", true)]
+    [InlineData("POST", "/api/v1/records/batch", true)]
+    [InlineData("POST", "/api/v1/saved-queries/cotizaciones/enable", true)]
+    public void ProductionGateOnlyExemptsKnownReadEndpoints(string method,string path,bool blocked)
+    {
+        var request=new DefaultHttpContext().Request;
+        request.Method=method;
+        request.Path=path;
+        Assert.Equal(blocked,Policy("Production").IsBlocked(request));
+    }
+
     [Fact]
     public void ProductionDeleteNeedsSecondDistinctApproval()
     {

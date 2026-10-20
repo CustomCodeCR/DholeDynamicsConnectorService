@@ -59,7 +59,9 @@ public static class AdminConsoleEndpoints
     private static IResult Diagnostics(IConfiguration config,IHostEnvironment env, ProductionWritePolicy writes) =>
         Results.Ok(new {
             environment=env.EnvironmentName,
-            m2mConfigured=!string.IsNullOrWhiteSpace(config["M2m:Authority"]),
+            m2mConfigured=Uri.TryCreate(config["M2m:Authority"],UriKind.Absolute,out var m2mIssuer) &&
+                m2mIssuer.Scheme == Uri.UriSchemeHttps &&
+                !string.IsNullOrWhiteSpace(config["M2m:Audience"]),
             oidcConfigured=!string.IsNullOrWhiteSpace(config["AdminOidc:Authority"]),
             externalOrigin=config["Admin:PublicOrigin"],
             metadataSchedulerEnabled=config.GetValue<bool>("Metadata:SchedulerEnabled"),

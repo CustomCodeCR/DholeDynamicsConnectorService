@@ -35,8 +35,14 @@ public static class ScopeSecurity
     public static string ActorId(ClaimsPrincipal user) =>
         user.FindFirst("oid")?.Value ?? user.FindFirst("sub")?.Value ?? "unknown";
 
+    // An Admin/SecurityAdmin endpoint has already authenticated its named scheme.
+    // This helper must recognize DholeAuth's signed 'scopes' claim and the
+    // built-in superuser, not only the old Entra 'roles' claim. It is never
+    // a substitute for the endpoint's RequireAuthorization policy.
     public static bool HasAdminRole(ClaimsPrincipal user, string role) =>
         user.Identity?.IsAuthenticated == true &&
-        user.Claims.Any(x => (x.Type is "roles" or "role" or ClaimTypes.Role)
-            && string.Equals(x.Value, role, StringComparison.Ordinal));
+        (user.Claims.Any(x => (x.Type is "roles" or "role" or ClaimTypes.Role)
+            && string.Equals(x.Value, role, StringComparison.Ordinal))
+         || HasScope(user, role)
+         || IsDholeSuperUser(user));
 }

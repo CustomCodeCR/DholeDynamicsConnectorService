@@ -57,11 +57,15 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
                 ?? throw new InvalidOperationException("Persisted metadata is invalid."));
     }
 
+    public Task<MetadataRefreshResult> SaveTableAsync(Guid connectionId, MetadataTable table,
+        string actor, CancellationToken ct) =>
+        SaveAsync(connectionId, new MetadataCatalog([table]), "manual", actor, ct, table.LogicalName);
+
     public async Task<MetadataRefreshResult> SaveAsync(Guid connectionId, MetadataCatalog catalog,
-        string source, string actor, CancellationToken ct)
+        string source, string actor, CancellationToken ct, string? mergeTable = null)
     {
-        var body = JsonSerializer.Serialize(catalog, Json);
-        var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));
+        // Validate and merge under the advisory lock to avoid concurrent table refreshes
+        // overwriting one another or unreviewed schema drift silently granting fields.
         await using var db = await database.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
         await using (var locker = new NpgsqlCommand(
@@ -71,6 +75,22 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
             await locker.ExecuteNonQueryAsync(ct);
         }
         var previous = await ReadLatestAsync(db, tx, connectionId, ct);
+        if (mergeTable is not null)
+        {
+            if (previous is null || catalog.Tables.Count != 1 ||
+                catalog.Tables[0].LogicalName != mergeTable)
+                throw new InvalidOperationException("Table discovery requires an existing indexed table.");
+            var indexed = previous.Catalog.Tables.SingleOrDefault(t => t.LogicalName == mergeTable)
+                ?? throw new InvalidOperationException("Table was removed from the latest metadata index.");
+            var discovered = catalog.Tables[0];
+            if (indexed.EntitySetName != discovered.EntitySetName ||
+                indexed.PrimaryIdAttribute != discovered.PrimaryIdAttribute)
+                throw new InvalidOperationException("Dataverse table identity changed. Refresh the table index first.");
+            catalog = new MetadataCatalog(previous.Catalog.Tables.Select(t =>
+                t.LogicalName == mergeTable ? discovered : t).ToArray());
+        }
+        var body = JsonSerializer.Serialize(catalog, Json);
+        var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));
         if (previous?.Checksum == checksum)
         {
             await tx.CommitAsync(ct);

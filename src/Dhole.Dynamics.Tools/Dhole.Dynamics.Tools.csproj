@@ -25,5 +25,6 @@
     <Content Include="../../sql/011_metadata_lookup_shadow_fields.sql" Link="migrations/011_metadata_lookup_shadow_fields.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/012_saved_query_api_keys.sql" Link="migrations/012_saved_query_api_keys.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/013_integration_key_query_pin.sql" Link="migrations/013_integration_key_query_pin.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../sql/014_event_automation_rules.sql" Link="migrations/014_event_automation_rules.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

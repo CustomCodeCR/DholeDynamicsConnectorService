@@ -36,6 +36,7 @@ app.MapAdminAuthEndpoints();
 app.MapDynamicsEndpoints();
 app.MapMetadataEndpoints();
 app.MapReadEndpoints();
+app.MapSavedQueryApiKeyEndpoints();
 app.MapWriteEndpoints();
 app.MapTemplateEndpoints();
 app.MapDholeQuoteTemplateEndpoints();

@@ -109,6 +109,33 @@ public sealed class Phase04DiscoveryTests
     }
 
     [Fact]
+    public async Task ChoiceLookupFetchesOnlyOneApprovedFieldWithoutScanningAllAttributes()
+    {
+        var handler = new FixtureHandler();
+        var reader = new DataverseMetadataDiscovery(new HttpClient(handler), new FakeTokens());
+        var options = await reader.DiscoverChoicesAsync(
+            Organization, "new_shipments", "new_status", "Picklist", CancellationToken.None);
+        var choice = Assert.Single(options);
+        Assert.Equal(100000002, choice.Value);
+        Assert.Equal("Embarcado", choice.Labels[3082]);
+        Assert.Equal("Shipped", choice.Labels[1033]);
+        Assert.Single(handler.Requests);
+        Assert.Contains("/Attributes(LogicalName='new_status')/", handler.Requests[0].AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ChoiceLookupRejectsUntrustedFieldNamesAndUnsupportedTypes()
+    {
+        var handler = new FixtureHandler();
+        var reader = new DataverseMetadataDiscovery(new HttpClient(handler), new FakeTokens());
+        await Assert.ThrowsAsync<ArgumentException>(() => reader.DiscoverChoicesAsync(
+            Organization, "new_shipments", "new_status')/other", "Picklist", CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => reader.DiscoverChoicesAsync(
+            Organization, "new_shipments", "new_status", "String", CancellationToken.None));
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task LightweightScanReturnsActualColumnsWithoutPerFieldRequests()
     {
         var handler = new FixtureHandler();

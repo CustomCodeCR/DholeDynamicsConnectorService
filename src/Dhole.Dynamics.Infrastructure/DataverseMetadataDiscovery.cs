@@ -15,10 +15,12 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
     : IMetadataDiscoveryClient
 {
     private const string ApiPath = "/api/data/v9.2/EntityDefinitions";
-    private const int MaxEntities = 3000;
+    private const int MaxEntities = 8000;
     private const int MaxColumns = 2000;
-    private const int MaxPages = 25;
+    private const int MaxPages = 100;
 
+    // Fast index only. Expensive field/choice/relationship discovery is performed on demand
+    // for one selected table so a large Dataverse tenant cannot repeatedly time out.
     public async Task<MetadataCatalog> DiscoverAsync(DynamicsConnection connection, CancellationToken ct)
     {
         if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
@@ -28,16 +30,44 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             "?$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,IsCustomEntity,DisplayName", ct);
         if (list.Count > MaxEntities)
             throw new InvalidOperationException("Dataverse metadata entity limit exceeded.");
-
         var tables = new List<MetadataTable>();
         foreach (var table in list)
         {
-            ct.ThrowIfCancellationRequested();
+            var name = Str(table, "LogicalName");
+            var set = Str(table, "EntitySetName");
+            var primary = Str(table, "PrimaryIdAttribute");
+            if (!SafeName(name) || !SafeName(set) || !SafeName(primary)) continue;
+            tables.Add(new MetadataTable(name!, set!, primary!, Str(table, "PrimaryNameAttribute"),
+                Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), [], [], []));
+        }
+        tables.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
+        return new MetadataCatalog(tables);
+    }
+
+    // One-table deep discovery, restricted to a logical name previously discovered in
+    // the immutable catalog. No external URL, arbitrary OData expression or wildcard.
+    public async Task<MetadataTable> DiscoverTableAsync(DynamicsConnection connection,
+        string entity, CancellationToken ct)
+    {
+        if (!SafeName(entity))
+            throw new ArgumentException("Invalid Dataverse table name.", nameof(entity));
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        using var response = await GetAsync(host, token,
+            ApiPath + "(LogicalName='" + entity +
+            "')?$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,IsCustomEntity,DisplayName", ct);
+        return await BuildTableAsync(host, token, response.RootElement, ct);
+    }
+
+    private async Task<MetadataTable> BuildTableAsync(string host, string token,
+        JsonElement table, CancellationToken ct)
+    {
             var name = Str(table, "LogicalName");
             var set = Str(table, "EntitySetName");
             var primary = Str(table, "PrimaryIdAttribute");
             if (!SafeName(name) || !SafeName(set) || !SafeName(primary))
-                continue; // System-only metadata without a usable entity set.
+                throw new InvalidOperationException("Entity is not accessible to Dataverse metadata discovery.");
             var basePath = ApiPath + "(LogicalName='" + name + "')";
             var attributes = await CollectionAsync(host, token, basePath + "/Attributes" +
                 "?$select=LogicalName,AttributeType,IsValidForRead,IsValidForCreate,IsValidForUpdate,IsLogical,SourceType,RequiredLevel,DisplayName", ct);
@@ -163,11 +193,8 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             keys.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
             columns.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
             relations.Sort((a, b) => StringComparer.Ordinal.Compare(a.SchemaName, b.SchemaName));
-            tables.Add(new MetadataTable(name!, set!, primary!, Str(table, "PrimaryNameAttribute"),
-                Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations, keys));
-        }
-        tables.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
-        return new MetadataCatalog(tables);
+            return new MetadataTable(name!, set!, primary!, Str(table, "PrimaryNameAttribute"),
+                Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations, keys);
     }
 
     private async Task<List<JsonElement>> CollectionAsync(string host, string token, string relative, CancellationToken ct)

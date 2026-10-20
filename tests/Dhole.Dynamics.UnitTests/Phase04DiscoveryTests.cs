@@ -46,6 +46,16 @@ public sealed class Phase04DiscoveryTests
                       "PrimaryIdAttribute":"accountid","PrimaryNameAttribute":"name",
                       "IsCustomEntity":false,"DisplayName":{"LocalizedLabels":[{"LanguageCode":1033,"Label":"Account"}]}}]}
                     """,
+                "/api/data/v9.2/EntityDefinitions(LogicalName='new_shipments')" => """
+                    {"LogicalName":"new_shipments","EntitySetName":"new_shipments",
+                    "PrimaryIdAttribute":"new_shipmentid","PrimaryNameAttribute":"new_name",
+                    "IsCustomEntity":true}
+                    """,
+                "/api/data/v9.2/EntityDefinitions(LogicalName='account')" => """
+                    {"LogicalName":"account","EntitySetName":"accounts",
+                    "PrimaryIdAttribute":"accountid","PrimaryNameAttribute":"name",
+                    "IsCustomEntity":false}
+                    """,
                 "/api/data/v9.2/EntityDefinitions(LogicalName='account')/Attributes" => """
                     {"value":[{"LogicalName":"name","AttributeType":"String",
                     "IsValidForRead":true,"IsValidForCreate":true,"IsValidForUpdate":true,
@@ -87,8 +97,10 @@ public sealed class Phase04DiscoveryTests
         var reader = new DataverseMetadataDiscovery(new HttpClient(handler), new FakeTokens());
         var catalog = await reader.DiscoverAsync(Organization, CancellationToken.None);
         Assert.Contains(catalog.Tables, t => t.LogicalName == "new_shipments");
-        var column = catalog.Tables.Single(t => t.LogicalName == "new_shipments")
-            .Columns.Single(c => c.LogicalName == "new_status");
+        Assert.All(catalog.Tables, t => Assert.Empty(t.Columns));
+        Assert.Single(handler.Requests); // index never loops over every field/relationship
+        var detail = await reader.DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None);
+        var column = detail.Columns.Single(c => c.LogicalName == "new_status");
         Assert.True(column.CanCreate);
         Assert.Equal("Embarcado", column.Choices.Single().Labels[3082]);
         Assert.Equal("Shipped", column.Choices.Single().Labels[1033]);
@@ -98,12 +110,13 @@ public sealed class Phase04DiscoveryTests
     [Fact]
     public async Task ChangedCalculatedColumnLosesWriteCapabilityAndProducesDiff()
     {
-        var original = await new DataverseMetadataDiscovery(
-            new HttpClient(new FixtureHandler()), new FakeTokens()).DiscoverAsync(Organization, CancellationToken.None);
-        var changed = await new DataverseMetadataDiscovery(
-            new HttpClient(new FixtureHandler(changedField: true)), new FakeTokens()).DiscoverAsync(Organization, CancellationToken.None);
-        var affected = changed.Tables.Single(t => t.LogicalName == "new_shipments")
-            .Columns.Single(c => c.LogicalName == "new_status");
+        var original = new MetadataCatalog([await new DataverseMetadataDiscovery(
+            new HttpClient(new FixtureHandler()), new FakeTokens())
+            .DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None)]);
+        var changed = new MetadataCatalog([await new DataverseMetadataDiscovery(
+            new HttpClient(new FixtureHandler(changedField: true)), new FakeTokens())
+            .DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None)]);
+        var affected = changed.Tables.Single().Columns.Single(c => c.LogicalName == "new_status");
         Assert.True(affected.IsCalculated);
         Assert.False(affected.CanCreate);
         Assert.False(affected.CanUpdate);

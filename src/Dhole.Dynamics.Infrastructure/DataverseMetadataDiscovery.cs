@@ -203,6 +203,44 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations, keys);
     }
 
+    /// <summary>
+    /// Fetch real option values only for an explicitly authorized field. This avoids
+    /// a costly per-attribute extended scan of large Dataverse tables.
+    /// </summary>
+    public async Task<IReadOnlyList<MetadataChoice>> DiscoverChoicesAsync(
+        DynamicsConnection connection, string entity, string field, string type, CancellationToken ct)
+    {
+        if (!SafeName(entity) || !SafeName(field))
+            throw new ArgumentException("Invalid Dataverse choice field.");
+        var kind = type switch
+        {
+            "Picklist" => "PicklistAttributeMetadata",
+            "State" => "StateAttributeMetadata",
+            "Status" => "StatusAttributeMetadata",
+            _ => throw new ArgumentException("Field does not have single-choice metadata.")
+        };
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        var relative = ApiPath + "(LogicalName='" + entity + "')" +
+            "/Attributes(LogicalName='" + field + "')" +
+            "/Microsoft.Dynamics.CRM." + kind + "?$expand=OptionSet,GlobalOptionSet";
+        using var metadata = await GetAsync(host, token, relative, ct);
+        var root = metadata.RootElement;
+        if (!TryGet(root, "OptionSet", out var set) ||
+            !TryGet(set, "Options", out var options) || options.ValueKind != JsonValueKind.Array)
+        {
+            if (!TryGet(root, "GlobalOptionSet", out set) ||
+                !TryGet(set, "Options", out options) || options.ValueKind != JsonValueKind.Array)
+                return [];
+        }
+        var choices = new Dictionary<int, MetadataChoice>();
+        foreach (var item in options.EnumerateArray())
+            if (Int(item, "Value") is int value)
+                choices[value] = new MetadataChoice(value, Labels(item, "Label"));
+        return choices.Values.OrderBy(c => c.Value).ToArray();
+    }
+
     private async Task<List<JsonElement>> CollectionAsync(string host, string token, string relative, CancellationToken ct)
     {
         var items = new List<JsonElement>();

@@ -62,7 +62,8 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
         SaveAsync(connectionId, new MetadataCatalog([table]), "manual", actor, ct, table.LogicalName);
 
     public async Task<MetadataRefreshResult> SaveAsync(Guid connectionId, MetadataCatalog catalog,
-        string source, string actor, CancellationToken ct, string? mergeTable = null)
+        string source, string actor, CancellationToken ct, string? mergeTable = null,
+        bool preserveDetails = false)
     {
         // Validate and merge under the advisory lock to avoid concurrent table refreshes
         // overwriting one another or unreviewed schema drift silently granting fields.
@@ -88,6 +89,17 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
                 throw new InvalidOperationException("Dataverse table identity changed. Refresh the table index first.");
             catalog = new MetadataCatalog(previous.Catalog.Tables.Select(t =>
                 t.LogicalName == mergeTable ? discovered : t).ToArray());
+        }
+        if (preserveDetails && previous is not null)
+        {
+            var prior = previous.Catalog.Tables.ToDictionary(t => t.LogicalName, StringComparer.Ordinal);
+            catalog = new MetadataCatalog(catalog.Tables.Select(t =>
+                prior.TryGetValue(t.LogicalName, out var old) &&
+                old.EntitySetName == t.EntitySetName &&
+                old.PrimaryIdAttribute == t.PrimaryIdAttribute
+                    ? t with { Columns = old.Columns, Relationships = old.Relationships,
+                        AlternateKeys = old.AlternateKeys }
+                    : t).ToArray());
         }
         var body = JsonSerializer.Serialize(catalog, Json);
         var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)));

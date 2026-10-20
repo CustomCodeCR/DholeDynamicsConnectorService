@@ -99,7 +99,8 @@ public sealed class Phase04DiscoveryTests
         Assert.Contains(catalog.Tables, t => t.LogicalName == "new_shipments");
         Assert.All(catalog.Tables, t => Assert.Empty(t.Columns));
         Assert.Single(handler.Requests); // index never loops over every field/relationship
-        var detail = await reader.DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None);
+        var detail = await reader.DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None,
+            includeExtended: true);
         var column = detail.Columns.Single(c => c.LogicalName == "new_status");
         Assert.True(column.CanCreate);
         Assert.Equal("Embarcado", column.Choices.Single().Labels[3082]);
@@ -108,11 +109,26 @@ public sealed class Phase04DiscoveryTests
     }
 
     [Fact]
+    public async Task LightweightScanReturnsActualColumnsWithoutPerFieldRequests()
+    {
+        var handler = new FixtureHandler();
+        var reader = new DataverseMetadataDiscovery(new HttpClient(handler), new FakeTokens());
+        var table = await reader.DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None);
+        Assert.Contains(table.Columns, c => c.LogicalName == "new_status");
+        Assert.Contains(table.Columns, c => c.LogicalName == "new_name");
+        Assert.Empty(table.Relationships);
+        Assert.Empty(table.AlternateKeys ?? []);
+        Assert.Equal(2, handler.Requests.Count); // one entity, one Attributes collection
+        Assert.DoesNotContain(handler.Requests, u => u.AbsolutePath.Contains("Attributes(LogicalName=", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ChangedCalculatedColumnLosesWriteCapabilityAndProducesDiff()
     {
         var original = new MetadataCatalog([await new DataverseMetadataDiscovery(
             new HttpClient(new FixtureHandler()), new FakeTokens())
-            .DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None)]);
+            .DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None,
+                includeExtended: true)]);
         var changed = new MetadataCatalog([await new DataverseMetadataDiscovery(
             new HttpClient(new FixtureHandler(changedField: true)), new FakeTokens())
             .DiscoverTableAsync(Organization, "new_shipments", CancellationToken.None)]);

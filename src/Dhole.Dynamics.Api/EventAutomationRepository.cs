@@ -68,7 +68,7 @@ public sealed class EventAutomationRepository(NpgsqlDataSource database,
                RegexOptions.CultureInvariant,TimeSpan.FromSeconds(1)) ||
            request.TriggerCode is not ("pricing.rate.accepted_by_client" or
                "pricing.rate.margin_approved") ||
-           request.TemplateName is null || request.Mappings is not {Count: > 0 and <= 30} ||
+           request.TemplateName is null || request.Mappings is not {Count: <= 30} ||
            request.Mappings.Any(m=>string.IsNullOrWhiteSpace(m.InputName) ||
                !PricingFields.ContainsKey(m.PricingField)) ||
            request.Mappings.Select(m=>m.InputName).Distinct(StringComparer.Ordinal).Count()
@@ -83,15 +83,20 @@ public sealed class EventAutomationRepository(NpgsqlDataSource database,
             : template.History.OrderByDescending(x=>x.Version).FirstOrDefault();
         if(revision?.Definition is not {EntityName:"quote",Operation:"create"} definition)
             throw new ReadRejected(409,"automation_requires_quote_create_template");
-        if(request.Mappings.Any(m=>definition.Inputs.All(x=>x.Name!=m.InputName)) ||
-           definition.Inputs.Any(i=>i.Required &&
-               request.Mappings.All(m=>m.InputName!=i.Name)))
-            throw new ReadRejected(400,"automation_required_inputs_unmapped");
+        // Drafts may intentionally have unmapped mandatory inputs. They can never
+        // run until a separate executor verifies the full mapping in staging.
+        if(request.Mappings.Any(m=>definition.Inputs.All(x=>x.Name!=m.InputName)))
+            throw new ReadRejected(400,"automation_unknown_input");
         foreach(var mapping in request.Mappings)
         {
             var input=definition.Inputs.First(i=>i.Name==mapping.InputName);
             if(PricingFields[mapping.PricingField]!=input.Type)
                 throw new ReadRejected(400,"automation_input_type_mismatch");
+            // Pricing GUIDs are not Dataverse GUIDs. Never mistake RateId for
+            // a customer, currency or owner CRM reference during mapping.
+            if(mapping.PricingField=="rateId" &&
+               input.Name is not ("rateId" or "dholeRateId" or "rate_id" or "dhole_rate_id"))
+                throw new ReadRejected(400,"cross_system_reference_required");
         }
         await using var db=await database.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);

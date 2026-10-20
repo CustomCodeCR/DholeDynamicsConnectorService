@@ -55,7 +55,7 @@ public static class TemplateApiKeyEndpoints
             // Explicitly enforce the *second*, independent delete approval.
             gate.Demand(key.Operation);
             if(key.Operation=="upsert" &&
-                (request.Keys is null || request.Keys.Keys.Count!=key.KeyFields.Count ||
+                (request.Keys is null || request.Keys.Count!=key.KeyFields.Count ||
                  request.Keys.Keys.Any(f=>!key.KeyFields.Contains(f,StringComparer.Ordinal))))
                 throw new ReadRejected(403,"crud_alternate_keys_denied");
             if(key.Operation!="upsert" && request.Keys is {Count: > 0})

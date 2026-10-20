@@ -18,6 +18,7 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
     {
         if(!config.GetValue("Jobs:Enabled",false))return;
         var worker=Guid.NewGuid();
+        var metadataOnly=config.GetValue("Jobs:MetadataOnly",false);
         var lastMaintenance=DateTimeOffset.MinValue;
         while(!ct.IsCancellationRequested)
         {
@@ -25,13 +26,13 @@ public sealed class DurableJobWorker(IServiceScopeFactory scopes,IConfiguration 
             {
                 using var scope=scopes.CreateScope();
                 var queue=scope.ServiceProvider.GetRequiredService<DurableJobRepository>();
-                await queue.ScheduleDueAsync(ct);
+                await queue.ScheduleDueAsync(ct,metadataOnly);
                 if(DateTimeOffset.UtcNow-lastMaintenance>TimeSpan.FromHours(1))
                 {
                     await queue.PurgeAsync(ct);
                     lastMaintenance=DateTimeOffset.UtcNow;
                 }
-                var claim=await queue.ClaimAsync(worker,ct);
+                var claim=await queue.ClaimAsync(worker,ct,metadataOnly);
                 if(claim is null)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(3),ct);

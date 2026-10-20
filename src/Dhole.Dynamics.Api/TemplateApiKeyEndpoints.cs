@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Infrastructure;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Dhole.Dynamics.Api;
@@ -43,7 +44,8 @@ public static class TemplateApiKeyEndpoints
 
     private static Task<IResult> Schema(string name,string connectionCode,
         TemplateApiKeyRepository keys,TemplateRepository templates,
-        WriteAccessService writer,HttpContext context,CancellationToken ct) =>
+        WriteAccessService writer,DataverseMetadataDiscovery discovery,
+        HttpContext context,CancellationToken ct) =>
         Guard(context,async()=>
         {
             var key=await keys.ValidateAndChargeAsync(
@@ -59,8 +61,24 @@ public static class TemplateApiKeyEndpoints
                revision.Definition.EntityName!=key.EntityName)
                 throw new ReadRejected(403,"crud_template_scope_denied");
             var policy=await writer.ResolveAsync(connectionCode,key.EntityName,ct);
-            return Results.Ok(CrudTemplateSchemaBuilder.Build(name,connectionCode,
-                active,revision.Definition,policy));
+            var schema = CrudTemplateSchemaBuilder.Build(name,connectionCode,
+                active,revision.Definition,policy);
+            var fields = new List<CrudSchemaField>(schema.Fields.Count);
+            foreach (var field in schema.Fields)
+            {
+                if (field.DataverseType is "Picklist" or "State" or "Status")
+                {
+                    var choices = await discovery.DiscoverChoicesAsync(policy.Connection,
+                        schema.EntityName, field.Target, field.DataverseType, ct);
+                    if (choices.Count == 0)
+                        throw new ReadRejected(409, "crud_choice_metadata_missing");
+                    fields.Add(field with { Options = choices.Select(o => new CrudSchemaOption(
+                        CrudTemplateSchemaBuilder.Label(o.Labels, o.Value.ToString()),
+                        o.Value)).ToArray() });
+                }
+                else fields.Add(field);
+            }
+            return Results.Ok(schema with { Fields = fields });
         });
 
     private static Task<IResult> Execute(string name,TemplateInputs request,

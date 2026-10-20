@@ -108,7 +108,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         return await cmd.ExecuteNonQueryAsync(ct)==1;
     }
 
-    public async Task<QueueJob?> ClaimAsync(Guid worker,CancellationToken ct)
+    public async Task<QueueJob?> ClaimAsync(Guid worker,CancellationToken ct,bool metadataOnly=false)
     {
         if(worker==Guid.Empty)throw new ArgumentException("Invalid worker lease.");
         await using var db=await data.OpenConnectionAsync(ct);
@@ -131,6 +131,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
              WHERE (q.status='pending' AND q.available_at<=now() OR
                     q.status='running' AND q.lease_until<now())
                AND q.attempts<q.max_attempts
+               AND (@metadataOnly=false OR q.kind='metadata_refresh')
                AND (q.kind NOT IN ('delta_sync','metadata_refresh') OR
                     c.open_until IS NULL OR c.open_until<=now())
              ORDER BY q.available_at,q.created_at,q.id LIMIT 1 FOR UPDATE OF q SKIP LOCKED
@@ -145,6 +146,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             q.page_count,q.last_error_code,q.created_at
             """,db);
         cmd.Parameters.AddWithValue("worker",worker);
+        cmd.Parameters.AddWithValue("metadataOnly",metadataOnly);
         await using var reader=await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)?Read(reader):null;
     }
@@ -483,10 +485,12 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         if(await cmd.ExecuteNonQueryAsync(ct)!=1)throw new ReadRejected(409,"job_lease_lost");
     }
 
-    public async Task ScheduleDueAsync(CancellationToken ct)
+    public async Task ScheduleDueAsync(CancellationToken ct,bool metadataOnly=false)
     {
         await using var db=await data.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
+        if(!metadataOnly)
+        {
         await using var select=new NpgsqlCommand("""
             SELECT connection_id,entity_name,next_run_at,interval_minutes
             FROM dynamics.sync_config WHERE enabled AND next_run_at<=now()
@@ -517,6 +521,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             update.Parameters.AddWithValue("entity",item.Entity);
             update.Parameters.AddWithValue("interval",item.Interval);
             await update.ExecuteNonQueryAsync(ct);
+        }
         }
         // Reuse the existing per-organization metadata schedule with the durable
         // queue when Jobs is enabled; no direct scheduled Dataverse request bypasses leases.

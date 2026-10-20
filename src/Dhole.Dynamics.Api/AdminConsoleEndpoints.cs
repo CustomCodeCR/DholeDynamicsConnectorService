@@ -56,7 +56,7 @@ public static class AdminConsoleEndpoints
         var selected=await connections.FindAsync(code,ct)??throw new ReadRejected(404,"connection_not_found");
         return selected.Id;
     }
-    private static IResult Diagnostics(IConfiguration config,IHostEnvironment env) =>
+    private static IResult Diagnostics(IConfiguration config,IHostEnvironment env, ProductionWritePolicy writes) =>
         Results.Ok(new {
             environment=env.EnvironmentName,
             m2mConfigured=!string.IsNullOrWhiteSpace(config["M2m:Authority"]),
@@ -64,6 +64,8 @@ public static class AdminConsoleEndpoints
             externalOrigin=config["Admin:PublicOrigin"],
             metadataSchedulerEnabled=config.GetValue<bool>("Metadata:SchedulerEnabled"),
             backupStatus="not-tracked",
+            productionWritesApproved=writes.WritesApproved,
+            productionDeletesApproved=writes.DeletesApproved,
             secretsExposed=false
         });
 

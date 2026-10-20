@@ -43,6 +43,9 @@ public sealed record MetadataPolicies(IReadOnlyList<MetadataEntityPolicy> Entiti
 
 public sealed record MetadataToggle(bool Enabled);
 public sealed record MetadataFieldToggle(bool Enabled, bool CanRead, bool CanCreate, bool CanUpdate);
+public sealed record MetadataBulkFieldToggle(int SnapshotVersion, bool IncludeWrite, bool Confirm);
+public sealed record MetadataBulkFieldResult(int SnapshotVersion, int EnabledFields,
+    int ReadFields, int CreateFields, int UpdateFields, bool IncludeWrite);
 public sealed record MetadataSchedule(bool Enabled, int IntervalMinutes, DateTimeOffset? NextRunAt);
 
 public sealed record MetadataAlternateKey(string LogicalName, IReadOnlyList<string> Attributes);

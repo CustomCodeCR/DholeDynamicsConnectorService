@@ -224,7 +224,8 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
         var token = await tokens.AcquireAsync(connection, ct);
         var relative = ApiPath + "(LogicalName='" + entity + "')" +
             "/Attributes(LogicalName='" + field + "')" +
-            "/Microsoft.Dynamics.CRM." + kind + "?$expand=OptionSet,GlobalOptionSet";
+            "/Microsoft.Dynamics.CRM." + kind +
+            (type == "Picklist" ? "?$expand=OptionSet,GlobalOptionSet" : "?$expand=OptionSet");
         using var metadata = await GetAsync(host, token, relative, ct);
         var root = metadata.RootElement;
         if (!TryGet(root, "OptionSet", out var set) ||

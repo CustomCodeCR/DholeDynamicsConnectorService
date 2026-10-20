@@ -44,10 +44,13 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
         return new MetadataCatalog(tables);
     }
 
+    // Default scan needs only the entity and Attributes collection: no N+1 type-cast requests.
+    // Extended option/relationship metadata is opt-in because large quote tables can
+    // exceed worker time budgets when every attribute makes a separate Dataverse request.
     // One-table deep discovery, restricted to a logical name previously discovered in
     // the immutable catalog. No external URL, arbitrary OData expression or wildcard.
     public async Task<MetadataTable> DiscoverTableAsync(DynamicsConnection connection,
-        string entity, CancellationToken ct)
+        string entity, CancellationToken ct, bool includeExtended = false)
     {
         if (!SafeName(entity))
             throw new ArgumentException("Invalid Dataverse table name.", nameof(entity));
@@ -57,11 +60,11 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
         using var response = await GetAsync(host, token,
             ApiPath + "(LogicalName='" + entity +
             "')?$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,IsCustomEntity,DisplayName", ct);
-        return await BuildTableAsync(host, token, response.RootElement, ct);
+        return await BuildTableAsync(host, token, response.RootElement, ct, includeExtended);
     }
 
     private async Task<MetadataTable> BuildTableAsync(string host, string token,
-        JsonElement table, CancellationToken ct)
+        JsonElement table, CancellationToken ct, bool includeExtended)
     {
             var name = Str(table, "LogicalName");
             var set = Str(table, "EntitySetName");
@@ -103,7 +106,7 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                     "Owner" => "OwnerAttributeMetadata",
                     _ => null
                 };
-                if (kindName is not null)
+                if (includeExtended && kindName is not null)
                 {
                     // Derived types expose properties absent from AttributeMetadata.
                     var query = type is "Picklist" or "MultiSelectPicklist" or "State" or "Status" or "Boolean"
@@ -159,7 +162,10 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             }
             if (columns.Count > MaxColumns)
                 throw new InvalidOperationException("Metadata lookup projections exceed field limit.");
+            if (columns.Count == 0)
+                throw new InvalidOperationException("Dataverse did not expose any readable metadata fields; previous snapshot preserved.");
             var relations = new List<MetadataRelationship>();
+            if (includeExtended)
             foreach (var relKind in new[] { "OneToManyRelationships", "ManyToOneRelationships", "ManyToManyRelationships" })
             {
                 var relationships = await CollectionAsync(host, token, basePath + "/" + relKind, ct);
@@ -176,8 +182,8 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 }
             }
             var keys = new List<MetadataAlternateKey>();
-            var declaredKeys = await CollectionAsync(host, token, basePath + "/Keys?$select=LogicalName,KeyAttributes", ct);
-            foreach (var key in declaredKeys)
+            if (includeExtended)
+            foreach (var key in await CollectionAsync(host, token, basePath + "/Keys?$select=LogicalName,KeyAttributes", ct))
             {
                 var keyName = Str(key, "LogicalName");
                 if (keyName is null || !SafeName(keyName) ||

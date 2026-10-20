@@ -180,12 +180,12 @@ public static class ServiceRegistration
                 .RequireAuthenticatedUser()
                 .RequireAssertion(c => dholeMode
                     ? ScopeSecurity.IsDholeSuperUser(c.User) || ScopeSecurity.HasScope(c.User, "dynamics.admin") || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
-                    : ScopeSecurity.HasAdminRole(c.User, "dynamics.admin") || ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
+                    : ScopeSecurity.HasLegacyAdminRole(c.User, "dynamics.admin") || ScopeSecurity.HasLegacyAdminRole(c.User, "dynamics.security.admin")));
             options.AddPolicy("SecurityAdmin", p => p.AddAuthenticationSchemes(dholeMode ? DholeBearer : AdminCookie)
                 .RequireAuthenticatedUser()
                 .RequireAssertion(c => dholeMode
                     ? ScopeSecurity.IsDholeSuperUser(c.User) || ScopeSecurity.HasScope(c.User, "dynamics.security.admin")
-                    : ScopeSecurity.HasAdminRole(c.User, "dynamics.security.admin")));
+                    : ScopeSecurity.HasLegacyAdminRole(c.User, "dynamics.security.admin")));
             options.AddPolicy("M2M", p => p.AddAuthenticationSchemes(MachineBearer)
                 .RequireAuthenticatedUser()
                 .RequireClaim("connector:issuer")

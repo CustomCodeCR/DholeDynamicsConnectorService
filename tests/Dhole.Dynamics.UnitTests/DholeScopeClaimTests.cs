@@ -29,4 +29,32 @@ public sealed class DholeScopeClaimTests
         var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim("scopes", "dynamics.admin")]));
         Assert.False(ScopeSecurity.HasScope(user, "dynamics.admin"));
     }
+
+    [Theory]
+    [InlineData("scopes", "dynamics.security.admin", true)]
+    [InlineData("role", "dynamics.security.admin", true)]
+    [InlineData("scopes", "dynamics.admin", false)]
+    [InlineData("scopes", "dynamics.security.admin.extra", false)]
+    public void Admin_record_permission_accepts_only_exact_signed_scope_or_role(
+        string claim, string value, bool expected)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(claim, value)], "DholeBearer"));
+        Assert.Equal(expected, ScopeSecurity.HasAdminRole(principal, "dynamics.security.admin"));
+    }
+
+    [Fact]
+    public void Admin_record_permission_accepts_authenticated_super_user()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Role, "SuperUsuario")], "DholeBearer"));
+        Assert.True(ScopeSecurity.HasAdminRole(principal, "dynamics.security.admin"));
+    }
+
+    [Fact]
+    public void Admin_record_permission_rejects_anonymous_claim()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("scopes", "dynamics.security.admin")]));
+        Assert.False(ScopeSecurity.HasAdminRole(principal, "dynamics.security.admin"));
+    }
+
 }

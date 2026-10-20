@@ -21,6 +21,8 @@ public static class TemplateApiKeyEndpoints
         admin.MapDelete("/{id:guid}",Revoke);
         app.MapPost("/api/v1/keyed/templates/{name}/execute",Execute)
             .WithGroupName("v1").AllowAnonymous().RequireRateLimiting("AdminRate");
+        app.MapGet("/api/v1/keyed/templates/{name}/schema",Schema)
+            .WithGroupName("v1").AllowAnonymous().RequireRateLimiting("AdminRate");
         return app;
     }
 
@@ -38,6 +40,28 @@ public static class TemplateApiKeyEndpoints
         Guard(context,async()=>await keys.RevokeAsync(code,id,ScopeSecurity.ActorId(actor),ct)
             ? Results.NoContent() : ApiProblems.Create(context,404,"crud_key_not_found",
                 "CRUD integration key not found."));
+
+    private static Task<IResult> Schema(string name,string connectionCode,
+        TemplateApiKeyRepository keys,TemplateRepository templates,
+        WriteAccessService writer,HttpContext context,CancellationToken ct) =>
+        Guard(context,async()=>
+        {
+            var key=await keys.ValidateAndChargeAsync(
+                context.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                connectionCode,name,ct);
+            var template=await templates.FindAsync(key.ConnectionId,name,ct)
+                ?? throw new ReadRejected(404,"crud_template_not_found");
+            if(template.ActiveVersion is not int active)
+                throw new ReadRejected(403,"crud_template_inactive");
+            var revision=template.History.FirstOrDefault(v=>v.Version==active)
+                ?? throw new ReadRejected(403,"crud_template_revision_missing");
+            if(revision.Definition.Operation!=key.Operation ||
+               revision.Definition.EntityName!=key.EntityName)
+                throw new ReadRejected(403,"crud_template_scope_denied");
+            var policy=await writer.ResolveAsync(connectionCode,key.EntityName,ct);
+            return Results.Ok(CrudTemplateSchemaBuilder.Build(name,connectionCode,
+                active,revision.Definition,policy));
+        });
 
     private static Task<IResult> Execute(string name,TemplateInputs request,
         TemplateApiKeyRepository keys,TemplateOrchestrator orchestrator,

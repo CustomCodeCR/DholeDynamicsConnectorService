@@ -15,11 +15,17 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
     ReadAccessRepository policy, ReadCursorProtector cursors)
 {
     public async Task<ReadSearchResponse> SearchAsync(ClaimsPrincipal user, string entity,
-        ReadSearchRequest request, CancellationToken ct, string? savedName = null, bool admin = false)
+        ReadSearchRequest request, CancellationToken ct, string? savedName = null, bool admin = false,
+        SavedQueryApiKeyIdentity? apiKey = null)
     {
         var context = await policy.ResolveAsync(request.ConnectionCode, entity, ct);
-        var issuer = admin ? "admin:oidc" : user.FindFirst("connector:issuer")?.Value ?? "";
-        var client = admin ? ScopeSecurity.ActorId(user) : ScopeSecurity.ClientId(user) ?? "";
+        if (apiKey is not null && (apiKey.ConnectionId != context.Connection.Id ||
+                apiKey.QueryName != savedName || admin))
+            throw new ReadRejected(403,"integration_key_scope_denied");
+        var issuer = apiKey is not null ? "integration-key" : admin
+            ? "admin:oidc" : user.FindFirst("connector:issuer")?.Value ?? "";
+        var client = apiKey is not null ? apiKey.Id.ToString("D") : admin
+            ? ScopeSecurity.ActorId(user) : ScopeSecurity.ClientId(user) ?? "";
         if (admin && !ScopeSecurity.HasAdminRole(user, "dynamics.security.admin"))
             throw new ReadRejected(403, "admin_records_denied");
         var page = 1;
@@ -44,9 +50,19 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         // Re-compile and authorize on EVERY page, even for a previously authenticated cursor.
         // Caller provided strings are never used as OData filter fragments.
         var primary = ReadQueryCompiler.Compile(context.Table, query with { Expand = null }, context.Allowed);
-        if (admin) PermitAdmin(user, context, primary.RequiredFields);
+        if (apiKey is not null)
+        {
+            // The key has already been validated against this single saved query
+            // and billed under its quota. Never grant arbitrary searches or expands.
+            if (query.Expand is { Count: > 0 } ||
+                primary.RequiredFields.Count == 0 ||
+                primary.RequiredFields.Any(f => !context.Allowed.Contains(f)))
+                throw new ReadRejected(403,"integration_key_fields_denied");
+        }
+        else if (admin) PermitAdmin(user, context, primary.RequiredFields);
         else await policy.PermitAsync(user, context, primary.RequiredFields, ct);
-        var expansion = await ExpandAsync(user, context, query.Expand, ct, admin);
+        var expansion = apiKey is not null ? "" :
+            await ExpandAsync(user, context, query.Expand, ct, admin);
         var relative = primary.RelativeUrl + expansion;
         var url = next ?? relative;
         var root = await RequestAsync(context, url, query.PageSize, ct);

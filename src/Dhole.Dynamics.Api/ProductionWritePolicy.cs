@@ -56,6 +56,8 @@ public sealed class ProductionWritePolicy
              (path.StartsWithSegments("/api/admin/v1/console/records") &&
                 path.Value?.EndsWith("/search",StringComparison.Ordinal)==true) ||
              (path.StartsWithSegments("/api/v1/saved-queries") &&
+                path.Value?.EndsWith("/execute",StringComparison.Ordinal)==true) ||
+             (path.StartsWithSegments("/api/v1/keyed/saved-queries") &&
                 path.Value?.EndsWith("/execute",StringComparison.Ordinal)==true)))
             return false;
         if(path.StartsWithSegments("/api/v1"))

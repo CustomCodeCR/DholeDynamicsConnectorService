@@ -81,7 +81,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         var keys=(request.KeyFields??[]).Distinct(StringComparer.Ordinal).ToArray();
         if(definition.Operation=="upsert")
         {
-            if(keys.Length==0 || !policy.Table.AlternateKeys.Any(k=>
+            if(keys.Length==0 || !(policy.Table.AlternateKeys??[]).Any(k=>
                 k.Attributes.Count==keys.Length && k.Attributes.All(keys.Contains)))
                 throw new ReadRejected(400,"approved_alternate_key_required");
             fields.AddRange(keys.Where(x=>!fields.Contains(x,StringComparer.Ordinal)));

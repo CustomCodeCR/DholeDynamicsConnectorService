@@ -268,6 +268,7 @@ public static class ServiceRegistration
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             { AllowAutoRedirect = false, UseCookies = false });
         services.AddScoped<SavedQueryRepository>();
+        services.AddScoped<EventAutomationRepository>();
         services.AddScoped<SavedQueryApiKeyRepository>();
         services.AddSingleton<ReadCursorProtector>();
         services.AddHttpClient<ReadSearchService>(h => h.Timeout = TimeSpan.FromSeconds(45))

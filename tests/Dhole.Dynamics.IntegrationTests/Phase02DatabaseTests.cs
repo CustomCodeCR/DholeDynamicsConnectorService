@@ -25,7 +25,8 @@ public sealed class Phase02DatabaseTests
         await DatabaseMigrator.ApplyAsync(db, directory);
         await using var cn = await db.OpenConnectionAsync();
         await using (var count = new NpgsqlCommand("SELECT count(*) FROM dynamics.schema_migrations", cn))
-            Assert.Equal(10L, (long)(await count.ExecuteScalarAsync())!);
+            Assert.Equal(Directory.GetFiles(directory, "*.sql").LongLength,
+                (long)(await count.ExecuteScalarAsync())!);
 
         var temp = Path.Combine(Path.GetTempPath(), "phase2-migrations-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);

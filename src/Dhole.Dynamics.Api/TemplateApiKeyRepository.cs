@@ -23,7 +23,7 @@ public sealed record CrudIntegrationKeyIdentity(Guid Id,Guid ConnectionId,string
 public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
     TemplateRepository templates,WriteAccessService writeAccess)
 {
-    internal const string Issuer="https://dhole.internal/template-keys";
+    public const string Issuer="https://dhole.internal/template-keys";
 
     public static string GenerateSecret(Guid id) =>
         "dkw1_"+id.ToString("N")+"_"+Convert.ToBase64String(

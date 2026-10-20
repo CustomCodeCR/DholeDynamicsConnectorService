@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Dhole.Dynamics.Api;
 
+public sealed record MetadataChoicesRequest(IReadOnlyList<string> Fields);
+
 public static class MetadataEndpoints
 {
     public static IEndpointRouteBuilder MapMetadataEndpoints(this IEndpointRouteBuilder app)
@@ -16,6 +18,8 @@ public static class MetadataEndpoints
         group.MapGet("/diff", GetDiff);
         group.MapGet("/policies", GetPolicies);
         group.MapPost("/refresh", Refresh);
+        group.MapPost("/entities/{entity}/choices", ReadChoices)
+            .RequireAuthorization("SecurityAdmin");
         group.MapPut("/entities/{entity}/enabled", SetEntity);
         group.MapPut("/entities/{entity}/fields/{field}/policy", SetField);
         group.MapPut("/entities/{entity}/fields/bulk-enable", BulkEnableFields)
@@ -66,6 +70,50 @@ public static class MetadataEndpoints
         {
             return ApiProblems.Create(http, 502, "metadata_refresh_failed",
                 "Dataverse metadata refresh failed; previous snapshot was preserved.");
+        }
+    }
+
+    private static async Task<IResult> ReadChoices(string code, string entity,
+        MetadataChoicesRequest body, WriteAccessService writer,
+        DataverseMetadataDiscovery discovery, HttpContext http, CancellationToken ct)
+    {
+        if (!DataverseMetadataDiscovery.SafeName(entity) ||
+            body.Fields is not { Count: > 0 and <= 30 } ||
+            body.Fields.Any(f => !DataverseMetadataDiscovery.SafeName(f)))
+            return ApiProblems.Create(http, 400, "invalid_choice_request",
+                "Select 1 to 30 valid fields.");
+        try
+        {
+            var policy = await writer.ResolveAsync(code, entity, ct);
+            var result = new Dictionary<string, IReadOnlyList<CrudSchemaOption>>(StringComparer.Ordinal);
+            foreach (var name in body.Fields.Distinct(StringComparer.Ordinal))
+            {
+                var field = policy.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
+                var approval = policy.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == entity && p.FieldName == name);
+                if (field is null || field.Type is not ("Picklist" or "State" or "Status") ||
+                    approval is null || !approval.Enabled ||
+                    approval.MetadataFingerprint != MetadataRepository.Fingerprint(field))
+                    return ApiProblems.Create(http, 403, "choice_field_denied",
+                        "Field is not approved in the Dataverse catalog.");
+                var options = await discovery.DiscoverChoicesAsync(
+                    policy.Connection, entity, name, field.Type, ct);
+                result[name] = options.Select(o => new CrudSchemaOption(
+                    CrudTemplateSchemaBuilder.Label(o.Labels, o.Value.ToString()), o.Value)).ToArray();
+            }
+            return Results.Ok(new { options = result });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "Dataverse metadata access was denied.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+                or InvalidOperationException or System.Text.Json.JsonException
+                or Microsoft.Identity.Client.MsalException)
+        {
+            return ApiProblems.Create(http, 502, "choice_metadata_unavailable",
+                "Dataverse choice metadata is temporarily unavailable.");
         }
     }
 

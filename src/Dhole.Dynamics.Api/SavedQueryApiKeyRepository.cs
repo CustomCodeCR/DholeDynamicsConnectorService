@@ -75,8 +75,8 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         await using var insert=new NpgsqlCommand("""
             INSERT INTO dynamics.saved_query_api_keys
                 (id,connection_id,saved_query_name,key_sha256,label,enabled,
-                 expires_at,max_requests_per_minute,created_by)
-            SELECT @id,c.id,q.name,@hash,@label,true,@expires,@quota,@actor
+                 expires_at,max_requests_per_minute,created_by,saved_query_updated_at)
+            SELECT @id,c.id,q.name,@hash,@label,true,@expires,@quota,@actor,q.updated_at
             FROM dynamics.connections c
             JOIN dynamics.saved_queries q ON q.connection_id=c.id
             WHERE c.code=@code AND q.name=@name AND q.enabled=true
@@ -134,7 +134,7 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
             FROM dynamics.saved_query_api_keys k
             JOIN dynamics.connections c ON c.id=k.connection_id
             JOIN dynamics.saved_queries q ON q.connection_id=k.connection_id
-                AND q.name=k.saved_query_name
+                AND q.name=k.saved_query_name AND q.updated_at=k.saved_query_updated_at
             WHERE k.id=@key AND c.code=@code AND k.saved_query_name=@name
               AND k.enabled=true AND k.expires_at>now() AND q.enabled=true
             FOR UPDATE OF k

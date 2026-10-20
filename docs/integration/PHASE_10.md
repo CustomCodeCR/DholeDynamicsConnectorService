@@ -148,3 +148,38 @@ sus secretos y llamar directamente al gateway. No existe CRUD anónimo.
 `ProductionWrites:Approved` ni `ProductionWrites:DeletesApproved`.
 El operador sigue necesitando cambios controlados y permisos válidos.
 Las reglas de eventos de Pricing no se utilizan en este flujo.
+
+## Picklist, EntityName y descubrimiento de opciones sin códigos manuales
+
+La API CRUD publicada expone un **endpoint de esquema**, autenticado con la
+misma clave de esa plantilla. Pangolin o cualquier otro backend puede consultar
+los valores correctos sin inspeccionar portales de Dynamics ni adivinar IDs:
+
+```bash
+curl -X GET \
+  'https://api.logisticacastrofallas.com/api/dynamics-connector/keyed/templates/crear_oferta/schema?connectionCode=principal' \
+  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'
+```
+
+Esta respuesta enumera únicamente las **entradas** del comando activo,
+junto con su campo destino, tipo de Dataverse, obligatoriedad y opciones:
+`fields[].options[].label` contiene el nombre visible y
+`fields[].options[].value` el valor que debe enviarse en `inputs`.
+
+- **Picklist, State y Status**: la propiedad `value` es un número, recuperado
+  de `MetadataChoice.Value` para **ese campo concreto**. Nunca asumir que
+  una opción «Activo» equivale a `0`, `1` u otro número universal.
+- **EntityName**: la propiedad `value` es un nombre lógico de tabla como
+  `account` o `quote`. **No es un GUID**. Se proporcionan las tablas
+  autorizadas y descubiertas en el snapshot de esa conexión.
+- **Lookups de registros**: los GUID de cuentas, contactos u ofertas
+  **son distintos**. Se obtienen con un Query Builder autorizado que seleccione
+  el campo identificador y, para escrituras concurrentes, consultando el ETag
+  del detalle actual. El esquema de opciones no contiene datos de clientes ni
+  devuelve registros CRM. No se deben inventar IDs ni utilizar un GUID de
+  Pricing como uno de Dataverse.
+
+La UI **API CRUD → Tabla y campos** muestra desplegables con nombres visibles;
+el ejemplo de JSON y el cURL utilizan sus valores reales. Si faltan las opciones
+de un Picklist, el constructor exige refrescar los metadatos antes de publicar,
+en lugar de generar `0` como valor predeterminado.

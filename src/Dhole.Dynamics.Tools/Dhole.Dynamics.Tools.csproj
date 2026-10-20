@@ -22,5 +22,6 @@
     <Content Include="../../sql/008_admin_console.sql" Link="migrations/008_admin_console.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/009_legacy_migration.sql" Link="migrations/009_legacy_migration.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../sql/010_durable_jobs.sql" Link="migrations/010_durable_jobs.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../sql/011_metadata_lookup_shadow_fields.sql" Link="migrations/011_metadata_lookup_shadow_fields.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

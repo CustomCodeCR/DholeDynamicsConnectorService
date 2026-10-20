@@ -55,3 +55,37 @@ X-CSRF-TOKEN: <token-de-sesion-administrativa>
 ```
 
 Solo funciona desde `UNKNOWN`, nunca desde `PENDING`, y crea un evento de auditoría. Se rechazan IDs duplicados y el cambio de un vínculo ya confirmado. **No** asume que el GUID suministrado sea válido solo por formato: el operador tiene obligación de verificar que la oferta exista y sea la correcta. Esta acción no vuelve a enviar una escritura; el estado de la operación genérica se reconcilia por separado desde Admin.
+
+## Automatizaciones por eventos de Pricing (configurador, fase previa)
+
+DholeWeb muestra **Automatizaciones** como entrada principal para configurar
+disparadores y acciones. El editor CRUD manual se conserva únicamente como
+herramienta avanzada. El administrador puede crear y editar borradores desde:
+
+- `GET /api/admin/v1/connections/{code}/event-automations`
+- `GET /api/admin/v1/connections/{code}/event-automations/pricing-fields`
+- `POST /api/admin/v1/connections/{code}/event-automations`
+
+Las reglas identifican el disparador
+`pricing.rate.accepted_by_client` o
+`pricing.rate.margin_approved`, una plantilla de operación
+`create` para `quote` y un mapeo declarativo limitado de campos de
+Pricing a los parámetros de la plantilla.
+
+**ESTADO: borradores no ejecutables.** La tabla
+`dynamics.event_automation_rules` impone `enabled=false`
+y no existe una ruta de ejecución ni de activación. Guardar la regla
+no crea registros en Dynamics. Falta entregar el evento desde el
+Outbox confirmado de Pricing a un consumidor duradero y autorizado,
+validar/mapear las referencias de clientes y monedas de CRM, probar la
+idempotencia de `dhole_rate_id`, y obtener aprobación explícita de
+escrituras en staging antes de diseñar la activación de producción.
+No se deben simular triggers mediante el navegador ni permitir
+que un usuario suministre libremente un estado `approved` en un
+endpoint de escritura.
+
+La aprobación interna de margen **no equivale** a
+`AcceptedByClient`. El ejemplo predeterminado es la aceptación de
+la tarifa por el cliente. Las asociaciones de GUIDs entre Pricing y
+Dataverse deben resolverse por referencias autorizadas: nunca utilizar
+`rateId` como `customerid_account` o `transactioncurrencyid`.

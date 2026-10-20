@@ -272,6 +272,100 @@ public sealed class MetadataRepository(NpgsqlDataSource database)
         return true;
     }
 
+    /// <summary>
+    /// Enables metadata-approved fields atomically for one explicitly approved table.
+    /// Read-only bulk approval is additive: it never silently revokes an existing write grant.
+    /// Actual Dataverse writes remain subject to production approvals and client grants.
+    /// </summary>
+    public async Task<MetadataBulkFieldResult> EnableFieldsBulkAsync(Guid connectionId,
+        string entity, MetadataBulkFieldToggle request, string actor, CancellationToken ct)
+    {
+        if (!request.Confirm)
+            throw new ReadRejected(400, "bulk_field_confirmation_required");
+        if (request.SnapshotVersion <= 0)
+            throw new ReadRejected(400, "invalid_metadata_version");
+
+        await using var db = await database.OpenConnectionAsync(ct);
+        await using var tx = await db.BeginTransactionAsync(ct);
+        // Serialize against refresh and per-table schema merges; a stale catalog never grants access.
+        await using (var locker = new NpgsqlCommand(
+            "SELECT pg_advisory_xact_lock(hashtext(@id), 4004)", db, tx))
+        {
+            locker.Parameters.AddWithValue("id", connectionId.ToString("D"));
+            await locker.ExecuteNonQueryAsync(ct);
+        }
+
+        var snapshot = await ReadLatestAsync(db, tx, connectionId, ct);
+        if (snapshot is null || snapshot.Version != request.SnapshotVersion)
+            throw new ReadRejected(409, "metadata_snapshot_changed");
+        var table = snapshot.Catalog.Tables.SingleOrDefault(t => t.LogicalName == entity)
+            ?? throw new ReadRejected(409, "entity_not_in_snapshot");
+        if (table.Columns.Count == 0 || table.Columns.Count > 2500)
+            throw new ReadRejected(409, "metadata_fields_not_discovered");
+
+        await using (var guard = new NpgsqlCommand("""
+            SELECT 1 FROM dynamics.metadata_allowed_entities
+            WHERE connection_id=@id AND logical_name=@entity AND enabled=true FOR UPDATE
+            """, db, tx))
+        {
+            guard.Parameters.AddWithValue("id", connectionId);
+            guard.Parameters.AddWithValue("entity", entity);
+            if (await guard.ExecuteScalarAsync(ct) is null)
+                throw new ReadRejected(409, "entity_not_enabled");
+        }
+
+        var fields = table.Columns
+            .Where(f => f.CanRead || request.IncludeWrite && !f.IsCalculated &&
+                (f.CanCreate || f.CanUpdate))
+            .ToArray();
+        if (fields.Length == 0)
+            throw new ReadRejected(409, "no_eligible_metadata_fields");
+
+        var names = fields.Select(f => f.LogicalName).ToArray();
+        var reads = fields.Select(f => f.CanRead).ToArray();
+        var creates = fields.Select(f => request.IncludeWrite && f.CanCreate && !f.IsCalculated).ToArray();
+        var updates = fields.Select(f => request.IncludeWrite && f.CanUpdate && !f.IsCalculated).ToArray();
+        var fingerprints = fields.Select(Fingerprint).ToArray();
+
+        await using (var cmd = new NpgsqlCommand("""
+            INSERT INTO dynamics.metadata_allowed_fields
+              (connection_id,entity_name,field_name,enabled,can_read,can_create,can_update,metadata_fingerprint)
+            SELECT @id,@entity,f.name,true,f.can_read,f.can_create,f.can_update,f.fingerprint
+            FROM unnest(@names::text[],@reads::boolean[],@creates::boolean[],
+                        @updates::boolean[],@fingerprints::text[])
+                 AS f(name,can_read,can_create,can_update,fingerprint)
+            ON CONFLICT(connection_id,entity_name,field_name) DO UPDATE SET
+              enabled=true,
+              can_read=EXCLUDED.can_read OR
+                (dynamics.metadata_allowed_fields.can_read AND
+                 dynamics.metadata_allowed_fields.metadata_fingerprint=EXCLUDED.metadata_fingerprint),
+              can_create=EXCLUDED.can_create OR
+                (dynamics.metadata_allowed_fields.can_create AND
+                 dynamics.metadata_allowed_fields.metadata_fingerprint=EXCLUDED.metadata_fingerprint),
+              can_update=EXCLUDED.can_update OR
+                (dynamics.metadata_allowed_fields.can_update AND
+                 dynamics.metadata_allowed_fields.metadata_fingerprint=EXCLUDED.metadata_fingerprint),
+              metadata_fingerprint=EXCLUDED.metadata_fingerprint,updated_at=now()
+            """, db, tx))
+        {
+            cmd.Parameters.AddWithValue("id", connectionId);
+            cmd.Parameters.AddWithValue("entity", entity);
+            cmd.Parameters.AddWithValue("names", names);
+            cmd.Parameters.AddWithValue("reads", reads);
+            cmd.Parameters.AddWithValue("creates", creates);
+            cmd.Parameters.AddWithValue("updates", updates);
+            cmd.Parameters.AddWithValue("fingerprints", fingerprints);
+            if (await cmd.ExecuteNonQueryAsync(ct) != fields.Length)
+                throw new InvalidOperationException("Bulk metadata field approval was incomplete.");
+        }
+
+        await AuditAsync(db, tx, connectionId, actor, request.IncludeWrite
+            ? "metadata.fields.bulk.read_write" : "metadata.fields.bulk.read", ct);
+        await tx.CommitAsync(ct);
+        return new MetadataBulkFieldResult(snapshot.Version, fields.Length, reads.Count(x => x),
+            creates.Count(x => x), updates.Count(x => x), request.IncludeWrite);
+    }
+
     public async Task<MetadataSchedule> GetScheduleAsync(Guid id, CancellationToken ct)
     {
         await using var db = await database.OpenConnectionAsync(ct);

@@ -86,7 +86,7 @@ public static class MetadataEndpoints
         MetadataFieldToggle body, IConnectionRepository connections, MetadataRepository metadata,
         System.Security.Claims.ClaimsPrincipal actor, HttpContext http, CancellationToken ct)
     {
-        if (!DataverseMetadataDiscovery.SafeName(entity) || !DataverseMetadataDiscovery.SafeName(field))
+        if (!DataverseMetadataDiscovery.SafeName(entity) || !MetadataFieldName(field))
             return ApiProblems.Create(http, 400, "invalid_field", "Invalid metadata name.");
         var conn = await connections.FindAsync(code, ct);
         if (conn is null) return NotFound(http);
@@ -131,6 +131,12 @@ public static class MetadataEndpoints
         await metadata.SetScheduleAsync(conn.Id, schedule, ScopeSecurity.ActorId(actor), ct);
         return Results.NoContent();
     }
+
+    private static bool MetadataFieldName(string field) =>
+        DataverseMetadataDiscovery.SafeName(field) ||
+        field is { Length: > 7 and <= 128 } && field[0] == '_' &&
+        field.EndsWith("_value", StringComparison.Ordinal) &&
+        DataverseMetadataDiscovery.SafeName(field[1..^6]);
 
     private static IResult NotFound(HttpContext http) =>
         ApiProblems.Create(http, 404, "connection_not_found", "Connection not found.");

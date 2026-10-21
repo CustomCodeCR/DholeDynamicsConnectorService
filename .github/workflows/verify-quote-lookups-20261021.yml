@@ -1,0 +1,17 @@
+name: Verify Quote lookup and line setup
+on:
+  push:
+    branches: [fix/quote-lookup-and-line-setup-20261021]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore DholeDynamicsConnectorService.slnx
+      - run: dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
+      - run: dotnet test tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj -c Release --no-build --filter FullyQualifiedName~PricingQuoteTotalTests

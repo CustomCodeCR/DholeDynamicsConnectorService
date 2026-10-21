@@ -166,7 +166,7 @@ public static class PricingQuoteTotalEndpoints
 
     private static async Task<IResult> GrantQuoteTotal(
         string code, Guid keyId, NpgsqlDataSource dbSource,
-        WriteAccessService access, ClaimsPrincipal admin,
+        WriteAccessService access, TemplateRepository templates, ClaimsPrincipal admin,
         HttpContext http, CancellationToken ct)
     {
         try
@@ -223,14 +223,46 @@ public static class PricingQuoteTotalEndpoints
                 client = reader.GetGuid(0);
                 quota = reader.GetInt32(1);
             }
-            // Explicit one-off admin approval. No key is broadened during
-            // execution; only this known client, table and allowlisted fields.
-            foreach (var entry in new[]
+            var template = await templates.FindAsync(quote.Connection.Id, "crear_oferta", ct);
+            var definition = template?.History.FirstOrDefault(v =>
+                v.Version == template.ActiveVersion)?.Definition;
+            if (definition is null || definition.EntityName != "quote" ||
+                definition.Operation != "create")
+                throw new ReadRejected(409, "crud_template_inactive");
+
+            // Only navigation properties explicitly selected by the published
+            // template qualify for a narrow, read-only related-table grant.
+            var targets = definition.Mappings
+                .Where(m => m.Target.EndsWith("@odata.bind", StringComparison.Ordinal))
+                .Select(m => quote.Table.Relationships.FirstOrDefault(r =>
+                    r.Kind == "ManyToOneRelationships" &&
+                    r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
+                    r.ReferencingEntity == "quote"))
+                .Where(r => r?.ReferencedEntity is not null)
+                .Select(r => r!.ReferencedEntity!)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            var grants = new List<(string Entity, string Operation, string[] Fields)>
             {
-                (Entity: "quotedetail", Operation: "create", Fields: writable),
-                (Entity: "quote", Operation: "read",
-                    Fields: new[] { quote.Table.PrimaryIdAttribute })
-            })
+                ("quotedetail", "create", writable),
+                ("quote", "read", new[] { quote.Table.PrimaryIdAttribute })
+            };
+            foreach (var target in targets)
+            {
+                var targetPolicy = await access.ResolveAsync(code, target, ct);
+                var primary = targetPolicy.Table.PrimaryIdAttribute;
+                var idColumn = targetPolicy.Table.Columns.FirstOrDefault(c => c.LogicalName == primary);
+                var idPermission = targetPolicy.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == target && p.FieldName == primary);
+                if (idColumn is not { CanRead: true } || idPermission is null ||
+                    !idPermission.Enabled || !idPermission.CanRead ||
+                    idPermission.MetadataFingerprint != MetadataRepository.Fingerprint(idColumn))
+                    throw new ReadRejected(409, "quote_lookup_target_not_authorized");
+                grants.Add((target, "read", new[] { primary }));
+            }
+
+            // Explicit one-off admin approval, scoped to the published template
+            // and its known relationship targets. No arbitrary table is granted.
+            foreach (var entry in grants)
             {
                 await using var cmd = new NpgsqlCommand(
                     """
@@ -273,7 +305,7 @@ public static class PricingQuoteTotalEndpoints
             return Results.Ok(new
             {
                 enabled = true, keyId,
-                grantedEntities = new[] { "quote", "quotedetail" },
+                grantedEntities = grants.Select(g => g.Entity).Distinct(StringComparer.Ordinal).ToArray(),
                 message = "Autorizadas lectura de Quote y creación de su línea de venta total."
             });
         }

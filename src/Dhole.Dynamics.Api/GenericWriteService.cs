@@ -18,6 +18,25 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
         GenericCreateRequest request, string key, CancellationToken ct)
     {
         var policy = await access.ResolveAsync(request.ConnectionCode, entity, ct);
+        return await CreateWithResolvedMetadataAsync(actor, policy, request, key, ct);
+    }
+
+    /// <summary>
+    /// For navigation properties that are not included in the lightweight
+    /// catalog snapshot, callers may supply freshly fetched Dataverse metadata.
+    /// Authorization is still performed against the saved field policy/grants;
+    /// this overload never skips WriteAccessService.PermitAsync.
+    /// </summary>
+    public async Task<WriteResult> CreateWithResolvedMetadataAsync(
+        ClaimsPrincipal actor, WritePolicy policy, GenericCreateRequest request,
+        string key, CancellationToken ct)
+    {
+        var registered = await access.ResolveAsync(request.ConnectionCode,
+            policy.Table.LogicalName, ct);
+        if (registered.Connection.Id != policy.Connection.Id ||
+            registered.Snapshot.Version != policy.Snapshot.Version ||
+            registered.Table.LogicalName != policy.Table.LogicalName)
+            throw new ReadRejected(403, "metadata_context_changed");
         var body = await ValuesAsync(actor, policy, request.Values, ct);
         await access.PermitAsync(actor, policy, "create", body.Fields, ct);
         var command = new WriteCommand("create", policy, BasePath(policy), body.Payload);

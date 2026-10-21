@@ -42,6 +42,7 @@ public static class PricingQuoteTotalEndpoints
         ProductionWritePolicy gate,
         HttpContext http, CancellationToken ct)
     {
+        var quoteConfirmedCreated = false;
         try
         {
             if (request.ConnectionCode != "principal" ||
@@ -125,6 +126,7 @@ public static class PricingQuoteTotalEndpoints
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
                     null, null, "quote", false), statusCode: 409);
 
+            quoteConfirmedCreated = true;
             // The client has the right to create quotedetail only through the
             // hardcoded aggregate line request here, not arbitrary field input.
             var line = await writer.CreateWithResolvedMetadataAsync(actor, detail,
@@ -142,8 +144,13 @@ public static class PricingQuoteTotalEndpoints
         }
         catch (ReadRejected ex)
         {
-            return ApiProblems.Create(http, ex.Status, ex.Code,
-                "Pricing quote creation rejected by Dataverse connector policy.");
+            // Once a quote exists, never report a safe pre-write failure:
+            // remediation must resume the total line with the SAME keys.
+            return quoteConfirmedCreated
+                ? ApiProblems.Create(http, 409, "quote_total_partial_requires_reconciliation",
+                    "Quote header created; total line was not confirmed. Check idempotency ledger.")
+                : ApiProblems.Create(http, ex.Status, ex.Code,
+                    "Pricing quote creation rejected by Dataverse connector policy.");
         }
         catch (HttpRequestException)
         {

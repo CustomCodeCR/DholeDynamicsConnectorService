@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Infrastructure;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Dhole.Dynamics.Api;
@@ -32,7 +33,8 @@ public static class PricingQuoteTotalEndpoints
     private static async Task<IResult> Execute(PricingQuoteTotalRequest request,
         TemplateApiKeyRepository keys, TemplateRepository templates,
         WriteAccessService access, TemplateOrchestrator templatesWriter,
-        GenericWriteService writer, ProductionWritePolicy gate,
+        GenericWriteService writer, DataverseMetadataDiscovery discovery,
+        ProductionWritePolicy gate,
         HttpContext http, CancellationToken ct)
     {
         try
@@ -82,7 +84,28 @@ public static class PricingQuoteTotalEndpoints
             // permission *before* creating a quote. A dummy nonempty GUID is
             // only used for permission/relationship validation, never sent.
             var detail = await access.ResolveAsync(request.ConnectionCode, "quotedetail", ct);
-            var validationLine = BuildLine(request.DholeRateId, request.TotalSaleAmount, Guid.NewGuid());
+            if (!detail.Table.Relationships.Any(r =>
+                r.ReferencingAttribute == "quoteid" &&
+                r.ReferencingEntity == "quotedetail" &&
+                r.ReferencedEntity == "quote" &&
+                !string.IsNullOrEmpty(r.ReferencingNavigation)))
+            {
+                // Lightweight metadata snapshots often omit relationship
+                // navigation names. Discover it live; never guess a bind key.
+                var live = await discovery.DiscoverTableAsync(
+                    detail.Connection, "quotedetail", ct, includeExtended: true);
+                detail = detail with { Table = live };
+            }
+            var relation = detail.Table.Relationships.SingleOrDefault(r =>
+                r.Kind == "ManyToOneRelationships" &&
+                r.ReferencingAttribute == "quoteid" &&
+                r.ReferencingEntity == "quotedetail" &&
+                r.ReferencedEntity == "quote" &&
+                !string.IsNullOrEmpty(r.ReferencingNavigation));
+            if (relation is null)
+                throw new ReadRejected(409, "quote_detail_relationship_missing");
+            var validationLine = BuildLine(request.DholeRateId,
+                request.TotalSaleAmount, Guid.NewGuid(), relation.ReferencingNavigation!);
             var compiled = await WriteValueCompiler.CompileAsync(detail, validationLine,
                 (rel, id, token) => access.EnsureLookupAsync(actor, detail, rel, id, token), ct);
             await access.PermitAsync(actor, detail, "create", compiled.Fields, ct);
@@ -99,9 +122,10 @@ public static class PricingQuoteTotalEndpoints
 
             // The client has the right to create quotedetail only through the
             // hardcoded aggregate line request here, not arbitrary field input.
-            var line = await writer.CreateAsync(actor, "quotedetail",
+            var line = await writer.CreateWithResolvedMetadataAsync(actor, detail,
                 new GenericCreateRequest(request.ConnectionCode,
-                    BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId)),
+                    BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId,
+                        relation.ReferencingNavigation!)),
                 rawKey + "-total", ct);
             if (line.State != "succeeded" || line.RecordId is not Guid lineId ||
                 lineId == Guid.Empty)
@@ -141,13 +165,14 @@ public static class PricingQuoteTotalEndpoints
     }
 
     public static Dictionary<string, JsonElement> BuildLine(
-        Guid rateId, decimal totalSale, Guid quoteId)
+        Guid rateId, decimal totalSale, Guid quoteId, string relationship = "quoteid")
     {
-        if (rateId == Guid.Empty || quoteId == Guid.Empty || totalSale < 0)
+        if (rateId == Guid.Empty || quoteId == Guid.Empty || totalSale < 0 ||
+            !DataverseMetadataDiscovery.SafeName(relationship))
             throw new ArgumentException("Invalid Pricing quote line.");
         return new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         {
-            ["quoteid@odata.bind"] = JsonSerializer.SerializeToElement(quoteId.ToString("D")),
+            [relationship + "@odata.bind"] = JsonSerializer.SerializeToElement(quoteId.ToString("D")),
             ["isproductoverridden"] = JsonSerializer.SerializeToElement(true),
             ["ispriceoverridden"] = JsonSerializer.SerializeToElement(true),
             ["productdescription"] = JsonSerializer.SerializeToElement("Tarifa logística Dhole"),

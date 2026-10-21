@@ -231,7 +231,9 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 Str(row, "ReferencedAttribute"), Str(row, "ReferencingAttribute"),
                 Str(row, "ReferencingEntityNavigationPropertyName"),
                 Str(row, "ReferencedEntityNavigationPropertyName")))
-            .Where(rel => SafeName(rel.ReferencingNavigation) &&
+            .Where(rel => rel.ReferencingNavigation is { Length: > 0 and <= 128 } nav &&
+                (char.IsAsciiLetter(nav[0]) || nav[0] == '_') &&
+                nav.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') &&
                 SafeName(rel.ReferencingAttribute) && SafeName(rel.ReferencedEntity) &&
                 rel.ReferencingEntity == entity)
             .OrderBy(rel => rel.ReferencingAttribute, StringComparer.Ordinal)

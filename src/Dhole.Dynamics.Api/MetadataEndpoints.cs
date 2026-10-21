@@ -218,6 +218,43 @@ public static class MetadataEndpoints
                 snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
             }
 
+            // Only targets of the two explicit business lookup fields are
+            // prepared. No wildcard grants or arbitrary table privileges.
+            var relatedTargetNames = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quote")
+                .Relationships.Where(r =>
+                    r.ReferencingAttribute is "customerid" or "new_idtra1" &&
+                    r.ReferencedEntity is not null)
+                .Select(r => r.ReferencedEntity!)
+                .Distinct(StringComparer.Ordinal).Take(8).ToArray();
+            var missingTargets = new List<string>();
+            foreach (var targetName in relatedTargetNames)
+            {
+                snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
+                var related = snapshot.Catalog.Tables.FirstOrDefault(t => t.LogicalName == targetName);
+                if (related is null)
+                {
+                    missingTargets.Add(targetName);
+                    continue;
+                }
+                if (related.Columns.Count == 0)
+                {
+                    await refresh.RefreshTableAsync(code, targetName, actorId, ct);
+                    snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
+                    related = snapshot.Catalog.Tables.Single(t => t.LogicalName == targetName);
+                }
+                var identity = related.Columns.FirstOrDefault(c =>
+                    c.LogicalName == related.PrimaryIdAttribute);
+                if (identity is not { CanRead: true })
+                {
+                    missingTargets.Add(targetName);
+                    continue;
+                }
+                if (!await metadata.SetEntityAsync(connection.Id, targetName, true, actorId, ct) ||
+                    !await metadata.SetFieldAsync(connection.Id, targetName, related.PrimaryIdAttribute,
+                        new MetadataFieldToggle(true, true, false, false), actorId, ct))
+                    missingTargets.Add(targetName);
+            }
+            snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
             var quote = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quote");
             var detail = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quotedetail");
             string[] required =
@@ -264,6 +301,7 @@ public static class MetadataEndpoints
                 prepared = true, tables = new[] { "quote", "quotedetail" },
                 enabledDetailFields = required,
                 quoteIdRead = true,
+                lookupTargetTablesNotReady = missingTargets,
                 lookupRelationships = quote.Relationships.Where(r =>
                     r.ReferencingAttribute is "customerid" or "new_idtra1")
                     .Select(r => new

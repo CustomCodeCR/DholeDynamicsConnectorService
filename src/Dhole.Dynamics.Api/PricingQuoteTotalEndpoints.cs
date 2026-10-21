@@ -3,6 +3,7 @@ using System.Text.Json;
 using Dhole.Dynamics.Contracts;
 using Dhole.Dynamics.Infrastructure;
 using Microsoft.AspNetCore.RateLimiting;
+using Npgsql;
 
 namespace Dhole.Dynamics.Api;
 
@@ -27,6 +28,10 @@ public static class PricingQuoteTotalEndpoints
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        app.MapPost("/api/admin/v1/connections/{code}/quote-total-grants/{keyId:guid}",
+            GrantQuoteTotal)
+            .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
+            .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         return app;
     }
 
@@ -149,6 +154,121 @@ public static class PricingQuoteTotalEndpoints
         {
             return ApiProblems.Create(http, 504, "dataverse_timeout",
                 "Dataverse timed out. Reconcile before retrying.");
+        }
+    }
+
+    private static async Task<IResult> GrantQuoteTotal(
+        string code, Guid keyId, NpgsqlDataSource dbSource,
+        WriteAccessService access, ClaimsPrincipal admin,
+        HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (code != "principal" || keyId == Guid.Empty)
+                throw new ReadRejected(400, "invalid_quote_total_grant_request");
+            var detail = await access.ResolveAsync(code, "quotedetail", ct);
+            var quote = await access.ResolveAsync(code, "quote", ct);
+            var writable = new[]
+            {
+                "quoteid", "isproductoverridden", "ispriceoverridden",
+                "productdescription", "quotedetailname", "quantity", "priceperunit"
+            };
+            foreach (var name in writable)
+            {
+                var field = detail.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
+                var permission = detail.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == "quotedetail" && p.FieldName == name);
+                if (field is null || permission is null || !permission.Enabled ||
+                    !field.CanCreate || !permission.CanCreate || field.IsCalculated ||
+                    permission.MetadataFingerprint != MetadataRepository.Fingerprint(field))
+                    throw new ReadRejected(409, "quote_total_field_not_authorized");
+            }
+            var quoteIdColumn = quote.Table.Columns.FirstOrDefault(c =>
+                c.LogicalName == quote.Table.PrimaryIdAttribute);
+            var quoteIdGrant = quote.Permissions.Fields.FirstOrDefault(p =>
+                p.EntityName == "quote" && p.FieldName == quote.Table.PrimaryIdAttribute);
+            if (quoteIdColumn is null || !quoteIdColumn.CanRead ||
+                quoteIdGrant is null || !quoteIdGrant.Enabled || !quoteIdGrant.CanRead ||
+                quoteIdGrant.MetadataFingerprint != MetadataRepository.Fingerprint(quoteIdColumn))
+                throw new ReadRejected(409, "quote_id_read_not_authorized");
+
+            await using var db = await dbSource.OpenConnectionAsync(ct);
+            await using var tx = await db.BeginTransactionAsync(ct);
+            Guid client;
+            int quota;
+            await using (var cmd = new NpgsqlCommand(
+                """
+                SELECT k.client_id,k.max_requests_per_minute
+                  FROM dynamics.template_api_keys k
+                  JOIN dynamics.integration_templates t ON t.id=k.template_id
+                 WHERE k.id=@key AND k.connection_id=@connection AND k.enabled=true
+                   AND k.expires_at>now() AND k.entity_name='quote'
+                   AND k.operation='create' AND t.name='crear_oferta'
+                   AND t.active_version=k.template_version
+                 FOR UPDATE OF k
+                """, db, tx))
+            {
+                cmd.Parameters.AddWithValue("key", keyId);
+                cmd.Parameters.AddWithValue("connection", quote.Connection.Id);
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                if (!await reader.ReadAsync(ct))
+                    throw new ReadRejected(404, "active_quote_template_key_not_found");
+                client = reader.GetGuid(0);
+                quota = reader.GetInt32(1);
+            }
+            // Explicit one-off admin approval. No key is broadened during
+            // execution; only this known client, table and allowlisted fields.
+            foreach (var entry in new[]
+            {
+                (Entity: "quotedetail", Operation: "create", Fields: writable),
+                (Entity: "quote", Operation: "read",
+                    Fields: new[] { quote.Table.PrimaryIdAttribute })
+            })
+            {
+                await using var cmd = new NpgsqlCommand(
+                    """
+                    INSERT INTO dynamics.api_grants
+                      (id,api_client_id,connection_id,entity_set,operation,
+                       allowed_fields,max_requests_per_minute,enabled)
+                    VALUES(@id,@client,@connection,@entity,@operation,@fields,@quota,true)
+                    ON CONFLICT(api_client_id,connection_id,entity_set,operation)
+                      DO UPDATE SET allowed_fields=EXCLUDED.allowed_fields,
+                        max_requests_per_minute=EXCLUDED.max_requests_per_minute,
+                        enabled=true
+                    """, db, tx);
+                cmd.Parameters.AddWithValue("id", Guid.NewGuid());
+                cmd.Parameters.AddWithValue("client", client);
+                cmd.Parameters.AddWithValue("connection", quote.Connection.Id);
+                cmd.Parameters.AddWithValue("entity", entry.Entity);
+                cmd.Parameters.AddWithValue("operation", entry.Operation);
+                cmd.Parameters.AddWithValue("fields", entry.Fields);
+                cmd.Parameters.AddWithValue("quota", quota);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            await using (var audit = new NpgsqlCommand(
+                """
+                INSERT INTO dynamics.audit_events
+                  (id,connection_id,actor_id,action)
+                VALUES(@id,@connection,@actor,'quote.total.grants.approved')
+                """, db, tx))
+            {
+                audit.Parameters.AddWithValue("id", Guid.NewGuid());
+                audit.Parameters.AddWithValue("connection", quote.Connection.Id);
+                audit.Parameters.AddWithValue("actor", ScopeSecurity.ActorId(admin));
+                await audit.ExecuteNonQueryAsync(ct);
+            }
+            await tx.CommitAsync(ct);
+            return Results.Ok(new
+            {
+                enabled = true, keyId,
+                grantedEntities = new[] { "quote", "quotedetail" },
+                message = "Autorizadas lectura de Quote y creación de su línea de venta total."
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "Quote total grant requires approved Dataverse metadata and active template key.");
         }
     }
 

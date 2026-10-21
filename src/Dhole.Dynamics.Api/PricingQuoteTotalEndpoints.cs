@@ -232,8 +232,13 @@ public static class PricingQuoteTotalEndpoints
                        allowed_fields,max_requests_per_minute,enabled)
                     VALUES(@id,@client,@connection,@entity,@operation,@fields,@quota,true)
                     ON CONFLICT(api_client_id,connection_id,entity_set,operation)
-                      DO UPDATE SET allowed_fields=EXCLUDED.allowed_fields,
-                        max_requests_per_minute=EXCLUDED.max_requests_per_minute,
+                      DO UPDATE SET
+                        allowed_fields=ARRAY(
+                            SELECT DISTINCT unnest(dynamics.api_grants.allowed_fields ||
+                                                   EXCLUDED.allowed_fields)),
+                        max_requests_per_minute=GREATEST(
+                            dynamics.api_grants.max_requests_per_minute,
+                            EXCLUDED.max_requests_per_minute),
                         enabled=true
                     """, db, tx);
                 cmd.Parameters.AddWithValue("id", Guid.NewGuid());

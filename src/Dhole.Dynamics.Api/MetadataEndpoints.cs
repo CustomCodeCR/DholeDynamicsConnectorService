@@ -24,6 +24,8 @@ public static class MetadataEndpoints
         group.MapPut("/entities/{entity}/fields/{field}/policy", SetField);
         group.MapPut("/entities/{entity}/fields/bulk-enable", BulkEnableFields)
             .RequireAuthorization("SecurityAdmin");
+        group.MapPost("/quote-integration/prepare", PrepareQuoteIntegration)
+            .RequireAuthorization("SecurityAdmin");
         group.MapGet("/schedule", GetSchedule);
         group.MapPut("/schedule", SetSchedule);
         return app;
@@ -159,6 +161,132 @@ public static class MetadataEndpoints
         var result = await metadata.EnableFieldsBulkAsync(
             conn.Id, entity, body, ScopeSecurity.ActorId(actor), ct);
         return Results.Ok(result);
+    }
+
+    public sealed record PrepareQuoteIntegrationRequest(bool Confirm);
+
+    /// <summary>
+    /// Explicit, minimal authorization needed for creating the standard Quote
+    /// total via quotedetail. It does not create records, grant client credentials,
+    /// or enable unrelated metadata fields.
+    /// </summary>
+    private static async Task<IResult> PrepareQuoteIntegration(
+        string code, PrepareQuoteIntegrationRequest request,
+        IConnectionRepository connections, MetadataRepository metadata,
+        MetadataRefreshService refresh, DataverseMetadataDiscovery discovery,
+        System.Security.Claims.ClaimsPrincipal actor, HttpContext http, CancellationToken ct)
+    {
+        if (!request.Confirm || code != "principal")
+            return ApiProblems.Create(http, 400, "quote_setup_confirmation_required",
+                "An explicit administrator confirmation for principal is required.");
+        var connection = await connections.FindAsync(code, ct);
+        if (connection is null) return NotFound(http);
+        var actorId = ScopeSecurity.ActorId(actor);
+        try
+        {
+            var snapshot = await metadata.LatestAsync(connection.Id, ct);
+            if (snapshot is null || new[] { "quote", "quotedetail" }.Any(name =>
+                snapshot.Catalog.Tables.All(t => t.LogicalName != name)))
+            {
+                await refresh.RefreshAsync(code, "manual", actorId, ct);
+                snapshot = await metadata.LatestAsync(connection.Id, ct);
+            }
+            if (snapshot is null || new[] { "quote", "quotedetail" }.Any(name =>
+                snapshot.Catalog.Tables.All(t => t.LogicalName != name)))
+                return ApiProblems.Create(http, 409, "quote_table_not_in_dataverse_catalog",
+                    "Dataverse must expose both quote and quotedetail tables to this connection.");
+
+            foreach (var entity in new[] { "quote", "quotedetail" })
+            {
+                var table = snapshot.Catalog.Tables.Single(t => t.LogicalName == entity);
+                if (table.Columns.Count == 0)
+                {
+                    await refresh.RefreshTableAsync(code, entity, actorId, ct);
+                    snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
+                    table = snapshot.Catalog.Tables.Single(t => t.LogicalName == entity);
+                }
+                // Fetch only actual ManyToOne navigation properties; never
+                // infer the customer, custom IDTRA, or quoteid bind names.
+                var relations = await discovery.DiscoverLookupRelationshipsAsync(
+                    connection, entity, ct);
+                if (entity == "quotedetail" && !relations.Any(r =>
+                    r.ReferencingAttribute == "quoteid" && r.ReferencedEntity == "quote"))
+                    return ApiProblems.Create(http, 409, "quote_detail_relationship_missing",
+                        "The quoteid navigation property was not exposed by Dataverse.");
+                await metadata.SaveTableAsync(connection.Id,
+                    table with { Relationships = relations }, actorId, ct);
+                snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
+            }
+
+            var quote = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quote");
+            var detail = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quotedetail");
+            string[] required =
+            [
+                "quoteid", "isproductoverridden", "ispriceoverridden",
+                "productdescription", "quotedetailname", "quantity", "priceperunit"
+            ];
+            var unavailable = required.Where(name =>
+                detail.Columns.FirstOrDefault(f => f.LogicalName == name) is not { CanCreate: true, IsCalculated: false })
+                .ToArray();
+            if (unavailable.Length > 0)
+                return Results.Conflict(new
+                {
+                    code = "quote_detail_fields_not_writable",
+                    fields = unavailable,
+                    message = "Dataverse does not allow direct create for these quotedetail fields."
+                });
+            var primaryId = quote.Columns.FirstOrDefault(f =>
+                f.LogicalName == quote.PrimaryIdAttribute);
+            if (primaryId is not { CanRead: true })
+                return ApiProblems.Create(http, 409, "quote_primary_id_not_readable",
+                    "Dataverse must expose the primary Quote identifier for read.");
+
+            foreach (var name in new[] { "quote", "quotedetail" })
+                if (!await metadata.SetEntityAsync(connection.Id, name, true, actorId, ct))
+                    return ApiProblems.Create(http, 409, "quote_entity_enable_failed",
+                        "Could not enable a quote integration table.");
+            if (!await metadata.SetFieldAsync(connection.Id, "quote",
+                quote.PrimaryIdAttribute, new MetadataFieldToggle(true, true, false, false),
+                actorId, ct))
+                return ApiProblems.Create(http, 409, "quote_primary_id_enable_failed",
+                    "Could not enable reading the quote ID.");
+            foreach (var name in required)
+            {
+                var column = detail.Columns.Single(f => f.LogicalName == name);
+                if (!await metadata.SetFieldAsync(connection.Id, "quotedetail", name,
+                    new MetadataFieldToggle(true, column.CanRead, true, false),
+                    actorId, ct))
+                    return ApiProblems.Create(http, 409, "quote_detail_field_enable_failed",
+                        "Could not authorize the required quotedetail field " + name + ".");
+            }
+            return Results.Ok(new
+            {
+                prepared = true, tables = new[] { "quote", "quotedetail" },
+                enabledDetailFields = required,
+                quoteIdRead = true,
+                lookupRelationships = quote.Relationships.Where(r =>
+                    r.ReferencingAttribute is "customerid" or "new_idtra1")
+                    .Select(r => new
+                    {
+                        field = r.ReferencingAttribute,
+                        targetTable = r.ReferencedEntity,
+                        navigation = r.ReferencingNavigation
+                    }),
+                message = "Metadata and field policies prepared. The named API key still needs an explicit quote-total grant."
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "The connector could not prepare quote metadata and permissions.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+            or InvalidOperationException or System.Text.Json.JsonException
+            or Microsoft.Identity.Client.MsalException)
+        {
+            return ApiProblems.Create(http, 502, "quote_setup_metadata_unavailable",
+                "Unable to discover or authorize the quote tables. No Dataverse records were written.");
+        }
     }
 
     private static async Task<IResult> GetSchedule(string code, IConnectionRepository connections,

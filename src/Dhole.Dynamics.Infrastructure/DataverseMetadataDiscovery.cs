@@ -207,6 +207,38 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
     /// Fetch real option values only for an explicitly authorized field. This avoids
     /// a costly per-attribute extended scan of large Dataverse tables.
     /// </summary>
+    /// <summary>
+    /// Discover only ManyToOne navigation names. This is intentionally separate
+    /// from extended attribute discovery (which would issue hundreds of calls on quote).
+    /// Relationship names must come from Dataverse metadata, never be guessed.
+    /// </summary>
+    public async Task<IReadOnlyList<MetadataRelationship>> DiscoverLookupRelationshipsAsync(
+        DynamicsConnection connection, string entity, CancellationToken ct)
+    {
+        if (!SafeName(entity)) throw new ArgumentException("Invalid table.", nameof(entity));
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        var path = ApiPath + "(LogicalName='" + entity + "')" +
+            "/ManyToOneRelationships?$select=SchemaName,ReferencedEntity,ReferencingEntity," +
+            "ReferencedAttribute,ReferencingAttribute,ReferencingEntityNavigationPropertyName," +
+            "ReferencedEntityNavigationPropertyName";
+        var rows = await CollectionAsync(host, token, path, ct);
+        return rows.Select(row => new MetadataRelationship(
+                Str(row, "SchemaName") ?? "",
+                "ManyToOneRelationships",
+                Str(row, "ReferencedEntity"), Str(row, "ReferencingEntity"),
+                Str(row, "ReferencedAttribute"), Str(row, "ReferencingAttribute"),
+                Str(row, "ReferencingEntityNavigationPropertyName"),
+                Str(row, "ReferencedEntityNavigationPropertyName")))
+            .Where(rel => SafeName(rel.ReferencingNavigation) &&
+                SafeName(rel.ReferencingAttribute) && SafeName(rel.ReferencedEntity) &&
+                rel.ReferencingEntity == entity)
+            .OrderBy(rel => rel.ReferencingAttribute, StringComparer.Ordinal)
+            .ThenBy(rel => rel.ReferencedEntity, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<MetadataChoice>> DiscoverChoicesAsync(
         DynamicsConnection connection, string entity, string field, string type, CancellationToken ct)
     {

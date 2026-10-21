@@ -28,10 +28,10 @@ public static class PricingQuoteTotalEndpoints
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
-        app.MapPost("/api/admin/v1/connections/{code}/quote-total-grants/{keyId:guid}",
-            GrantQuoteTotal)
+        var admin = app.MapGroup("/api/admin/v1/connections/{code}")
             .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
+        admin.MapPost("/quote-total-grants/{keyId:guid}", GrantQuoteTotal);
         return app;
     }
 

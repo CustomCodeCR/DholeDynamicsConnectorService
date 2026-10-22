@@ -28,11 +28,55 @@ public static class PricingQuoteTotalEndpoints
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        // Read-only, key-protected check used by Pricing before an explicit
+        // retry. It neither reserves write idempotency nor contacts Dataverse.
+        app.MapGet("/api/v1/keyed/templates/crear_oferta/write-readiness", WriteReadiness)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         var admin = app.MapGroup("/api/admin/v1/connections/{code}")
             .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         admin.MapPost("/quote-total-grants/{keyId:guid}", GrantQuoteTotal);
         return app;
+    }
+
+
+    internal static bool ProductionQuoteRouteAllowed(ProductionWritePolicy gate)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Path = "/api/v1/keyed/templates/crear_oferta/execute-with-total";
+        return !gate.IsBlocked(context.Request);
+    }
+
+    private static async Task<IResult> WriteReadiness(
+        string connectionCode, TemplateApiKeyRepository keys,
+        ProductionWritePolicy gate, HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (connectionCode != "principal")
+                throw new ReadRejected(400, "invalid_pricing_connection");
+            var key = await keys.ValidateAndChargeAsync(
+                http.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                connectionCode, "crear_oferta", ct);
+            if (key.Operation != "create" || key.EntityName != "quote")
+                throw new ReadRejected(403, "quote_creation_key_required");
+            var allowed = ProductionQuoteRouteAllowed(gate);
+            return Results.Ok(new
+            {
+                ready = allowed,
+                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" : "production_writes_not_approved",
+                message = allowed
+                    ? "La política de producción permite ejecutar la API de QUO."
+                    : "El conector rechaza escrituras de QUO en producción; requiere autorización aprobada.",
+                noPostExecuted = true
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "No se pudo validar la preparación de la clave para QUO.");
+        }
     }
 
     private static async Task<IResult> Execute(PricingQuoteTotalRequest request,

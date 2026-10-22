@@ -69,21 +69,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build and test using the existing Docker SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The self-hosted runner cannot write /usr/share/dotnet. Use a disposable
-          # SDK container; do not sudo/install the SDK on the host.
-          docker run --rm --network host \
-            --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp -e DOTNET_CLI_HOME=/tmp -e NUGET_PACKAGES=/tmp/nuget \
-            -v "$PWD:/repo" -w /repo \
-            mcr.microsoft.com/dotnet/sdk:10.0 \
-            bash -euc 'dotnet restore DholeDynamicsConnectorService.slnx &&
-              dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore &&
-              dotnet test DholeDynamicsConnectorService.slnx -c Release --no-build'
-
       - name: Load environment-matched DholeSystem topology
         shell: bash
         env:
@@ -175,10 +160,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --pull -f src/Dhole.Dynamics.Api/Dockerfile \
+          # CI runs the .NET tests independently. Each Dockerfile builds the
+          # production binaries; do not restore/build/test the full solution
+          # a second time on the production runner.
+          docker build -f src/Dhole.Dynamics.Api/Dockerfile \
             -t "dhole/dynamics-api:$DYNAMICS_DEPLOY_TAG" \
             -t "dhole/dynamics-api:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" .
-          docker build --pull -f src/Dhole.Dynamics.Tools/Dockerfile \
+          docker build -f src/Dhole.Dynamics.Tools/Dockerfile \
             -t "dhole/dynamics-tools:$DYNAMICS_DEPLOY_TAG" \
             -t "dhole/dynamics-tools:${DYNAMICS_DEPLOY_TAG}-${GITHUB_SHA::12}" .
 
@@ -227,7 +215,7 @@ jobs:
           "${compose[@]}" run --rm --no-deps dynamics-key-init
           "${compose[@]}" up -d --no-deps --force-recreate --pull never dynamics-api dynamics-worker
 
-      - name: Verify Dynamics readiness BEFORE changing shared API Gateway
+      - name: Verify Dynamics container health before updating Gateway
         shell: bash
         run: |
           set -euo pipefail
@@ -253,8 +241,10 @@ jobs:
           fi
           docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" \
             -p "$DYNAMICS_DHOLE_PROJECT" config -q
+          # Let Compose reuse the running Gateway when its service
+          # configuration is unchanged; recreate only when needed.
           docker compose --env-file "$DYNAMICS_DEPLOY_ENV" "${files[@]}" \
-            -p "$DYNAMICS_DHOLE_PROJECT" up -d --no-deps --force-recreate --pull never api-gateway
+            -p "$DYNAMICS_DHOLE_PROJECT" up -d --no-deps --pull never api-gateway
           # Docker reports 'Started' before Kestrel binds to 8080. Wait for a
           # successful readiness probe rather than failing on a transient curl 7.
           health=""

@@ -16,9 +16,11 @@ on:
         required: true
         options: [staging, production]
       production_confirmation:
-        type: string
+        type: choice
         required: false
-        description: "Production: DEPLOY_READ_ONLY or DEPLOY_FULL_CRUD; audit reference generated from GitHub run"
+        description: "Select deployment mode; GitHub generates the audit reference automatically"
+        options: [DEPLOY_READ_ONLY, DEPLOY_FULL_CRUD]
+        default: DEPLOY_READ_ONLY
 
 permissions:
   contents: read

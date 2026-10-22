@@ -65,7 +65,9 @@ public static class PricingQuoteTotalEndpoints
             return Results.Ok(new
             {
                 ready = allowed,
-                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" : "production_writes_not_approved",
+                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" :
+                    gate.IsProduction && !gate.QuoteWritesApproved
+                        ? "production_quote_writes_not_approved" : "production_writes_not_approved",
                 message = allowed
                     ? "La política de producción permite ejecutar la API de QUO."
                     : "El conector rechaza escrituras de QUO en producción; requiere autorización aprobada.",

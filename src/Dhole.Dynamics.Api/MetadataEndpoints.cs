@@ -249,10 +249,26 @@ public static class MetadataEndpoints
                     missingTargets.Add(targetName);
                     continue;
                 }
-                if (!await metadata.SetEntityAsync(connection.Id, targetName, true, actorId, ct) ||
-                    !await metadata.SetFieldAsync(connection.Id, targetName, related.PrimaryIdAttribute,
-                        new MetadataFieldToggle(true, true, false, false), actorId, ct))
+                if (!await metadata.SetEntityAsync(connection.Id, targetName, true, actorId, ct))
+                {
                     missingTargets.Add(targetName);
+                    continue;
+                }
+                // Only identity plus legitimate exact-name lookup attributes.
+                // An Incident IDTRA may be identified by its ticket number
+                // rather than title. Both must be explicitly readable.
+                var readableNames = new[] { related.PrimaryIdAttribute, related.PrimaryNameAttribute,
+                        targetName == "incident" ? "ticketnumber" : null }
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.Ordinal);
+                foreach (var fieldName in readableNames)
+                {
+                    var attr = related.Columns.FirstOrDefault(c => c.LogicalName == fieldName);
+                    if (attr is not { CanRead: true } ||
+                        !await metadata.SetFieldAsync(connection.Id, targetName, fieldName!,
+                            new MetadataFieldToggle(true, true, false, false), actorId, ct))
+                        missingTargets.Add(targetName + "." + fieldName);
+                }
             }
             snapshot = (await metadata.LatestAsync(connection.Id, ct))!;
             var quote = snapshot.Catalog.Tables.Single(t => t.LogicalName == "quote");

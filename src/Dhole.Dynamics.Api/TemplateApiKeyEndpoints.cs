@@ -116,7 +116,7 @@ public static class TemplateApiKeyEndpoints
             var claims=new[]{
                 new Claim("connector:issuer",TemplateApiKeyRepository.Issuer),
                 new Claim("client_id",key.ClientId),
-                new Claim("scope","dynamics.records."+key.Operation),
+                new Claim("scope","dynamics.records."+key.Operation+" dynamics.records.read"),
                 new Claim("sub",key.Id.ToString("D"))
             };
             var principal=new ClaimsPrincipal(new ClaimsIdentity(claims,"DholeCrudApiKey"));

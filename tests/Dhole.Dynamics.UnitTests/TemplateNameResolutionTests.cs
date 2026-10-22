@@ -45,6 +45,19 @@ public sealed class TemplateNameResolutionTests
         Assert.Contains("new_IDTRA1@odata.bind/ticketnumber/TRA-000123", calls);
     }
 
+    [Theory]
+    [InlineData("incident", "new_idtra1", "ticketnumber", "title")]
+    [InlineData("incident", "new_idtra1", "title", "title")]
+    [InlineData("incident", "customerid", "ticketnumber", "ticketnumber")]
+    [InlineData("account", "new_idtra1", "ticketnumber", "ticketnumber")]
+    [InlineData("incident", "new_otherlookup", "ticketnumber", "ticketnumber")]
+    public void LegacyIdtraLookupUsesTitleOnlyForIdtra1(
+        string entity, string attribute, string configured, string expected)
+    {
+        Assert.Equal(expected, TemplateOrchestrator.ResolveLookupNameField(
+            entity, attribute, configured));
+    }
+
     [Fact]
     public async Task EquipmentLabelUsesMetadataChoiceWithoutGuessingItsCode()
     {

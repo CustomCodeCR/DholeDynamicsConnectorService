@@ -4,6 +4,7 @@ using Dhole.Dynamics.Contracts;
 using Dhole.Dynamics.Infrastructure;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Dhole.Dynamics.Api;
 
@@ -176,6 +177,46 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         return [primary];
     }
 
+    // Customer account names can vary between Pricing and Dataverse (for
+    // example a legal suffix or extra words). Prefer exact account names, then
+    // allow bounded, approved contains filters; never silently select one of
+    // several matching accounts. Incident/IDTRA references stay exact.
+    public static IReadOnlyList<ReadPredicate> CustomerNameFallbackFilters(
+        string searchField, string name)
+    {
+        var input = name.Trim();
+        var filters = new List<ReadPredicate>();
+        if (input.Length is >= 3 and <= 100)
+            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
+                Value:JsonSerializer.SerializeToElement(input)));
+
+        var ignore = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SOCIEDAD", "ANONIMA", "LIMITADA", "COMPANIA", "COMPANY",
+            "CORPORATION", "CORP", "INC", "LLC", "LTDA", "SRL",
+            "SA", "SAS", "DE", "DEL", "LA", "LAS", "EL", "LOS", "THE", "AND"
+        };
+        var words = Regex.Matches(input, @"[\p{L}\p{N}]+")
+            .Select(x => x.Value)
+            .Where(x => x.Length is >= 4 and <= 100 && !ignore.Contains(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(x => x.Length)
+            .Take(3)
+            .ToArray();
+        if (words.Length >= 2)
+        {
+            filters.Add(new ReadPredicate(Join:"and", Children:
+                words.Select(x => new ReadPredicate(Field:searchField,
+                    Op:"contains", Value:JsonSerializer.SerializeToElement(x))).ToArray()));
+        }
+        else if (words.Length == 1 && !words[0].Equals(input, StringComparison.OrdinalIgnoreCase))
+        {
+            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
+                Value:JsonSerializer.SerializeToElement(words[0])));
+        }
+        return filters;
+    }
+
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition,WritePolicy policy,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
@@ -214,24 +255,34 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                         !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
                         continue;
                     anyAuthorized=true;
-                    var query=new ReadSpec(
-                        [lookupPolicy.Table.PrimaryIdAttribute],
-                        new ReadPredicate(Field:searchField,Op:"eq",
-                            Value:JsonSerializer.SerializeToElement(name.Trim())),
-                        PageSize:2);
-                    // A name is resolved only from approved, exact Dataverse
-                    // matches. If the preferred IDTRA column is empty, try the
-                    // other approved IDTRA identifier before rejecting.
-                    var result=await reader.SearchAsync(actor,target,
-                        new ReadSearchRequest(policy.Connection.Code,query),token,
-                        admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
-                    if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous",
-                        rel.ReferencingAttribute,searchField);
-                    if(result.Items.Count==0)continue;
-                    var item=result.Items[0];
-                    return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
-                        && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty
-                        ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
+                    var predicates=new List<ReadPredicate>
+                    {
+                        new(Field:searchField,Op:"eq",
+                            Value:JsonSerializer.SerializeToElement(name.Trim()))
+                    };
+                    if(target.Equals("account",StringComparison.OrdinalIgnoreCase) &&
+                       searchField.Equals("name",StringComparison.OrdinalIgnoreCase) &&
+                       (string.Equals(rel.ReferencingAttribute,"customerid",StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(rel.ReferencingAttribute,"msdyn_account",StringComparison.OrdinalIgnoreCase)))
+                        predicates.AddRange(CustomerNameFallbackFilters(searchField,name));
+                    foreach(var predicate in predicates)
+                    {
+                        var query=new ReadSpec([lookupPolicy.Table.PrimaryIdAttribute],
+                            predicate,PageSize:2);
+                        // All search operations are metadata-validated and
+                        // restricted to the account's approved readable fields.
+                        var result=await reader.SearchAsync(actor,target,
+                            new ReadSearchRequest(policy.Connection.Code,query),token,
+                            admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                        if(result.Items.Count>1 || result.NextCursor is not null)
+                            throw new ReadRejected(409,"lookup_name_ambiguous",
+                                rel.ReferencingAttribute,searchField);
+                        if(result.Items.Count==0)continue;
+                        var item=result.Items[0];
+                        return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
+                            && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty
+                            ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
+                    }
                 }
                 if(!anyAuthorized)
                     throw new ReadRejected(403,"lookup_name_field_not_authorized");

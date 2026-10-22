@@ -34,6 +34,38 @@ public sealed class Phase07TemplateTests
     }
 
     [Fact]
+    public void ApiKeyGrantsOnlyApprovedLookupAttributesNotNavigationProperties()
+    {
+        var policy=Policy();
+        var template=new IntegrationTemplate("new_shipments","create",
+            [new TemplateInput("name","string"),
+             new TemplateInput("parent","string")],
+            [new TemplateMapping("new_name","name"),
+             new TemplateMapping("new_Parent@odata.bind","parent",
+                 [new TemplateStep("lookup_name","name")])]);
+        TemplateMapper.ValidateDefinition(template,policy);
+        var fields=TemplateApiKeyRepository.ApprovedFields(template,policy);
+        Assert.Contains("new_name",fields);
+        Assert.Contains("new_parentid",fields);
+        Assert.DoesNotContain("new_Parent@odata.bind",fields);
+    }
+
+    [Theory]
+    [InlineData("other_parent@odata.bind")]
+    [InlineData("new_Parent@odata.bind@odata.bind")]
+    [InlineData("new_parentid@other")]
+    [InlineData("new_parentid.fake")]
+    public void ApiKeysRejectUndeclaredOrInjectedNavigationTargets(string target)
+    {
+        var template=new IntegrationTemplate("new_shipments","create",
+            [new TemplateInput("parent","string")],
+            [new TemplateMapping(target,"parent")]);
+        var e=Assert.Throws<ReadRejected>(()=>
+            TemplateApiKeyRepository.ApprovedFields(template,Policy()));
+        Assert.Equal("crud_lookup_mapping_not_approved",e.Code);
+    }
+
+    [Fact]
     public async Task NewlyConfiguredOperationMapsInputsWithoutCompilingNewController()
     {
         var definition=new IntegrationTemplate("new_shipments","create",

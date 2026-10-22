@@ -58,6 +58,44 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         return items;
     }
 
+    /// <summary>
+    /// Restrict API keys to original Dataverse attributes, even if the template
+    /// maps a relationship through the @odata.bind navigation property.
+    /// TemplateMapper.ValidateDefinition and the current metadata field grants
+    /// provide independent validation before issuing any key.
+    /// </summary>
+    public static IReadOnlyList<string> ApprovedFields(
+        IntegrationTemplate definition, WritePolicy policy)
+    {
+        var fields=new List<string>();
+        foreach(var mapping in definition.Mappings)
+        {
+            string field;
+            if(mapping.Target.EndsWith("@odata.bind",StringComparison.Ordinal))
+            {
+                var navigation=mapping.Target[..^"@odata.bind".Length];
+                var relationship=policy.Table.Relationships.FirstOrDefault(r=>
+                    r.Kind=="ManyToOneRelationships" &&
+                    r.ReferencingEntity==definition.EntityName &&
+                    r.ReferencingNavigation==navigation &&
+                    !string.IsNullOrWhiteSpace(r.ReferencedEntity));
+                if(relationship?.ReferencingAttribute is not string attribute ||
+                   policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==attribute)
+                       is not { Type: "Lookup" or "Customer" or "Owner" })
+                    throw new ReadRejected(403,"crud_lookup_mapping_not_approved");
+                field=attribute;
+            }
+            else
+            {
+                if(mapping.Target.Contains('@') || mapping.Target.Contains('.'))
+                    throw new ReadRejected(403,"crud_lookup_mapping_not_approved");
+                field=mapping.Target;
+            }
+            if(!fields.Contains(field,StringComparer.Ordinal)) fields.Add(field);
+        }
+        return fields;
+    }
+
     public async Task<CrudIntegrationKeyIssued> IssueAsync(string code,
         CrudIntegrationKeyRequest request,string actor,CancellationToken ct)
     {
@@ -72,13 +110,11 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         if(definition.Operation is not ("create" or "update" or "upsert" or "delete"))
             throw new ReadRejected(400,"crud_template_required");
 
-        // A token never grants arbitrary relationships, record fields or dynamic
-        // field names. These must be explicitly designed as approved mappings.
-        if(definition.Mappings.Any(m=>m.Target.Contains('@',StringComparison.Ordinal) ||
-              m.Target.Contains('.',StringComparison.Ordinal)))
-            throw new ReadRejected(403,"crud_lookup_mapping_requires_oauth");
-        var fields=definition.Mappings.Select(m=>m.Target)
-            .Distinct(StringComparer.Ordinal).ToList();
+        // Only attributes approved in Dataverse metadata enter the M2M grant.
+        // Navigation property mappings (e.g. customerid_account@odata.bind)
+        // are resolved back to their source lookup field (customerid), never
+        // authorized as untrusted arbitrary @odata.bind property names.
+        var fields=ApprovedFields(definition,policy).ToList();
         var keys=(request.KeyFields??[]).Distinct(StringComparer.Ordinal).ToArray();
         if(definition.Operation=="upsert")
         {

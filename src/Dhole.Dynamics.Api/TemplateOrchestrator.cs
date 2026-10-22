@@ -205,8 +205,11 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 var result=await reader.SearchAsync(actor,target,
                     new ReadSearchRequest(policy.Connection.Code,query),token,
                     admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
-                if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous");
-                if(result.Items.Count==0)return null;
+                if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous",
+                    rel.ReferencingAttribute,searchField);
+                if(result.Items.Count==0)
+                    throw new ReadRejected(404,"lookup_name_not_found",
+                        rel.ReferencingAttribute,searchField);
                 var item=result.Items[0];
                 return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
                     && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty

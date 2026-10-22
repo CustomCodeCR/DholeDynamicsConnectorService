@@ -62,8 +62,8 @@ public static class TemplateEndpoints
 
     private static async Task<IResult> Preview(string code,string name,int version,
         IReadOnlyDictionary<string,JsonElement> body,TemplateOrchestrator engine,
-        HttpContext http,CancellationToken ct) =>
-        await Guard(http,async()=>Results.Ok(await engine.PreviewAsync(code,name,version,body,ct)));
+        ClaimsPrincipal actor,HttpContext http,CancellationToken ct) =>
+        await Guard(http,async()=>Results.Ok(await engine.PreviewAsync(code,name,version,body,ct,actor)));
 
     private static async Task<IResult> Export(string code,string name,int version,
         ReadAccessRepository access,TemplateRepository repo,HttpContext http,CancellationToken ct) =>

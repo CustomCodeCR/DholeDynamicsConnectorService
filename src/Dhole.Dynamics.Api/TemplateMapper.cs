@@ -13,7 +13,7 @@ public static class TemplateMapper
     private static readonly HashSet<string> Steps=new(StringComparer.Ordinal)
     {
         "trim","upper","lower","date_utc","decimal","if_empty","concat",
-        "choice_constant","unit","lookup_ref"
+        "choice_constant","unit","lookup_ref","lookup_name","choice_label"
     };
 
     public static void ValidateDefinition(IntegrationTemplate definition, WritePolicy policy)
@@ -81,6 +81,17 @@ public static class TemplateMapper
                 throw new ReadRejected(400,"invalid_template_mapping");
             foreach(var step in mapping.Steps??[])
             {
+                if(step.Op=="lookup_name" && (
+                    !mapping.Target.EndsWith("@odata.bind",StringComparison.Ordinal) ||
+                    !ReadQueryCompiler.ValidParam(step.Argument) ||
+                    mapping.Source is null ||
+                    definition.Inputs.All(i=>i.Name!=mapping.Source || i.Type!="string")))
+                    throw new ReadRejected(400,"lookup_name_requires_text_and_relation");
+                if(step.Op=="choice_label" && (
+                    column.Type is not ("Picklist" or "State" or "Status") ||
+                    mapping.Source is null ||
+                    definition.Inputs.All(i=>i.Name!=mapping.Source || i.Type!="string")))
+                    throw new ReadRejected(400,"choice_label_requires_text_and_picklist");
                 if(!Steps.Contains(step.Op) || step.Argument?.Length>64 ||
                     step.OtherInput is not null && definition.Inputs.All(i=>i.Name!=step.OtherInput) ||
                     step.Op=="unit" && step.Argument is not ("lb_to_kg" or "kg_to_lb" or "in_to_m" or "m_to_in") ||
@@ -164,7 +175,9 @@ public static class TemplateMapper
     public static async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition, IReadOnlyDictionary<string,JsonElement> values,
         Guid connection, Func<string,string,string,CancellationToken,Task<Guid?>> resolve,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<string,string,string,CancellationToken,Task<Guid?>>? resolveName = null,
+        Func<string,string,CancellationToken,Task<int?>>? resolveChoice = null)
     {
         var result=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
         foreach(var mapping in definition.Mappings)
@@ -234,6 +247,16 @@ public static class TemplateMapper
                         var id=await resolve(space,Str(current),mapping.Target,ct);
                         if(id is null)throw new ReadRejected(404,"external_reference_missing");
                         current=JsonSerializer.SerializeToElement(id.Value.ToString("D"));break;
+                    case "lookup_name":
+                        if(resolveName is null)throw new ReadRejected(409,"lookup_name_resolver_unavailable");
+                        var namedId=await resolveName(mapping.Target,step.Argument!,Str(current),ct);
+                        if(namedId is null)throw new ReadRejected(404,"lookup_name_not_found");
+                        current=JsonSerializer.SerializeToElement(namedId.Value.ToString("D"));break;
+                    case "choice_label":
+                        if(resolveChoice is null)throw new ReadRejected(409,"choice_label_resolver_unavailable");
+                        var numeric=await resolveChoice(mapping.Target,Str(current),ct);
+                        if(numeric is null)throw new ReadRejected(404,"choice_label_not_found");
+                        current=JsonSerializer.SerializeToElement(numeric.Value);break;
                     default:throw new ReadRejected(400,"unsupported_transform");
                 }
             }

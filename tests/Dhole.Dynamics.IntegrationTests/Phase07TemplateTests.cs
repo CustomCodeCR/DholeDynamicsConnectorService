@@ -139,7 +139,8 @@ public sealed class Phase07TemplateTests
                 new DataverseWriteTransport(new HttpClient(fake),tokens),new DeletePolicyRepository(db));
             var actions=new BoundActionExecutor(actionPolicies,oauth,ledger,new HttpClient(fake),tokens);
             var orchestrator=new TemplateOrchestrator(templates,links,access,writer,reader,saveQuery,
-                readAccess,actionPolicies,actions);
+                readAccess,actionPolicies,actions,
+                new DataverseMetadataDiscovery(new HttpClient(fake),tokens));
             const string name="CreateShipment";
             var first=new IntegrationTemplate("new_shipment","create",
                 [new TemplateInput("po","string")],

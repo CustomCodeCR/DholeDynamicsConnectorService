@@ -47,6 +47,10 @@ public sealed class ProductionWritePolicy
         if(HttpMethods.IsGet(request.Method)||HttpMethods.IsHead(request.Method)||
             HttpMethods.IsOptions(request.Method))return false;
         var path=request.Path;
+        // The keyed lookup preview performs bounded, scoped reads only.
+        if (HttpMethods.IsPost(request.Method) &&
+            path.Value == "/api/v1/keyed/templates/crear_oferta/validate-lookups")
+            return false;
         // These structured POST endpoints perform only reads. Keep production
         // write protection fail-closed for all other POST/PATCH/DELETE endpoints.
         if(HttpMethods.IsPost(request.Method) &&

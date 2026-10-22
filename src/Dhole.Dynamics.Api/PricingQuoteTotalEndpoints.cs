@@ -32,6 +32,10 @@ public static class PricingQuoteTotalEndpoints
         // retry. It neither reserves write idempotency nor contacts Dataverse.
         app.MapGet("/api/v1/keyed/templates/crear_oferta/write-readiness", WriteReadiness)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        // A read-only preview of the exact active quote template: checks
+        // actual name lookups, but cannot reserve/create any Dataverse record.
+        app.MapPost("/api/v1/keyed/templates/crear_oferta/validate-lookups", ValidateLookups)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         var admin = app.MapGroup("/api/admin/v1/connections/{code}")
             .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
@@ -76,6 +80,52 @@ public static class PricingQuoteTotalEndpoints
         {
             return ApiProblems.Create(http, ex.Status, ex.Code,
                 "No se pudo validar la preparación de la clave para QUO.");
+        }
+    }
+
+    private static async Task<IResult> ValidateLookups(
+        TemplateInputs request, TemplateApiKeyRepository keys,
+        TemplateRepository templates, TemplateOrchestrator writer,
+        HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (request.ConnectionCode != "principal" || request.Inputs is null ||
+                request.Inputs.Count is < 1 or > 30)
+                throw new ReadRejected(400, "invalid_quote_lookup_validation");
+            var key = await keys.ValidateAndChargeAsync(
+                http.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                request.ConnectionCode, "crear_oferta", ct);
+            if (key.EntityName != "quote" || key.Operation != "create")
+                throw new ReadRejected(403, "quote_creation_key_required");
+            var current = await templates.FindAsync(key.ConnectionId, "crear_oferta", ct);
+            if (current?.ActiveVersion is not int version)
+                throw new ReadRejected(409, "crud_template_inactive");
+            var actor = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
+                new Claim("client_id", key.ClientId),
+                new Claim("scope", "dynamics.records.read"),
+                new Claim("sub", key.Id.ToString("D"))
+            ], "DholePricingKey"));
+            // PreviewAsync applies the live metadata, the saved per-field
+            // grants, and exact-name lookups. It NEVER calls CreateAsync.
+            _ = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
+                version, request.Inputs, ct, actor);
+            return Results.Ok(new
+            {
+                valid = true,
+                code = "DYNAMICS_LOOKUPS_VALID",
+                schemaVersion = version,
+                noPostExecuted = true,
+                message = "Campos y relaciones comprobados contra Dataverse sin crear ofertas."
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "Quote lookup validation failed before any write.",
+                ex.LookupInput, ex.LookupSearchField);
         }
     }
 

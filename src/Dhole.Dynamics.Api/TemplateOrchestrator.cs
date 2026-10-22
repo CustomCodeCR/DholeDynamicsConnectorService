@@ -156,9 +156,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     // legacy lookup; all other configured fields remain unchanged.
     public static string ResolveLookupNameField(string relatedEntity,
         string relationshipAttribute, string configuredField) =>
-        relatedEntity == "incident" &&
-        relationshipAttribute == "new_idtra1" &&
-        configuredField == "ticketnumber"
+        relatedEntity.Equals("incident", StringComparison.OrdinalIgnoreCase) &&
+        relationshipAttribute.Equals("new_idtra1", StringComparison.OrdinalIgnoreCase) &&
+        configuredField.Equals("ticketnumber", StringComparison.OrdinalIgnoreCase)
             ? "title" : configuredField;
 
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(

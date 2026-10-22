@@ -47,6 +47,7 @@ public sealed class TemplateNameResolutionTests
 
     [Theory]
     [InlineData("incident", "new_idtra1", "ticketnumber", "title")]
+    [InlineData("incident", "new_IDTRA1", "ticketnumber", "title")]
     [InlineData("incident", "new_idtra1", "title", "title")]
     [InlineData("incident", "customerid", "ticketnumber", "ticketnumber")]
     [InlineData("account", "new_idtra1", "ticketnumber", "ticketnumber")]

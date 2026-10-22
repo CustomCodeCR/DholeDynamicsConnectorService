@@ -194,7 +194,8 @@ public static class PricingQuoteTotalEndpoints
                 ? ApiProblems.Create(http, 409, "quote_total_partial_requires_reconciliation",
                     "Quote header created; total line was not confirmed. Check idempotency ledger.")
                 : ApiProblems.Create(http, ex.Status, ex.Code,
-                    "Pricing quote creation rejected by Dataverse connector policy.");
+                    "Pricing quote creation rejected by Dataverse connector policy.",
+                    ex.LookupInput, ex.LookupSearchField);
         }
         catch (HttpRequestException)
         {

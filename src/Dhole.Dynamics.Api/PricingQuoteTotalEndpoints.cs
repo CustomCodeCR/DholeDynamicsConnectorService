@@ -83,7 +83,7 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(409, "crud_template_scope_denied");
 
             var preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
-                "crear_oferta", version, request.Inputs, ct);
+                "crear_oferta", version, request.Inputs, ct, actor);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
 
             // Check quotedetail metadata, field grants and quote lookup read

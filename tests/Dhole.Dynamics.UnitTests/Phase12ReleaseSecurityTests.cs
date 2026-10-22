@@ -18,7 +18,8 @@ public sealed class Phase12ReleaseSecurityTests
             new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
     private static ProductionWritePolicy Policy(string env,string? writes=null,
-        string? deletes=null,string? refWrite=null,string? refDelete=null)
+        string? deletes=null,string? refWrite=null,string? refDelete=null,
+        string? quotes=null,string? refQuotes=null)
     {
         var config=new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string,string?>
@@ -26,7 +27,9 @@ public sealed class Phase12ReleaseSecurityTests
                 ["ProductionWrites:Approved"]=writes,
                 ["ProductionWrites:DeletesApproved"]=deletes,
                 ["ProductionWrites:ApprovalReference"]=refWrite,
-                ["ProductionWrites:DeletesApprovalReference"]=refDelete
+                ["ProductionWrites:DeletesApprovalReference"]=refDelete,
+                ["ProductionQuotes:Approved"]=quotes,
+                ["ProductionQuotes:ApprovalReference"]=refQuotes
             }).Build();
         return ProductionWritePolicy.FromConfiguration(config,new EnvironmentStub(env));
     }
@@ -81,6 +84,37 @@ public sealed class Phase12ReleaseSecurityTests
             Assert.Throws<ReadRejected>(()=>allow.Demand("action")).Code);
         full.Demand("action");
     }
+    [Fact]
+    public void QuoteApprovalNeedsTicketAndDoesNotOpenGenericWrites()
+    {
+        var route="/api/v1/keyed/templates/crear_oferta/execute-with-total";
+        static HttpRequest Request(string path,string method="POST")
+        {
+            var r=new DefaultHttpContext().Request;
+            r.Path=path;r.Method=method;
+            return r;
+        }
+        var noTicket=Policy("Production",quotes:"YES");
+        Assert.False(noTicket.QuoteWritesApproved);
+        Assert.True(noTicket.IsBlocked(Request(route)));
+        Assert.Equal("production_quote_writes_not_approved",
+            Assert.Throws<ReadRejected>(()=>noTicket.DemandPricingQuote()).Code);
+
+        var approved=Policy("Production",quotes:"YES",
+            refQuotes:"CAB-2026-QUOTE-00001");
+        approved.DemandPricingQuote();
+        Assert.False(approved.WritesApproved);
+        Assert.False(approved.IsBlocked(Request(route)));
+        Assert.True(approved.IsBlocked(Request("/api/v1/keyed/templates/crear_oferta/execute")));
+        Assert.True(approved.IsBlocked(Request("/api/v1/records/quote")));
+        Assert.True(approved.IsBlocked(Request("/api/v1/keyed/templates/crear_oferta/execute-with-total/anything")));
+        Assert.True(approved.IsBlocked(Request(route,"DELETE")));
+        Assert.Equal("production_writes_not_approved",
+            Assert.Throws<ReadRejected>(()=>approved.Demand("create")).Code);
+        Assert.Equal("production_writes_not_approved",
+            Assert.Throws<ReadRejected>(()=>approved.Demand("delete")).Code);
+    }
+
     [Fact]
     public void StagingNeverAccidentallyRequiresProductionApproval()
     {

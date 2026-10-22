@@ -13,12 +13,19 @@ public sealed class ProductionWritePolicy
     public bool IsProduction { get; }
     public bool WritesApproved { get; }
     public bool DeletesApproved { get; }
+    public bool QuoteWritesApproved { get; }
+    private const string QuoteWithTotalPath =
+        "/api/v1/keyed/templates/crear_oferta/execute-with-total";
 
-    public ProductionWritePolicy(bool production, bool writeApproval, bool deleteApproval)
+    public ProductionWritePolicy(bool production, bool writeApproval, bool deleteApproval,
+        bool quoteWriteApproval = false)
     {
         IsProduction=production;
         WritesApproved=!production || writeApproval;
         DeletesApproved=!production || (writeApproval && deleteApproval);
+        // The separate approval only allows Dhole's pre-existing, fixed
+        // crear_oferta + quotedetail route. It NEVER opens generic CRUD writes.
+        QuoteWritesApproved=!production || writeApproval || quoteWriteApproval;
     }
 
     public static ProductionWritePolicy FromConfiguration(IConfiguration configuration,IHostEnvironment environment)
@@ -30,7 +37,9 @@ public sealed class ProductionWritePolicy
             ValidReference(configuration["ProductionWrites:ApprovalReference"]);
         var deletes=configuration["ProductionWrites:DeletesApproved"]=="YES" &&
             ValidReference(configuration["ProductionWrites:DeletesApprovalReference"]);
-        return new(environment.IsProduction(),writes,deletes);
+        var quotes=configuration["ProductionQuotes:Approved"]=="YES" &&
+            ValidReference(configuration["ProductionQuotes:ApprovalReference"]);
+        return new(environment.IsProduction(),writes,deletes,quotes);
     }
 
     public void Demand(string operation)
@@ -41,12 +50,24 @@ public sealed class ProductionWritePolicy
             throw new ReadRejected(403,"production_deletes_not_approved");
     }
 
+    public void DemandPricingQuote()
+    {
+        if(!QuoteWritesApproved)
+            throw new ReadRejected(403,"production_quote_writes_not_approved");
+    }
+
     public bool IsBlocked(HttpRequest request)
     {
         if(!IsProduction)return false;
         if(HttpMethods.IsGet(request.Method)||HttpMethods.IsHead(request.Method)||
             HttpMethods.IsOptions(request.Method))return false;
         var path=request.Path;
+        // Exact match only. The dedicated handler itself verifies the active
+        // crear_oferta API key, IDTRA mapping, read/create grants, request
+        // shape and two independent idempotency keys.
+        if(path.Value == QuoteWithTotalPath &&
+            HttpMethods.IsPost(request.Method))
+            return !QuoteWritesApproved;
         // These structured POST endpoints perform only reads. Keep production
         // write protection fail-closed for all other POST/PATCH/DELETE endpoints.
         if(HttpMethods.IsPost(request.Method) &&
@@ -77,8 +98,12 @@ public sealed class ProductionWriteGateMiddleware(RequestDelegate next)
     {
         if(policy.IsBlocked(http.Request))
         {
-            var code=HttpMethods.IsDelete(http.Request.Method) && policy.WritesApproved
-                ? "production_deletes_not_approved":"production_writes_not_approved";
+            var quoteRoute=HttpMethods.IsPost(http.Request.Method) &&
+                http.Request.Path.Value=="/api/v1/keyed/templates/crear_oferta/execute-with-total";
+            var code=quoteRoute && !policy.QuoteWritesApproved
+                ? "production_quote_writes_not_approved"
+                : HttpMethods.IsDelete(http.Request.Method) && policy.WritesApproved
+                    ? "production_deletes_not_approved":"production_writes_not_approved";
             await ApiProblems.Create(http,403,code,"Production operation requires approved change control.")
                 .ExecuteAsync(http);
             return;

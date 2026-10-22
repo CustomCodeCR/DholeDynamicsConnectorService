@@ -364,8 +364,15 @@ public static class PricingQuoteTotalEndpoints
                     quote.Table.Relationships.Any(r =>
                         r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
                         r.ReferencedEntity == target))
-                    .SelectMany(m => m.Steps!.Where(step => step.Op == "lookup_name")
-                        .Select(step => step.Argument!))
+                    .SelectMany(m =>
+                    {
+                        var relation = quote.Table.Relationships.First(r =>
+                            r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
+                            r.ReferencedEntity == target);
+                        return m.Steps!.Where(step => step.Op == "lookup_name")
+                            .SelectMany(step => TemplateOrchestrator.ResolveLookupNameFields(
+                                target, relation.ReferencingAttribute ?? "", step.Argument!));
+                    })
                     .Distinct(StringComparer.Ordinal);
                 foreach (var fieldName in relationshipFields)
                 {

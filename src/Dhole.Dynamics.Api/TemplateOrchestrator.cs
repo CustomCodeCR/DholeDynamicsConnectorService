@@ -1,6 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Infrastructure;
+using System.Globalization;
+using System.Text;
 
 namespace Dhole.Dynamics.Api;
 
@@ -8,7 +11,8 @@ namespace Dhole.Dynamics.Api;
 public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalReferenceRepository references,
     WriteAccessService writerAccess,GenericWriteService writer,ReadSearchService reader,
     SavedQueryRepository saved,ReadAccessRepository readerAccess,
-    ActionPolicyRepository actionPolicy,BoundActionExecutor actionRunner)
+    ActionPolicyRepository actionPolicy,BoundActionExecutor actionRunner,
+    DataverseMetadataDiscovery metadataDiscovery)
 {
     public async Task<TemplateSummary> CreateDraftAsync(string code,string name,
         IntegrationTemplate definition,string actor,CancellationToken ct)
@@ -38,7 +42,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     }
 
     public async Task<TemplatePreview> PreviewAsync(string code,string name,int version,
-        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct)
+        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
+        ClaimsPrincipal? actor = null)
     {
         var conn=await readerAccess.ConnectionAsync(code,ct);
         var template=await templates.FindAsync(conn.Id,name,ct)
@@ -48,7 +53,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var policy=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,revision.Definition,ct);
         var bound=TemplateMapper.ValidateInputs(revision.Definition.Inputs,inputs);
-        var data=await BuildAsync(revision.Definition,policy,bound,ct);
+        var data=await BuildAsync(revision.Definition,policy,bound,ct,actor);
         if(revision.Definition.Operation=="action")
         {
             var action=await actionPolicy.FindAsync(policy.Connection.Id,
@@ -93,7 +98,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
             ? new Dictionary<string,JsonElement>()
             : TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
-        var values=await BuildAsync(definition,policy,input,ct);
+        var values=await BuildAsync(definition,policy,input,ct,actor);
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))
             throw new ReadRejected(400,"idempotency_key_required");
@@ -148,7 +153,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
 
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition,WritePolicy policy,
-        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct) =>
+        IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
+        ClaimsPrincipal? actor = null) =>
         await TemplateMapper.BuildAsync(definition,inputs,policy.Connection.Id,
             async(space,internalId,navigation,token)=>
             {
@@ -161,7 +167,68 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 var entry=await references.FindAsync(policy.Connection.Id,space,internalId,
                     relation.ReferencedEntity,token);
                 return entry?.DataverseId;
-            },ct);
+            },ct,
+            async(navigation,field,name,token)=>
+            {
+                if(actor is null)throw new ReadRejected(403,"lookup_name_requires_authorized_reader");
+                var rel=policy.Table.Relationships.FirstOrDefault(r=>
+                    r.Kind=="ManyToOneRelationships" &&
+                    r.ReferencingNavigation+"@odata.bind"==navigation &&
+                    r.ReferencingEntity==policy.Table.LogicalName);
+                if(rel?.ReferencedEntity is not string target)
+                    throw new ReadRejected(403,"lookup_relation_not_approved");
+                var lookupPolicy=await readerAccess.ResolveAsync(policy.Connection.Code,target,token);
+                var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==field);
+                if(nameColumn is null || nameColumn.Type is not ("String" or "Memo") ||
+                    !lookupPolicy.Allowed.Contains(field) ||
+                    !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
+                    throw new ReadRejected(403,"lookup_name_field_not_authorized");
+                var query=new ReadSpec(
+                    [lookupPolicy.Table.PrimaryIdAttribute],
+                    new ReadPredicate(Field:field,Op:"eq",
+                        Value:JsonSerializer.SerializeToElement(name.Trim())),
+                    PageSize:2);
+                // ReadSearchService enforces the related entity's read scope and
+                // independently approved client grant. Never a wildcard search.
+                var result=await reader.SearchAsync(actor,target,
+                    new ReadSearchRequest(policy.Connection.Code,query),token,
+                    admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous");
+                if(result.Items.Count==0)return null;
+                var item=result.Items[0];
+                return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
+                    && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty
+                    ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
+            },
+            async(target,label,token)=>
+            {
+                var col=policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==target);
+                var grant=policy.Permissions.Fields.FirstOrDefault(p=>
+                    p.EntityName==policy.Table.LogicalName && p.FieldName==target);
+                if(col is null || col.Type is not ("Picklist" or "State" or "Status") ||
+                    grant is null || !grant.Enabled ||
+                    grant.MetadataFingerprint!=MetadataRepository.Fingerprint(col))
+                    throw new ReadRejected(403,"choice_label_field_denied");
+                var options=await metadataDiscovery.DiscoverChoicesAsync(
+                    policy.Connection,policy.Table.LogicalName,target,col.Type,token);
+                // Metadata is authoritative. Numeric-looking strings are
+                // accepted only if that exact choice is actually present.
+                var named=options.Where(choice=>choice.Labels.Values.Any(x=>
+                    NormalizeChoiceLabel(x)==NormalizeChoiceLabel(label)) ||
+                    choice.Value.ToString(CultureInfo.InvariantCulture)==label.Trim()).ToArray();
+                if(named.Length>1)throw new ReadRejected(409,"choice_label_ambiguous");
+                return named.Length==1?named[0].Value:(int?)null;
+            });
+
+    private static string NormalizeChoiceLabel(string value)
+    {
+        var decomp=value.Trim().Normalize(NormalizationForm.FormD);
+        var text=new StringBuilder(decomp.Length);
+        foreach(var c in decomp)
+            if(CharUnicodeInfo.GetUnicodeCategory(c)!=UnicodeCategory.NonSpacingMark &&
+                char.IsLetterOrDigit(c)) text.Append(char.ToUpperInvariant(c));
+        return text.ToString();
+    }
 
     private async Task ValidateDefinitionAsync(WritePolicy policy,
         IntegrationTemplate definition,CancellationToken ct)

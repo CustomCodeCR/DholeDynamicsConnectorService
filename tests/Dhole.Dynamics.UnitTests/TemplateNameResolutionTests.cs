@@ -73,6 +73,43 @@ public sealed class TemplateNameResolutionTests
     }
 
     [Fact]
+    public void CustomerLookupTriesFullNameThenAllDistinctiveWords()
+    {
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters(
+            "name", "Grupo Castro Fallas S.A.");
+        Assert.Equal(2, filters.Count);
+        Assert.Equal("contains", filters[0].Op);
+        Assert.Equal("Grupo Castro Fallas S.A.", filters[0].Value?.GetString());
+        Assert.Equal("and", filters[1].Join);
+        Assert.NotNull(filters[1].Children);
+        Assert.Equal(3, filters[1].Children!.Count);
+        Assert.All(filters[1].Children, part =>
+        {
+            Assert.Equal("name", part.Field);
+            Assert.Equal("contains", part.Op);
+        });
+        Assert.Contains(filters[1].Children, part => part.Value?.GetString() == "Castro");
+        Assert.Contains(filters[1].Children, part => part.Value?.GetString() == "Fallas");
+    }
+
+    [Fact]
+    public void CustomerLookupCanMatchWithoutLegalSuffix()
+    {
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", "Renapa S.A.");
+        Assert.Equal(2, filters.Count);
+        Assert.Equal("Renapa", filters[1].Value?.GetString());
+    }
+
+    [Theory]
+    [InlineData("S.A.")]
+    [InlineData("S.A. DE C.V.")]
+    [InlineData("LTDA")]
+    public void CustomerLookupNeverUsesOnlyLegalSuffix(string name)
+    {
+        Assert.Empty(TemplateOrchestrator.CustomerNameFallbackFilters("name", name));
+    }
+
+    [Fact]
     public async Task EquipmentLabelUsesMetadataChoiceWithoutGuessingItsCode()
     {
         var template = new IntegrationTemplate("quote", "create",

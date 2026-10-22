@@ -1,10 +1,11 @@
 name: Deploy Dynamics Connector via existing Dhole PostgreSQL and Gateway
 
 on:
-  # Deploy tested connector changes from matching branches, retaining environment
-  # protection and explicit production read-only database/write safeguards.
+  # Staging deploys on push. Production is always a manually reviewed
+  # workflow_dispatch so a full-CRUD server does not generate a failed
+  # deployment every time master changes.
   push:
-    branches: [develop, master]
+    branches: [develop]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -34,7 +35,7 @@ jobs:
     environment: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
-      - name: Validate production read-only release and branch
+      - name: Validate target, branch and explicit production approval
         shell: bash
         env:
           TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}

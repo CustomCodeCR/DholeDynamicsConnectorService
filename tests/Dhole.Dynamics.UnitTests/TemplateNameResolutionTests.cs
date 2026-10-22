@@ -59,6 +59,19 @@ public sealed class TemplateNameResolutionTests
             entity, attribute, configured));
     }
 
+    [Theory]
+    [InlineData("incident", "new_idtra1", "ticketnumber", "title,ticketnumber")]
+    [InlineData("incident", "new_IDTRA1", "title", "title,ticketnumber")]
+    [InlineData("account", "customerid", "name", "name")]
+    [InlineData("incident", "customerid", "ticketnumber", "ticketnumber")]
+    public void IdtraLookupChecksOnlyApprovedExactNameColumns(
+        string entity, string attribute, string field, string expected)
+    {
+        Assert.Equal(expected,
+            string.Join(",", TemplateOrchestrator.ResolveLookupNameFields(
+                entity, attribute, field)));
+    }
+
     [Fact]
     public async Task EquipmentLabelUsesMetadataChoiceWithoutGuessingItsCode()
     {

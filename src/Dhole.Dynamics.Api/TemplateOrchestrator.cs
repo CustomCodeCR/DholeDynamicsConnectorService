@@ -186,10 +186,6 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     {
         var input = name.Trim();
         var filters = new List<ReadPredicate>();
-        if (input.Length is >= 3 and <= 100)
-            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
-                Value:JsonSerializer.SerializeToElement(input)));
-
         var ignore = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "SOCIEDAD", "ANONIMA", "LIMITADA", "COMPANIA", "COMPANY",
@@ -198,11 +194,16 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         };
         var words = Regex.Matches(input, @"[\p{L}\p{N}]+")
             .Select(x => x.Value)
-            .Where(x => x.Length is >= 4 and <= 100 && !ignore.Contains(x))
+            .Where(x => x.Length is >= 3 and <= 100 && !ignore.Contains(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(x => x.Length)
             .Take(3)
             .ToArray();
+        // Never match solely on legal suffixes such as "S.A.".
+        if (words.Length == 0) return filters;
+        if (input.Length is >= 3 and <= 100)
+            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
+                Value:JsonSerializer.SerializeToElement(input)));
         if (words.Length >= 2)
         {
             filters.Add(new ReadPredicate(Join:"and", Children:

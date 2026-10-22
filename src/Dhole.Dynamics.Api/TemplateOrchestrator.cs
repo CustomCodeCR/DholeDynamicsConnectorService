@@ -161,6 +161,21 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         configuredField.Equals("ticketnumber", StringComparison.OrdinalIgnoreCase)
             ? "title" : configuredField;
 
+    // The IDTRA relationship can refer to the Dynamics incident title or its
+    // ticket number, depending on how the record was created. Check both
+    // explicitly approved exact-match columns, without fuzzy/wildcard matching.
+    public static IReadOnlyList<string> ResolveLookupNameFields(string relatedEntity,
+        string relationshipAttribute, string configuredField)
+    {
+        var primary = ResolveLookupNameField(relatedEntity, relationshipAttribute, configuredField);
+        if (relatedEntity.Equals("incident", StringComparison.OrdinalIgnoreCase) &&
+            relationshipAttribute.Equals("new_idtra1", StringComparison.OrdinalIgnoreCase) &&
+            (configuredField.Equals("ticketnumber", StringComparison.OrdinalIgnoreCase) ||
+             configuredField.Equals("title", StringComparison.OrdinalIgnoreCase)))
+            return ["title", "ticketnumber"];
+        return [primary];
+    }
+
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition,WritePolicy policy,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
@@ -188,32 +203,40 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 if(rel?.ReferencedEntity is not string target)
                     throw new ReadRejected(403,"lookup_relation_not_approved");
                 var lookupPolicy=await readerAccess.ResolveAsync(policy.Connection.Code,target,token);
-                var searchField=ResolveLookupNameField(
+                var candidates=ResolveLookupNameFields(
                     target,rel.ReferencingAttribute??"",field);
-                var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==searchField);
-                if(nameColumn is null || nameColumn.Type is not ("String" or "Memo") ||
-                    !lookupPolicy.Allowed.Contains(searchField) ||
-                    !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
-                    throw new ReadRejected(403,"lookup_name_field_not_authorized");
-                var query=new ReadSpec(
-                    [lookupPolicy.Table.PrimaryIdAttribute],
-                    new ReadPredicate(Field:searchField,Op:"eq",
-                        Value:JsonSerializer.SerializeToElement(name.Trim())),
-                    PageSize:2);
-                // ReadSearchService enforces the related entity's read scope and
-                // independently approved client grant. Never a wildcard search.
-                var result=await reader.SearchAsync(actor,target,
-                    new ReadSearchRequest(policy.Connection.Code,query),token,
-                    admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
-                if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous",
-                    rel.ReferencingAttribute,searchField);
-                if(result.Items.Count==0)
-                    throw new ReadRejected(404,"lookup_name_not_found",
+                var anyAuthorized=false;
+                foreach(var searchField in candidates)
+                {
+                    var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==searchField);
+                    if(nameColumn is null || nameColumn.Type is not ("String" or "Memo") ||
+                        !lookupPolicy.Allowed.Contains(searchField) ||
+                        !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
+                        continue;
+                    anyAuthorized=true;
+                    var query=new ReadSpec(
+                        [lookupPolicy.Table.PrimaryIdAttribute],
+                        new ReadPredicate(Field:searchField,Op:"eq",
+                            Value:JsonSerializer.SerializeToElement(name.Trim())),
+                        PageSize:2);
+                    // A name is resolved only from approved, exact Dataverse
+                    // matches. If the preferred IDTRA column is empty, try the
+                    // other approved IDTRA identifier before rejecting.
+                    var result=await reader.SearchAsync(actor,target,
+                        new ReadSearchRequest(policy.Connection.Code,query),token,
+                        admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                    if(result.Items.Count>1)throw new ReadRejected(409,"lookup_name_ambiguous",
                         rel.ReferencingAttribute,searchField);
-                var item=result.Items[0];
-                return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
-                    && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty
-                    ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
+                    if(result.Items.Count==0)continue;
+                    var item=result.Items[0];
+                    return item.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,out var idElement)
+                        && Guid.TryParse(idElement.GetString(),out var id) && id!=Guid.Empty
+                        ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
+                }
+                if(!anyAuthorized)
+                    throw new ReadRejected(403,"lookup_name_field_not_authorized");
+                throw new ReadRejected(404,"lookup_name_not_found",
+                    rel.ReferencingAttribute,candidates[0]);
             },
             async(target,label,token)=>
             {

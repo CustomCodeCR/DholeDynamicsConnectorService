@@ -151,6 +151,16 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             definition.SavedQuery);
     }
 
+    // Dhole's existing IDTRA 1 relationship stores the business identifier
+    // in incident.title, not incident.ticketnumber. Only remap this specific
+    // legacy lookup; all other configured fields remain unchanged.
+    public static string ResolveLookupNameField(string relatedEntity,
+        string relationshipAttribute, string configuredField) =>
+        relatedEntity == "incident" &&
+        relationshipAttribute == "new_idtra1" &&
+        configuredField == "ticketnumber"
+            ? "title" : configuredField;
+
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition,WritePolicy policy,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
@@ -178,14 +188,16 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 if(rel?.ReferencedEntity is not string target)
                     throw new ReadRejected(403,"lookup_relation_not_approved");
                 var lookupPolicy=await readerAccess.ResolveAsync(policy.Connection.Code,target,token);
-                var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==field);
+                var searchField=ResolveLookupNameField(
+                    target,rel.ReferencingAttribute??"",field);
+                var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==searchField);
                 if(nameColumn is null || nameColumn.Type is not ("String" or "Memo") ||
-                    !lookupPolicy.Allowed.Contains(field) ||
+                    !lookupPolicy.Allowed.Contains(searchField) ||
                     !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
                     throw new ReadRejected(403,"lookup_name_field_not_authorized");
                 var query=new ReadSpec(
                     [lookupPolicy.Table.PrimaryIdAttribute],
-                    new ReadPredicate(Field:field,Op:"eq",
+                    new ReadPredicate(Field:searchField,Op:"eq",
                         Value:JsonSerializer.SerializeToElement(name.Trim())),
                     PageSize:2);
                 // ReadSearchService enforces the related entity's read scope and

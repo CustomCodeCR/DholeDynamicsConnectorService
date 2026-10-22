@@ -10,7 +10,8 @@ public sealed record CrudIntegrationKeyRequest(string TemplateName,string Label,
     IReadOnlyList<string>? KeyFields=null);
 public sealed record CrudIntegrationKeyInfo(Guid Id,string TemplateName,string Operation,
     string EntityName,string Label,bool Enabled,DateTimeOffset ExpiresAt,
-    int MaxRequestsPerMinute,DateTimeOffset CreatedAt,DateTimeOffset? LastUsedAt);
+    int MaxRequestsPerMinute,DateTimeOffset CreatedAt,DateTimeOffset? LastUsedAt,
+    int TemplateVersion);
 public sealed record CrudIntegrationKeyIssued(CrudIntegrationKeyInfo Key,string ApiKey);
 public sealed record CrudIntegrationKeyIdentity(Guid Id,Guid ConnectionId,string ClientId,
     string TemplateName,string Operation,string EntityName,IReadOnlyList<string> KeyFields);
@@ -45,7 +46,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         await using var db=await database.OpenConnectionAsync(ct);
         await using var cmd=new NpgsqlCommand("""
             SELECT k.id,t.name,k.operation,k.entity_name,k.label,k.enabled,k.expires_at,
-                   k.max_requests_per_minute,k.created_at,k.last_used_at
+                   k.max_requests_per_minute,k.created_at,k.last_used_at,k.template_version
             FROM dynamics.template_api_keys k
             JOIN dynamics.connections c ON c.id=k.connection_id
             JOIN dynamics.integration_templates t ON t.id=k.template_id
@@ -150,7 +151,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
             WHERE t.id=@template AND t.connection_id=@conn
               AND t.active_version=@version
             RETURNING id,@name,operation,entity_name,label,enabled,expires_at,
-                      max_requests_per_minute,created_at,last_used_at
+                      max_requests_per_minute,created_at,last_used_at,template_version
             """,db,tx))
         {
             cmd.Parameters.AddWithValue("id",keyId);
@@ -279,7 +280,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         new(row.GetGuid(0),row.GetString(1),row.GetString(2),row.GetString(3),
             row.GetString(4),row.GetBoolean(5),row.GetFieldValue<DateTimeOffset>(6),
             row.GetInt32(7),row.GetFieldValue<DateTimeOffset>(8),
-            row.IsDBNull(9)?null:row.GetFieldValue<DateTimeOffset>(9));
+            row.IsDBNull(9)?null:row.GetFieldValue<DateTimeOffset>(9),row.GetInt32(10));
 
     private static async Task AuditAsync(NpgsqlConnection db,NpgsqlTransaction tx,
         Guid connection,string actor,string action,CancellationToken ct)

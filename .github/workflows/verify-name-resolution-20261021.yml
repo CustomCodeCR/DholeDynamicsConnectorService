@@ -1,0 +1,17 @@
+name: Verify named Dynamics lookup and choice mapping
+on:
+  push:
+    branches: [feat/dynamics-resolve-names-20261021]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore DholeDynamicsConnectorService.slnx
+      - run: dotnet build DholeDynamicsConnectorService.slnx -c Release --no-restore
+      - run: dotnet test tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj --no-build -c Release

@@ -257,7 +257,35 @@ public static class PricingQuoteTotalEndpoints
                     !idPermission.Enabled || !idPermission.CanRead ||
                     idPermission.MetadataFingerprint != MetadataRepository.Fingerprint(idColumn))
                     throw new ReadRejected(409, "quote_lookup_target_not_authorized");
-                grants.Add((target, "read", new[] { primary }));
+                // Only explicit name fields referenced in the active
+                // template receive a read grant. A caller still needs
+                // metadata approval and M2M read scope at execution time.
+                var fields = new List<string> { primary };
+                var relationshipFields = definition.Mappings.Where(m =>
+                    m.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
+                    m.Steps is { Count: > 0 } &&
+                    m.Steps.Any(step => step.Op == "lookup_name" &&
+                        !string.IsNullOrWhiteSpace(step.Argument)) &&
+                    quote.Table.Relationships.Any(r =>
+                        r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
+                        r.ReferencedEntity == target))
+                    .SelectMany(m => m.Steps!.Where(step => step.Op == "lookup_name")
+                        .Select(step => step.Argument!))
+                    .Distinct(StringComparer.Ordinal);
+                foreach (var fieldName in relationshipFields)
+                {
+                    var col = targetPolicy.Table.Columns.FirstOrDefault(c =>
+                        c.LogicalName == fieldName && c.CanRead &&
+                        c.Type is "String" or "Memo");
+                    var grant = targetPolicy.Permissions.Fields.FirstOrDefault(p =>
+                        p.EntityName == target && p.FieldName == fieldName &&
+                        p.Enabled && p.CanRead);
+                    if (col is null || grant is null ||
+                        grant.MetadataFingerprint != MetadataRepository.Fingerprint(col))
+                        throw new ReadRejected(409, "quote_lookup_name_field_not_authorized");
+                    fields.Add(fieldName);
+                }
+                grants.Add((target, "read", fields.Distinct(StringComparer.Ordinal).ToArray()));
             }
 
             // Explicit one-off admin approval, scoped to the published template

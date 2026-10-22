@@ -250,7 +250,9 @@ public static class TemplateMapper
                     case "lookup_name":
                         if(resolveName is null)throw new ReadRejected(409,"lookup_name_resolver_unavailable");
                         var namedId=await resolveName(mapping.Target,step.Argument!,Str(current),ct);
-                        if(namedId is null)throw new ReadRejected(404,"lookup_name_not_found");
+                        if(namedId is null)
+                            throw new ReadRejected(404,"lookup_name_not_found",
+                                mapping.Source,step.Argument);
                         current=JsonSerializer.SerializeToElement(namedId.Value.ToString("D"));break;
                     case "choice_label":
                         if(resolveChoice is null)throw new ReadRejected(409,"choice_label_resolver_unavailable");

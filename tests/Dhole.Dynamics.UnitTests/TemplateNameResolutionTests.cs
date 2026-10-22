@@ -75,5 +75,7 @@ public sealed class TemplateNameResolutionTests
             },Guid.NewGuid(),(_,_,_,_) => Task.FromResult<Guid?>(null),
             CancellationToken.None, (_,_,_,_) => Task.FromResult<Guid?>(null)));
         Assert.Equal("lookup_name_not_found",ex.Code);
+        Assert.Equal("customerid",ex.LookupInput);
+        Assert.Equal("name",ex.LookupSearchField);
     }
 }

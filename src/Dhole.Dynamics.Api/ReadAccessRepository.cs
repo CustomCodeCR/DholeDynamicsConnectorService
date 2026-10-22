@@ -5,10 +5,15 @@ using Dhole.Dynamics.Domain;
 
 namespace Dhole.Dynamics.Api;
 
-public sealed class ReadRejected(int status, string code) : Exception(code)
+public sealed class ReadRejected(
+    int status, string code,
+    string? lookupInput = null, string? lookupSearchField = null) : Exception(code)
 {
     public int Status { get; } = status;
     public string Code { get; } = code;
+    // Only public schema field identifiers, never user-entered names/IDTRA.
+    public string? LookupInput { get; } = lookupInput;
+    public string? LookupSearchField { get; } = lookupSearchField;
 }
 public sealed record ReadPolicy(DynamicsConnection Connection, MetadataSnapshot Snapshot,
     MetadataTable Table, IReadOnlySet<string> Allowed);

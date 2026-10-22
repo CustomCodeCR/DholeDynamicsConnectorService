@@ -65,9 +65,7 @@ public static class PricingQuoteTotalEndpoints
             return Results.Ok(new
             {
                 ready = allowed,
-                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" :
-                    gate.IsProduction && !gate.QuoteWritesApproved
-                        ? "production_quote_writes_not_approved" : "production_writes_not_approved",
+                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" : "production_writes_not_approved",
                 message = allowed
                     ? "La política de producción permite ejecutar la API de QUO."
                     : "El conector rechaza escrituras de QUO en producción; requiere autorización aprobada.",
@@ -107,7 +105,7 @@ public static class PricingQuoteTotalEndpoints
                 request.ConnectionCode, "crear_oferta", ct);
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
-            gate.DemandPricingQuote();
+            gate.Demand("create");
 
             var claims = new[]
             {
@@ -196,7 +194,8 @@ public static class PricingQuoteTotalEndpoints
                 ? ApiProblems.Create(http, 409, "quote_total_partial_requires_reconciliation",
                     "Quote header created; total line was not confirmed. Check idempotency ledger.")
                 : ApiProblems.Create(http, ex.Status, ex.Code,
-                    "Pricing quote creation rejected by Dataverse connector policy.");
+                    "Pricing quote creation rejected by Dataverse connector policy.",
+                    ex.LookupInput, ex.LookupSearchField);
         }
         catch (HttpRequestException)
         {

@@ -155,7 +155,7 @@ public static class PricingQuoteTotalEndpoints
                 request.ConnectionCode, "crear_oferta", ct);
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
-            gate.Demand("create");
+            gate.DemandPricingQuote();
 
             var claims = new[]
             {

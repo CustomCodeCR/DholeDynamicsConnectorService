@@ -44,6 +44,11 @@ public static class PricingQuoteTotalEndpoints
     }
 
 
+    private static bool IsCustomerBind(string target) =>
+        (target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) ||
+         target.StartsWith("msdyn_account", StringComparison.OrdinalIgnoreCase)) &&
+        target.EndsWith("@odata.bind", StringComparison.Ordinal);
+
     internal static bool ProductionQuoteRouteAllowed(ProductionWritePolicy gate)
     {
         var context = new DefaultHttpContext();
@@ -110,15 +115,27 @@ public static class PricingQuoteTotalEndpoints
             ], "DholePricingKey"));
             // PreviewAsync applies the live metadata, the saved per-field
             // grants, and exact-name lookups. It NEVER calls CreateAsync.
-            _ = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
-                version, request.Inputs, ct, actor);
+            var preview = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
+                version, request.Inputs, ct, actor, omitMissingQuoteCustomer: true);
+            var customerMappings = current.History
+                .Where(revision => revision.Version == version)
+                .SelectMany(revision => revision.Definition.Mappings)
+                .Where(mapping => IsCustomerBind(mapping.Target))
+                .Select(mapping => mapping.Target);
+            var customerOmitted = customerMappings.Any(target =>
+                !preview.Payload.ContainsKey(target));
             return Results.Ok(new
             {
                 valid = true,
-                code = "DYNAMICS_LOOKUPS_VALID",
+                code = customerOmitted
+                    ? "DYNAMICS_LOOKUPS_VALID_CUSTOMER_OMITTED"
+                    : "DYNAMICS_LOOKUPS_VALID",
                 schemaVersion = version,
+                customerOmitted,
                 noPostExecuted = true,
-                message = "Campos y relaciones comprobados contra Dataverse sin crear ofertas."
+                message = customerOmitted
+                    ? "El cliente no existe en las cuentas autorizadas de Dynamics. Se omitirá customerid; Dataverse podría exigir un cliente para crear la oferta. No se creó ninguna QUO."
+                    : "Campos y relaciones comprobados contra Dataverse sin crear ofertas."
             });
         }
         catch (ReadRejected ex)
@@ -177,7 +194,8 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(409, "crud_template_scope_denied");
 
             var preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
-                "crear_oferta", version, request.Inputs, ct, actor);
+                "crear_oferta", version, request.Inputs, ct, actor,
+                omitMissingQuoteCustomer: true);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
 
             // Check quotedetail metadata, field grants and quote lookup read
@@ -214,7 +232,7 @@ public static class PricingQuoteTotalEndpoints
             // separate WriteLedger entries (header and sales line).
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, request.Inputs),
-                rawKey + "-header", ct);
+                rawKey + "-header", ct, omitMissingQuoteCustomer: true);
             if (header is not WriteResult created || created.State != "succeeded" ||
                 created.RecordId is not Guid quoteId || quoteId == Guid.Empty)
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",

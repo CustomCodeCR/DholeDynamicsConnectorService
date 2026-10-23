@@ -96,7 +96,7 @@ public static class PricingQuoteTotalEndpoints
         try
         {
             if (request.ConnectionCode != "principal" || request.Inputs is null ||
-                request.Inputs.Count is < 1 or > 30)
+                request.Inputs.Count is < 1 or > 64)
                 throw new ReadRejected(400, "invalid_quote_lookup_validation");
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
@@ -159,7 +159,7 @@ public static class PricingQuoteTotalEndpoints
             if (request.ConnectionCode != "principal" ||
                 request.DholeRateId == Guid.Empty ||
                 request.TotalSaleAmount < 0 || request.TotalSaleAmount > 999999999999m ||
-                request.Inputs is null || request.Inputs.Count is < 1 or > 30)
+                request.Inputs is null || request.Inputs.Count is < 1 or > 64)
                 throw new ReadRejected(400, "invalid_pricing_quote_request");
             var rawKey = http.Request.Headers["Idempotency-Key"].ToString();
             if (!WriteLedger.ValidKey(rawKey) ||

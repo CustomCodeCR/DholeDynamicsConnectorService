@@ -177,7 +177,8 @@ public static class TemplateMapper
         Guid connection, Func<string,string,string,CancellationToken,Task<Guid?>> resolve,
         CancellationToken ct,
         Func<string,string,string,CancellationToken,Task<Guid?>>? resolveName = null,
-        Func<string,string,CancellationToken,Task<int?>>? resolveChoice = null)
+        Func<string,string,CancellationToken,Task<int?>>? resolveChoice = null,
+        bool omitMissingQuoteCustomer = false)
     {
         var result=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
         foreach(var mapping in definition.Mappings)
@@ -195,6 +196,7 @@ public static class TemplateMapper
                 }
             }
             else current=mapping.Constant!.Value;
+            var skipMapping = false;
             foreach(var step in mapping.Steps??[])
             {
                 switch(step.Op)
@@ -249,10 +251,27 @@ public static class TemplateMapper
                         current=JsonSerializer.SerializeToElement(id.Value.ToString("D"));break;
                     case "lookup_name":
                         if(resolveName is null)throw new ReadRejected(409,"lookup_name_resolver_unavailable");
-                        var namedId=await resolveName(mapping.Target,step.Argument!,Str(current),ct);
+                        Guid? namedId;
+                        try
+                        {
+                            namedId=await resolveName(mapping.Target,step.Argument!,Str(current),ct);
+                        }
+                        catch(ReadRejected ex) when(ex.Code=="lookup_name_not_found" &&
+                            omitMissingQuoteCustomer && IsOptionalPricingCustomerLookup(definition,mapping,step))
+                        {
+                            skipMapping=true;
+                            break;
+                        }
                         if(namedId is null)
+                        {
+                            if(omitMissingQuoteCustomer && IsOptionalPricingCustomerLookup(definition,mapping,step))
+                            {
+                                skipMapping=true;
+                                break;
+                            }
                             throw new ReadRejected(404,"lookup_name_not_found",
                                 mapping.Source,step.Argument);
+                        }
                         current=JsonSerializer.SerializeToElement(namedId.Value.ToString("D"));break;
                     case "choice_label":
                         if(resolveChoice is null)throw new ReadRejected(409,"choice_label_resolver_unavailable");
@@ -261,11 +280,22 @@ public static class TemplateMapper
                         current=JsonSerializer.SerializeToElement(numeric.Value);break;
                     default:throw new ReadRejected(400,"unsupported_transform");
                 }
+                if(skipMapping)break;
             }
+            // An unresolved customer lookup is not sent as null or a fictitious GUID.
+            if(skipMapping)continue;
             result.Add(mapping.Target,current.Clone());
         }
         return result;
     }
+
+    private static bool IsOptionalPricingCustomerLookup(
+        IntegrationTemplate definition, TemplateMapping mapping, TemplateStep step) =>
+        definition.EntityName=="quote" && definition.Operation=="create" &&
+        step.Op=="lookup_name" && step.Argument=="name" &&
+        (mapping.Target.StartsWith("customerid_",StringComparison.OrdinalIgnoreCase) ||
+         mapping.Target.StartsWith("msdyn_account",StringComparison.OrdinalIgnoreCase)) &&
+        mapping.Target.EndsWith("@odata.bind",StringComparison.Ordinal);
 
     private static string Str(JsonElement value)
     {

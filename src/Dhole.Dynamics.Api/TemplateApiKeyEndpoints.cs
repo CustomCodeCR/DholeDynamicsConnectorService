@@ -120,8 +120,15 @@ public static class TemplateApiKeyEndpoints
                 new Claim("sub",key.Id.ToString("D"))
             };
             var principal=new ClaimsPrincipal(new ClaimsIdentity(claims,"DholeCrudApiKey"));
+            // Match the narrowly scoped Pricing QUO behavior for callers of
+            // /execute: an unknown customer account is omitted, never guessed.
+            // All other templates and relationships remain strict.
+            var pricingQuote = name=="crear_oferta" &&
+                request.ConnectionCode=="principal" &&
+                key.EntityName=="quote" && key.Operation=="create";
             var result=await orchestrator.ExecuteAsync(principal,name,request,
-                context.Request.Headers["Idempotency-Key"].ToString(),ct);
+                context.Request.Headers["Idempotency-Key"].ToString(),ct,
+                omitMissingQuoteCustomer:pricingQuote);
             return result is WriteResult write
                 ? Results.Json(write,statusCode:write.State=="ambiguous"?409:
                     write.State=="rejected"?write.HttpStatus??502:200)

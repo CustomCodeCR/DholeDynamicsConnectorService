@@ -19,7 +19,7 @@ public static class TemplateMapper
     public static void ValidateDefinition(IntegrationTemplate definition, WritePolicy policy)
     {
         if(definition.Operation is not ("create" or "update" or "upsert" or "delete" or "read" or "find" or "action")
-            || definition.Inputs is not { Count: <= 30 } || definition.Mappings is not { Count: <= 40 }
+            || definition.Inputs is not { Count: <= 64 } || definition.Mappings is not { Count: <= 80 }
             || definition.EntityName!=policy.Table.LogicalName)
             throw new ReadRejected(400,"invalid_template_definition");
         if(definition.Inputs.Any(i=>!ReadQueryCompiler.ValidParam(i.Name) ||
@@ -112,7 +112,7 @@ public static class TemplateMapper
     public static IReadOnlyDictionary<string,JsonElement> ValidateInputs(
         IReadOnlyList<TemplateInput> specs,IReadOnlyDictionary<string,JsonElement> given)
     {
-        if(given.Count>30 || given.Keys.Any(k=>specs.All(s=>s.Name!=k)))
+        if(given.Count>64 || given.Keys.Any(k=>specs.All(s=>s.Name!=k)))
             throw new ReadRejected(400,"unexpected_template_input");
         var output=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
         foreach(var spec in specs)

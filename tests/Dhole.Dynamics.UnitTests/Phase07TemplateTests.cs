@@ -147,4 +147,26 @@ public sealed class Phase07TemplateTests
             (_,_,_,_)=>Task.FromResult<Guid?>(null),CancellationToken.None);
         Assert.Equal("nuevo",output["new_name"].GetString());
     }
+    [Fact]
+    public void CrudTemplatesAccept64FieldsAndRejectMoreThan64()
+    {
+        var inputs=Enumerable.Range(1,64)
+            .Select(n=>new TemplateInput("field"+n,"string"))
+            .ToArray();
+        var values=Enumerable.Range(1,64)
+            .ToDictionary(n=>"field"+n,n=>J("value"+n));
+        var template=new IntegrationTemplate("new_shipments","create",inputs,
+            [new TemplateMapping("new_name","field1")]);
+        TemplateMapper.ValidateDefinition(template,Policy());
+        var output=TemplateMapper.ValidateInputs(inputs,values);
+        Assert.Equal(64,output.Count);
+        var tooMany=inputs.Append(new TemplateInput("field65","string")).ToArray();
+        Assert.Throws<ReadRejected>(()=>
+            TemplateMapper.ValidateDefinition(template with {Inputs=tooMany},Policy()));
+        var excess=values.ToDictionary(x=>x.Key,x=>x.Value);
+        excess.Add("field65",J("extra"));
+        Assert.Throws<ReadRejected>(()=>
+            TemplateMapper.ValidateInputs(tooMany,excess));
+    }
+
 }

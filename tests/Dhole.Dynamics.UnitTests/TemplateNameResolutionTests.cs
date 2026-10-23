@@ -142,4 +142,91 @@ public sealed class TemplateNameResolutionTests
         Assert.Equal("customerid",ex.LookupInput);
         Assert.Equal("name",ex.LookupSearchField);
     }
+    [Fact]
+    public async Task PricingQuoteOmitsUnknownCustomerButKeepsIdtraRelation()
+    {
+        var incidentId=Guid.NewGuid();
+        var mapping=new IntegrationTemplate("quote","create",
+            [
+                new TemplateInput("customerid","string"),
+                new TemplateInput("new_idtra1","string")
+            ],
+            [
+                new TemplateMapping("customerid_account@odata.bind","customerid",
+                    [new TemplateStep("lookup_name","name")]),
+                new TemplateMapping("new_IDTRA1@odata.bind","new_idtra1",
+                    [new TemplateStep("lookup_name","ticketnumber")])
+            ]);
+        var data=await TemplateMapper.BuildAsync(mapping,
+            new Dictionary<string,JsonElement>
+            {
+                ["customerid"]=String("PRUEBA DYNAMICS"),
+                ["new_idtra1"]=String("TRA-000123")
+            },
+            Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            CancellationToken.None,
+            (navigation,_,_,_)=>navigation.StartsWith("customerid_",StringComparison.Ordinal)
+                ? Task.FromResult<Guid?>(null)
+                : Task.FromResult<Guid?>(incidentId),
+            omitMissingQuoteCustomer:true);
+        Assert.False(data.ContainsKey("customerid_account@odata.bind"));
+        Assert.Equal(incidentId.ToString("D"),data["new_IDTRA1@odata.bind"].GetString());
+    }
+
+    [Fact]
+    public async Task PricingQuoteOmitsProviderNotFoundOnlyForCustomer()
+    {
+        var mapping=new IntegrationTemplate("quote","create",
+            [new TemplateInput("customerid","string")],
+            [new TemplateMapping("customerid_account@odata.bind","customerid",
+                [new TemplateStep("lookup_name","name")])]);
+        var values=await TemplateMapper.BuildAsync(mapping,
+            new Dictionary<string,JsonElement> { ["customerid"]=String("PRUEBA DYNAMICS") },
+            Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            CancellationToken.None,(_,_,_,_)=>throw new ReadRejected(404,
+                "lookup_name_not_found","customerid","name"),
+            omitMissingQuoteCustomer:true);
+        Assert.Empty(values);
+
+        var error=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(
+            mapping,new Dictionary<string,JsonElement>
+            { ["customerid"]=String("PRUEBA DYNAMICS") },
+            Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            CancellationToken.None,(_,_,_,_)=>throw new ReadRejected(409,
+                "lookup_name_ambiguous","customerid","name"),
+            omitMissingQuoteCustomer:true));
+        Assert.Equal("lookup_name_ambiguous",error.Code);
+    }
+
+    [Fact]
+    public async Task MissingIdtraCannotBeSkippedEvenWhenPricingCustomerIsOptional()
+    {
+        var mapping=new IntegrationTemplate("quote","create",
+            [new TemplateInput("new_idtra1","string")],
+            [new TemplateMapping("new_IDTRA1@odata.bind","new_idtra1",
+                [new TemplateStep("lookup_name","ticketnumber")])]);
+        var error=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(
+            mapping,new Dictionary<string,JsonElement>
+            { ["new_idtra1"]=String("TRA-000123") },
+            Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            CancellationToken.None,(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            omitMissingQuoteCustomer:true));
+        Assert.Equal("lookup_name_not_found",error.Code);
+    }
+
+    [Fact]
+    public async Task OrdinaryTemplateDoesNotSilentlyOmitCustomer()
+    {
+        var mapping=new IntegrationTemplate("quote","create",
+            [new TemplateInput("customerid","string")],
+            [new TemplateMapping("customerid_account@odata.bind","customerid",
+                [new TemplateStep("lookup_name","name")])]);
+        var error=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(
+            mapping,new Dictionary<string,JsonElement>
+            { ["customerid"]=String("PRUEBA DYNAMICS") },
+            Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
+            CancellationToken.None,(_,_,_,_)=>Task.FromResult<Guid?>(null)));
+        Assert.Equal("lookup_name_not_found",error.Code);
+    }
+
 }

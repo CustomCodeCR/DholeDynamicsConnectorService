@@ -44,7 +44,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
 
     public async Task<TemplatePreview> PreviewAsync(string code,string name,int version,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
-        ClaimsPrincipal? actor = null)
+        ClaimsPrincipal? actor = null, bool omitMissingQuoteCustomer = false)
     {
         var conn=await readerAccess.ConnectionAsync(code,ct);
         var template=await templates.FindAsync(conn.Id,name,ct)
@@ -54,7 +54,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var policy=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,revision.Definition,ct);
         var bound=TemplateMapper.ValidateInputs(revision.Definition.Inputs,inputs);
-        var data=await BuildAsync(revision.Definition,policy,bound,ct,actor);
+        var data=await BuildAsync(revision.Definition,policy,bound,ct,actor,
+            omitMissingQuoteCustomer);
         if(revision.Definition.Operation=="action")
         {
             var action=await actionPolicy.FindAsync(policy.Connection.Id,
@@ -85,7 +86,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     }
 
     public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
-        string? idempotencyKey,CancellationToken ct)
+        string? idempotencyKey,CancellationToken ct,
+        bool omitMissingQuoteCustomer = false)
     {
         var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
         var template=await templates.FindAsync(conn.Id,name,ct);
@@ -99,7 +101,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
             ? new Dictionary<string,JsonElement>()
             : TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
-        var values=await BuildAsync(definition,policy,input,ct,actor);
+        var values=await BuildAsync(definition,policy,input,ct,actor,
+            omitMissingQuoteCustomer);
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))
             throw new ReadRejected(400,"idempotency_key_required");
@@ -221,7 +224,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     private async Task<IReadOnlyDictionary<string,JsonElement>> BuildAsync(
         IntegrationTemplate definition,WritePolicy policy,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
-        ClaimsPrincipal? actor = null) =>
+        ClaimsPrincipal? actor = null, bool omitMissingQuoteCustomer = false) =>
         await TemplateMapper.BuildAsync(definition,inputs,policy.Connection.Id,
             async(space,internalId,navigation,token)=>
             {
@@ -308,7 +311,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                     choice.Value.ToString(CultureInfo.InvariantCulture)==label.Trim()).ToArray();
                 if(named.Length>1)throw new ReadRejected(409,"choice_label_ambiguous");
                 return named.Length==1?named[0].Value:(int?)null;
-            });
+            }, omitMissingQuoteCustomer: omitMissingQuoteCustomer);
 
     private static string NormalizeChoiceLabel(string value)
     {

@@ -229,4 +229,40 @@ public sealed class TemplateNameResolutionTests
         Assert.Equal("lookup_name_not_found",error.Code);
     }
 
+    [Fact]
+    public async Task PricingUsesFixedCurrencyGuidWithoutLegacyNameLookup()
+    {
+        const string currency = "b3a963da-2eda-e611-80f2-fc15b42826a0";
+        var template = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("transactioncurrencyid", "string")],
+            [new TemplateMapping("transactioncurrencyid@odata.bind",
+                "transactioncurrencyid",
+                [new TemplateStep("lookup_name", "isocurrencycode")])]);
+        var called = false;
+        var result = await TemplateMapper.BuildAsync(
+            template,
+            new Dictionary<string,JsonElement>
+            { ["transactioncurrencyid"] = String(currency) },
+            Guid.NewGuid(), (_,_,_,_) => Task.FromResult<Guid?>(null),
+            CancellationToken.None, (_,_,_,_) =>
+            {
+                called = true;
+                return Task.FromResult<Guid?>(null);
+            },
+            omitMissingQuoteCustomer: true);
+        Assert.False(called);
+        Assert.Equal(currency,
+            result["transactioncurrencyid@odata.bind"].GetString());
+
+        var ordinary = await Assert.ThrowsAsync<ReadRejected>(() =>
+            TemplateMapper.BuildAsync(
+                template,
+                new Dictionary<string,JsonElement>
+                { ["transactioncurrencyid"] = String(currency) },
+                Guid.NewGuid(), (_,_,_,_) => Task.FromResult<Guid?>(null),
+                CancellationToken.None, (_,_,_,_) => Task.FromResult<Guid?>(null)));
+        Assert.Equal("lookup_name_not_found", ordinary.Code);
+    }
+
+
 }

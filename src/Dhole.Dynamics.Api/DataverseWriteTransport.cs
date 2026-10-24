@@ -31,7 +31,14 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         if (response.Headers.RetryAfter?.Date is DateTimeOffset until)
             retry = Math.Max(1, (int)Math.Ceiling((until-DateTimeOffset.UtcNow).TotalSeconds));
         if (!response.IsSuccessStatusCode)
-            return new((int)response.StatusCode, null, null, null, retry);
+        {
+            // An HTTP 400 is a rejection, not an ambiguous successful POST.
+            // Persist ONLY a validated Dataverse error code, never its message
+            // (which may contain customer data or other untrusted content).
+            var providerCode = await ReadSafeErrorCodeAsync(response, ct);
+            return new((int)response.StatusCode, null, null,
+                providerCode is null ? null : "dataverse_code:" + providerCode, retry);
+        }
         await response.Content.LoadIntoBufferAsync(128 * 1024, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
         Guid? id = null;
@@ -64,6 +71,42 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         // never claim definitively reconciled or reissue the create.
         var ambiguous = command.Operation == "create" && id is null;
         return new((int)response.StatusCode, id, etag, id?.ToString("D"), retry, ambiguous);
+    }
+
+    private static async Task<string?> ReadSafeErrorCodeAsync(
+        HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            await using var body = await response.Content.ReadAsStreamAsync(ct);
+            var bytes = new byte[8192];
+            var count = await body.ReadAtLeastAsync(bytes.AsMemory(), bytes.Length,
+                throwOnEndOfStream: false, cancellationToken: ct);
+            // Don't parse truncated, oversized or empty error documents.
+            if (count == 0 || count == bytes.Length) return null;
+            return ExtractSafeErrorCode(bytes.AsMemory(0, count));
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or HttpRequestException)
+        {
+            // Reading optional diagnostic metadata must not change the HTTP
+            // rejection into an ambiguous write outcome.
+            return null;
+        }
+    }
+
+    public static string? ExtractSafeErrorCode(ReadOnlyMemory<byte> json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+            !doc.RootElement.TryGetProperty("error", out var error) ||
+            error.ValueKind != JsonValueKind.Object ||
+            !error.TryGetProperty("code", out var codeNode) ||
+            codeNode.ValueKind != JsonValueKind.String)
+            return null;
+        var code = codeNode.GetString();
+        return code is { Length: > 0 and <= 64 } &&
+            Regex.IsMatch(code, @"^(?:0x[0-9a-fA-F]{1,16}|[A-Za-z][A-Za-z0-9_.-]{0,63})$")
+            ? code : null;
     }
 
     public async Task<DateTimeOffset?> CreatedAtAsync(WritePolicy policy, Guid id, CancellationToken ct)

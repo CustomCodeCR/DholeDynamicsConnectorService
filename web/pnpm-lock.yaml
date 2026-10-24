@@ -18,8 +18,8 @@ importers:
         specifier: 11.1.11
         version: 11.1.11(vue@3.5.42(typescript@5.9.2))
       vue-router:
-        specifier: 4.5.1
-        version: 4.5.1(vue@3.5.42(typescript@5.9.2))
+        specifier: 4.6.4
+        version: 4.6.4(vue@3.5.42(typescript@5.9.2))
     devDependencies:
       '@eslint/js':
         specifier: 9.33.0
@@ -1507,10 +1507,10 @@ packages:
     peerDependencies:
       vue: ^3.0.0
 
-  vue-router@4.5.1:
-    resolution: {integrity: sha512-ogAF3P97NPm8fJsE4by9dwSYtDwXIY1nFY9T6DyQnGHd1E2Da94w9JIolpe42LJGIl0DwOHBi8TcRPlPGwbTtw==}
+  vue-router@4.6.4:
+    resolution: {integrity: sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==}
     peerDependencies:
-      vue: ^3.2.0
+      vue: ^3.5.0
 
   vue-tsc@3.1.0:
     resolution: {integrity: sha512-fbMynMG7kXSnqZTRBSCh9ROYaVpXfCZbEO0gY3lqOjLbp361uuS88n6BDajiUriDIF+SGLWoinjvf6stS2J3Gg==}
@@ -2904,7 +2904,7 @@ snapshots:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.42(typescript@5.9.2)
 
-  vue-router@4.5.1(vue@3.5.42(typescript@5.9.2)):
+  vue-router@4.6.4(vue@3.5.42(typescript@5.9.2)):
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.42(typescript@5.9.2)

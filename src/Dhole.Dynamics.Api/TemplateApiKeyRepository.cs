@@ -125,7 +125,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         }
         else if(keys.Length!=0)throw new ReadRejected(400,"unexpected_alternate_key");
         if(definition.Operation=="delete")fields.Add(policy.Table.PrimaryIdAttribute);
-        if(fields.Count is < 1 or > 60)throw new ReadRejected(400,"invalid_crud_key_fields");
+        if(fields.Count is < 1 or > 64)throw new ReadRejected(400,"invalid_crud_key_fields");
         var needsCreate=definition.Operation is "create" or "upsert";
         var needsUpdate=definition.Operation is "update" or "upsert";
         if(definition.Operation!="delete")

@@ -124,7 +124,9 @@ public static class PricingQuoteTotalEndpoints
 
     private static async Task<IResult> WriteReadiness(
         string connectionCode, TemplateApiKeyRepository keys,
-        ProductionWritePolicy gate, HttpContext http, CancellationToken ct)
+        ProductionWritePolicy gate, TemplateRepository templates,
+        WriteAccessService access, NpgsqlDataSource database,
+        HttpContext http, CancellationToken ct)
     {
         try
         {
@@ -136,13 +138,18 @@ public static class PricingQuoteTotalEndpoints
             if (key.Operation != "create" || key.EntityName != "quote")
                 throw new ReadRejected(403, "quote_creation_key_required");
             var allowed = ProductionQuoteRouteAllowed(gate);
+            var grantsReady = allowed && await QuoteGrantsReadyAsync(
+                key.Id, key.ConnectionId, connectionCode, templates, access, database, ct);
             return Results.Ok(new
             {
-                ready = allowed,
-                code = allowed ? "DYNAMICS_QUOTE_WRITES_READY" : "production_writes_not_approved",
-                message = allowed
-                    ? "La política de producción permite ejecutar la API de QUO."
-                    : "El conector rechaza escrituras de QUO en producción; requiere autorización aprobada.",
+                ready = allowed && grantsReady,
+                code = !allowed ? "production_writes_not_approved" :
+                    !grantsReady ? "quote_grants_incomplete" : "DYNAMICS_QUOTE_WRITES_READY",
+                message = !allowed
+                    ? "El conector rechaza escrituras de QUO en producción; requiere autorización aprobada."
+                    : !grantsReady
+                    ? "La clave de Pricing carece de permisos vigentes para crear la cabecera, leer sus vínculos o crear la línea de venta. Autorizar vínculos y venta total con esa misma clave."
+                    : "Política y permisos de cabecera, vínculos y línea de venta verificados. No se creó ninguna QUO.",
                 noPostExecuted = true
             });
         }
@@ -153,10 +160,87 @@ public static class PricingQuoteTotalEndpoints
         }
     }
 
+    /// <summary>
+    /// Read-only grant preflight for the ACTUAL Pricing key. Production policy
+    /// approval by itself is not evidence that account/IDTRA/currency lookups
+    /// or the quotedetail line are authorized.
+    /// </summary>
+    private static async Task<bool> QuoteGrantsReadyAsync(
+        Guid keyId, Guid connectionId, string code, TemplateRepository templates,
+        WriteAccessService access, NpgsqlDataSource database, CancellationToken ct)
+    {
+        WritePolicy quote;
+        try { quote = await access.ResolveAsync(code, "quote", ct); }
+        catch (ReadRejected) { return false; }
+        var template = await templates.FindAsync(connectionId, "crear_oferta", ct);
+        var definition = template?.History.FirstOrDefault(v =>
+            v.Version == template.ActiveVersion)?.Definition;
+        if (definition is null || definition.EntityName != "quote" ||
+            definition.Operation != "create") return false;
+        var grants = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        await using (var db = await database.OpenConnectionAsync(ct))
+        await using (var command = new NpgsqlCommand("""
+            SELECT g.entity_set,g.operation,g.allowed_fields
+            FROM dynamics.api_grants g
+            JOIN dynamics.template_api_keys k ON k.client_id=g.api_client_id
+            WHERE k.id=@key AND g.connection_id=@connection
+              AND g.enabled=true
+            """, db))
+        {
+            command.Parameters.AddWithValue("key", keyId);
+            command.Parameters.AddWithValue("connection", connectionId);
+            await using var rows = await command.ExecuteReaderAsync(ct);
+            while (await rows.ReadAsync(ct))
+                grants[rows.GetString(0) + ":" + rows.GetString(1)] =
+                    rows.GetFieldValue<string[]>(2).ToHashSet(StringComparer.Ordinal);
+        }
+        bool Has(string entity, string operation, IEnumerable<string> fields) =>
+            grants.TryGetValue(entity + ":" + operation, out var allowed) &&
+            fields.All(allowed.Contains);
+        if (!Has("quote", "create", ["name"]) ||
+            !Has("quote", "read", [quote.Table.PrimaryIdAttribute]) ||
+            !Has("quotedetail", "create",
+                ["quoteid", "isproductoverridden", "ispriceoverridden",
+                 "productdescription", "quotedetailname", "quantity", "priceperunit"]))
+            return false;
+        // Do not accept an unrelated account lookup in place of Dataverse's
+        // required customerid relationship on quote.
+        if (!definition.Mappings.Any(m => m.Target.StartsWith(
+                "customerid_", StringComparison.OrdinalIgnoreCase) &&
+                m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
+            return false;
+        foreach (var mapping in definition.Mappings.Where(m =>
+            m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
+        {
+            var relation = quote.Table.Relationships.FirstOrDefault(r =>
+                r.Kind == "ManyToOneRelationships" &&
+                r.ReferencingNavigation == mapping.Target[..^"@odata.bind".Length] &&
+                r.ReferencingEntity == "quote");
+            if (relation?.ReferencedEntity is not string target)
+                return false;
+            WritePolicy related;
+            try { related = await access.ResolveAsync(code, target, ct); }
+            catch (ReadRejected) { return false; }
+            if (!Has(target, "read", [related.Table.PrimaryIdAttribute]))
+                return false;
+            foreach (var step in mapping.Steps ?? [])
+            {
+                if (step.Op != "lookup_name") continue;
+                if (string.IsNullOrWhiteSpace(step.Argument)) return false;
+                var candidates = TemplateOrchestrator.ResolveLookupNameFields(
+                    target, relation.ReferencingAttribute ?? "", step.Argument);
+                if (!candidates.Any(field => Has(target, "read",
+                    [related.Table.PrimaryIdAttribute, field])))
+                    return false;
+            }
+        }
+        return true;
+    }
+
     private static async Task<IResult> ValidateLookups(
         TemplateInputs request, TemplateApiKeyRepository keys,
         TemplateRepository templates, TemplateOrchestrator writer,
-        HttpContext http, CancellationToken ct)
+        WriteAccessService access, HttpContext http, CancellationToken ct)
     {
         try
         {
@@ -182,27 +266,23 @@ public static class PricingQuoteTotalEndpoints
             // grants, and exact-name lookups. It NEVER calls CreateAsync.
             var preview = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
                 version, request.Inputs, ct, actor, omitMissingQuoteCustomer: true);
-            var customerMappings = current.History
-                .Where(revision => revision.Version == version)
-                .SelectMany(revision => revision.Definition.Mappings)
-                .Where(mapping => IsCustomerBind(mapping.Target))
-                .Select(mapping => mapping.Target);
-            var customerOmitted = customerMappings.Any(target =>
-                !preview.Payload.ContainsKey(target));
+            var customerOmitted = !preview.Payload.Keys.Any(target =>
+                target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) &&
+                target.EndsWith("@odata.bind", StringComparison.Ordinal));
             if (customerOmitted)
                 throw new ReadRejected(422, "quote_customer_required", "customerid", "name");
+            // Preview must enforce the same header write grant as the real
+            // execution. A successful name lookup alone is not sufficient.
+            var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
+            await access.PermitAsync(actor, quotePolicy, "create", preview.Fields, ct);
             return Results.Ok(new
             {
                 valid = true,
-                code = customerOmitted
-                    ? "DYNAMICS_LOOKUPS_VALID_CUSTOMER_OMITTED"
-                    : "DYNAMICS_LOOKUPS_VALID",
+                code = "DYNAMICS_LOOKUPS_VALID",
                 schemaVersion = version,
-                customerOmitted,
+                customerOmitted = false,
                 noPostExecuted = true,
-                message = customerOmitted
-                    ? "El cliente no existe en las cuentas autorizadas de Dynamics. Se omitirá customerid; Dataverse podría exigir un cliente para crear la oferta. No se creó ninguna QUO."
-                    : "Campos y relaciones comprobados contra Dataverse sin crear ofertas."
+                message = "Cliente obligatorio, campos y relaciones validados sin crear ofertas."
             });
         }
         catch (ReadRejected ex)
@@ -483,37 +563,41 @@ public static class PricingQuoteTotalEndpoints
                 // template receive a read grant. A caller still needs
                 // metadata approval and M2M read scope at execution time.
                 var fields = new List<string> { primary };
-                var relationshipFields = definition.Mappings.Where(m =>
-                    m.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
-                    m.Steps is { Count: > 0 } &&
-                    m.Steps.Any(step => step.Op == "lookup_name" &&
-                        !string.IsNullOrWhiteSpace(step.Argument)) &&
-                    quote.Table.Relationships.Any(r =>
-                        r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
-                        r.ReferencedEntity == target))
-                    .SelectMany(m =>
-                    {
-                        var relation = quote.Table.Relationships.First(r =>
-                            r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
-                            r.ReferencedEntity == target);
-                        return m.Steps!.Where(step => step.Op == "lookup_name")
-                            .SelectMany(step => TemplateOrchestrator.ResolveLookupNameFields(
-                                target, relation.ReferencingAttribute ?? "", step.Argument!));
-                    })
-                    .Distinct(StringComparer.Ordinal);
-                foreach (var fieldName in relationshipFields)
+                foreach (var mapping in definition.Mappings.Where(m =>
+                m.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
+                m.Steps is { Count: > 0 } &&
+                quote.Table.Relationships.Any(r =>
+                    r.ReferencingNavigation == m.Target[..^"@odata.bind".Length] &&
+                    r.ReferencedEntity == target)))
+            {
+                var relation = quote.Table.Relationships.First(r =>
+                    r.ReferencingNavigation == mapping.Target[..^"@odata.bind".Length] &&
+                    r.ReferencedEntity == target);
+                foreach (var step in mapping.Steps!.Where(s => s.Op == "lookup_name" &&
+                    !string.IsNullOrWhiteSpace(s.Argument)))
                 {
-                    var col = targetPolicy.Table.Columns.FirstOrDefault(c =>
-                        c.LogicalName == fieldName && c.CanRead &&
-                        c.Type is "String" or "Memo");
-                    var grant = targetPolicy.Permissions.Fields.FirstOrDefault(p =>
-                        p.EntityName == target && p.FieldName == fieldName &&
-                        p.Enabled && p.CanRead);
-                    if (col is null || grant is null ||
-                        grant.MetadataFingerprint != MetadataRepository.Fingerprint(col))
-                        throw new ReadRejected(409, "quote_lookup_name_field_not_authorized");
-                    fields.Add(fieldName);
+                    var candidates = TemplateOrchestrator.ResolveLookupNameFields(
+                        target, relation.ReferencingAttribute ?? "", step.Argument!);
+                    var approved = candidates.Where(fieldName =>
+                    {
+                        var col = targetPolicy.Table.Columns.FirstOrDefault(c =>
+                            c.LogicalName == fieldName && c.CanRead &&
+                            c.Type is "String" or "Memo");
+                        var grant = targetPolicy.Permissions.Fields.FirstOrDefault(p =>
+                            p.EntityName == target && p.FieldName == fieldName &&
+                            p.Enabled && p.CanRead);
+                        return col is not null && grant is not null &&
+                            grant.MetadataFingerprint == MetadataRepository.Fingerprint(col);
+                    }).ToArray();
+                    // Legacy IDTRA can be stored in incident.title OR
+                    // ticketnumber. Require one authorized exact-match column,
+                    // not both: a missing optional fallback must not block grants.
+                    if (approved.Length == 0)
+                        throw new ReadRejected(409, "quote_lookup_name_field_not_authorized",
+                            target, candidates[0]);
+                    fields.AddRange(approved);
                 }
+            }
                 grants.Add((target, "read", fields.Distinct(StringComparer.Ordinal).ToArray()));
             }
 

@@ -275,10 +275,7 @@ public static class PricingQuoteTotalEndpoints
             // customerid is ApplicationRequired in Dataverse quote. Suppressing
             // an unknown customer only hides the lookup failure and produces a
             // Dataverse 400. Fail BEFORE any POST with an actionable error.
-            if (definition.Mappings.Any(m => m.Target.StartsWith(
-                    "customerid_", StringComparison.OrdinalIgnoreCase) &&
-                m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)) &&
-                !preview.Payload.Keys.Any(k => k.StartsWith(
+            if (!preview.Payload.Keys.Any(k => k.StartsWith(
                     "customerid_", StringComparison.OrdinalIgnoreCase) &&
                     k.EndsWith("@odata.bind", StringComparison.Ordinal)))
                 throw new ReadRejected(422, "quote_customer_required");

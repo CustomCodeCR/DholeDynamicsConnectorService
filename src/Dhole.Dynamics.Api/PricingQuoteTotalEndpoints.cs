@@ -40,9 +40,72 @@ public static class PricingQuoteTotalEndpoints
             .WithGroupName("admin-v1").RequireAuthorization("SecurityAdmin")
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         admin.MapPost("/quote-total-grants/{keyId:guid}", GrantQuoteTotal);
+        // Read-only inspection of the two exact idempotency keys for one
+        // Pricing revision. SecurityAdmin only; never returns request bodies.
+        admin.MapGet("/quote-sync-ledger/{rateId:guid}/{revision:int}", GetQuoteSyncLedger);
         return app;
     }
 
+
+    private static async Task<IResult> GetQuoteSyncLedger(
+        string code, Guid rateId, int revision, NpgsqlDataSource data,
+        CancellationToken ct)
+    {
+        if (code != "principal" || rateId == Guid.Empty || revision is < 1 or > 999999999)
+            return Results.BadRequest(new { code = "invalid_quote_ledger_query" });
+
+        var prefix = "dhole-pricing-quote-" + rateId.ToString("N") + "-v" +
+            revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var keys = new[] { prefix + "-header", prefix + "-total" };
+        var entries = new Dictionary<string, object?>(StringComparer.Ordinal);
+        await using var db = await data.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT w.idempotency_key, w.entity_name, w.status,
+                   w.http_status, w.record_id,
+                   w.response->>'reference'
+            FROM dynamics.write_operations w
+            INNER JOIN dynamics.connections c ON c.id = w.connection_id
+            WHERE c.code = @code
+              AND w.issuer = @issuer
+              AND w.operation = 'create'
+              AND w.idempotency_key = ANY(@keys)
+            ORDER BY w.started_at DESC
+            """, db);
+        cmd.Parameters.AddWithValue("code", code);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("keys", keys);
+        await using var rows = await cmd.ExecuteReaderAsync(ct);
+        while (await rows.ReadAsync(ct))
+        {
+            var key = rows.GetString(0);
+            var isHeader = key == keys[0];
+            if (!isHeader && key != keys[1]) continue;
+            if (rows.GetString(1) != (isHeader ? "quote" : "quotedetail")) continue;
+            var status = rows.GetString(2);
+            if (status is not ("reserved" or "succeeded" or "rejected" or
+                              "ambiguous" or "reconciled")) continue;
+            var httpStatus = rows.IsDBNull(3) ? (int?)null : rows.GetInt32(3);
+            var recordId = rows.IsDBNull(4) ? (Guid?)null : rows.GetGuid(4);
+            var reference = rows.IsDBNull(5) ? null : rows.GetString(5);
+            var providerCode = SafeDataverseCode(reference);
+            var item = new { status, httpStatus, recordId, providerCode };
+            entries[isHeader ? "header" : "total"] = item;
+        }
+        // NotFound/not_sent is NOT proof of no Dataverse side effect; it only
+        // describes this connector's durable ledger at query time.
+        return Results.Ok(new
+        {
+            rateId, revisionNumber = revision,
+            header = entries.GetValueOrDefault("header") ??
+                (object)new { status = "not_sent", httpStatus = (int?)null,
+                    recordId = (Guid?)null, providerCode = (string?)null },
+            total = entries.GetValueOrDefault("total") ??
+                (object)new { status = "not_sent", httpStatus = (int?)null,
+                    recordId = (Guid?)null, providerCode = (string?)null },
+            noPostExecuted = true,
+            message = "Consulta de operaciones registradas; no se envió ningún POST a Dataverse."
+        });
+    }
 
     private static bool IsCustomerBind(string target) =>
         (target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) ||

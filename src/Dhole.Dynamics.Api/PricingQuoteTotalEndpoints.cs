@@ -32,6 +32,8 @@ public static class PricingQuoteTotalEndpoints
         // retry. It neither reserves write idempotency nor contacts Dataverse.
         app.MapGet("/api/v1/keyed/templates/crear_oferta/write-readiness", WriteReadiness)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        app.MapGet("/api/v1/keyed/templates/crear_oferta/recovery-eligibility", RecoveryEligibility)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         // A read-only preview of the exact active quote template: checks
         // actual name lookups, but cannot reserve/create any Dataverse record.
         app.MapPost("/api/v1/keyed/templates/crear_oferta/validate-lookups", ValidateLookups)
@@ -187,6 +189,8 @@ public static class PricingQuoteTotalEndpoints
                 .Select(mapping => mapping.Target);
             var customerOmitted = customerMappings.Any(target =>
                 !preview.Payload.ContainsKey(target));
+            if (customerOmitted)
+                throw new ReadRejected(422, "quote_customer_required", "customerid", "name");
             return Results.Ok(new
             {
                 valid = true,
@@ -225,10 +229,9 @@ public static class PricingQuoteTotalEndpoints
                 request.Inputs is null || request.Inputs.Count is < 1 or > 64)
                 throw new ReadRejected(400, "invalid_pricing_quote_request");
             var rawKey = http.Request.Headers["Idempotency-Key"].ToString();
-            if (!WriteLedger.ValidKey(rawKey) ||
-                rawKey != "dhole-pricing-quote-" + request.DholeRateId.ToString("N") +
-                    "-v" + Revision(rawKey, request.DholeRateId))
+            if (!WriteLedger.ValidKey(rawKey))
                 throw new ReadRejected(400, "pricing_quote_idempotency_key_invalid");
+            var (revision, recoveryAttempt) = ParsePricingKey(rawKey, request.DholeRateId);
 
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
@@ -236,6 +239,15 @@ public static class PricingQuoteTotalEndpoints
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
             gate.DemandPricingQuote();
+            if (recoveryAttempt > 0)
+            {
+                var allowed = await IsRecoveryEligibleAsync(
+                    http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                    key.ConnectionId, key.ClientId,
+                    request.DholeRateId, revision, recoveryAttempt, ct);
+                if (!allowed)
+                    throw new ReadRejected(409, "recovery_not_safe");
+            }
 
             var claims = new[]
             {
@@ -260,6 +272,16 @@ public static class PricingQuoteTotalEndpoints
                 "crear_oferta", version, request.Inputs, ct, actor,
                 omitMissingQuoteCustomer: true);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
+            // customerid is ApplicationRequired in Dataverse quote. Suppressing
+            // an unknown customer only hides the lookup failure and produces a
+            // Dataverse 400. Fail BEFORE any POST with an actionable error.
+            if (definition.Mappings.Any(m => m.Target.StartsWith(
+                    "customerid_", StringComparison.OrdinalIgnoreCase) &&
+                m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)) &&
+                !preview.Payload.Keys.Any(k => k.StartsWith(
+                    "customerid_", StringComparison.OrdinalIgnoreCase) &&
+                    k.EndsWith("@odata.bind", StringComparison.Ordinal)))
+                throw new ReadRejected(422, "quote_customer_required");
 
             // Check quotedetail metadata, field grants and quote lookup read
             // permission *before* creating a quote. A dummy nonempty GUID is
@@ -551,6 +573,99 @@ public static class PricingQuoteTotalEndpoints
         {
             return ApiProblems.Create(http, ex.Status, ex.Code,
                 "Quote total grant requires approved Dataverse metadata and active template key.");
+        }
+    }
+
+    private static (int Revision, int RecoveryAttempt) ParsePricingKey(string key, Guid rateId)
+    {
+        var prefix = "dhole-pricing-quote-" + rateId.ToString("N") + "-v";
+        if (!key.StartsWith(prefix, StringComparison.Ordinal))
+            throw new ReadRejected(400, "pricing_quote_idempotency_key_invalid");
+        var suffix = key[prefix.Length..];
+        var match = System.Text.RegularExpressions.Regex.Match(
+            suffix, @"^(?<revision>[1-9][0-9]{0,8})(?:-r(?<attempt>[1-3]))?$",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!match.Success ||
+            !int.TryParse(match.Groups["revision"].Value, out var revision))
+            throw new ReadRejected(400, "pricing_quote_idempotency_key_invalid");
+        var attempt = match.Groups["attempt"].Success
+            ? int.Parse(match.Groups["attempt"].Value,
+                System.Globalization.CultureInfo.InvariantCulture) : 0;
+        return (revision, attempt);
+    }
+
+    private static async Task<bool> IsRecoveryEligibleAsync(
+        NpgsqlDataSource source, Guid connectionId, string clientId,
+        Guid rateId, int revision, int attempt, CancellationToken ct)
+    {
+        if (attempt is < 1 or > 3) return false;
+        var baseKey = "dhole-pricing-quote-" + rateId.ToString("N") + "-v" +
+            revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var expectedKeys = Enumerable.Range(0, attempt)
+            .Select(i => baseKey + (i == 0 ? "" : "-r" + i)).ToArray();
+        await using var db = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT idempotency_key, entity_name, status, http_status, record_id
+            FROM dynamics.write_operations
+            WHERE connection_id = @connection AND issuer = @issuer
+              AND oauth_client_id = @client
+              AND idempotency_key = ANY(@keys)
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connectionId);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("client", clientId);
+        cmd.Parameters.AddWithValue("keys", expectedKeys.SelectMany(k =>
+            new[] { k + "-header", k + "-total" }).ToArray());
+        var rows = new Dictionary<string, (string Entity, string Status, int? Http, Guid? Record)>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var k = reader.GetString(0);
+            if (!rows.TryAdd(k, (
+                reader.GetString(1), reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetInt32(3),
+                reader.IsDBNull(4) ? null : reader.GetGuid(4))))
+                return false;
+        }
+        // Every preceding header must be a confirmed 4xx rejection, never
+        // reserved, succeeded, reconciled, ambiguous or unknown. No total
+        // write may have been dispatched. Old ledger rows remain immutable.
+        return expectedKeys.All(k =>
+            rows.TryGetValue(k + "-header", out var header) &&
+            header.Entity == "quote" && header.Status == "rejected" &&
+            header.Http is >= 400 and < 500 && header.Record is null &&
+            !rows.ContainsKey(k + "-total"));
+    }
+
+    private static async Task<IResult> RecoveryEligibility(
+        string connectionCode, Guid dholeRateId, int revisionNumber,
+        int nextAttempt, TemplateApiKeyRepository keys, NpgsqlDataSource database,
+        HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (connectionCode != "principal" || dholeRateId == Guid.Empty ||
+                revisionNumber < 1 || nextAttempt is < 1 or > 3)
+                throw new ReadRejected(400, "invalid_recovery_query");
+            var key = await keys.ValidateAndChargeAsync(
+                http.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                connectionCode, "crear_oferta", ct);
+            if (key.EntityName != "quote" || key.Operation != "create")
+                throw new ReadRejected(403, "quote_creation_key_required");
+            var eligible = await IsRecoveryEligibleAsync(
+                database, key.ConnectionId, key.ClientId,
+                dholeRateId, revisionNumber, nextAttempt, ct);
+            return Results.Ok(new
+            {
+                eligible,
+                code = eligible ? "confirmed_header_rejected" : "recovery_not_safe",
+                nextAttempt, noPostExecuted = true
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "No se pudo comprobar la seguridad de la recuperación.");
         }
     }
 

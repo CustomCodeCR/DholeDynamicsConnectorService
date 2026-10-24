@@ -45,4 +45,19 @@ public sealed class PricingQuoteTotalTests
         Assert.True(fields.ContainsKey("quoteid_custom@odata.bind"));
         Assert.False(fields.ContainsKey("quoteid@odata.bind"));
     }
+    [Fact]
+    public void DataverseErrorCodeIsPreservedWithoutLeakingMessageOrClientData()
+    {
+        var error = System.Text.Encoding.UTF8.GetBytes(
+            """{"error":{"code":"0x80040265","message":"Sensitive customer AUTOMANIA"}}""");
+        Assert.Equal("0x80040265",
+            DataverseWriteTransport.ExtractSafeErrorCode(error));
+        var malicious = System.Text.Encoding.UTF8.GetBytes(
+            """{"error":{"code":"0x80040265;DROP TABLE","message":"secret"}}""");
+        Assert.Null(DataverseWriteTransport.ExtractSafeErrorCode(malicious));
+        var missing = System.Text.Encoding.UTF8.GetBytes(
+            """{"error":{"message":"Sensitive data only"}}""");
+        Assert.Null(DataverseWriteTransport.ExtractSafeErrorCode(missing));
+    }
+
 }

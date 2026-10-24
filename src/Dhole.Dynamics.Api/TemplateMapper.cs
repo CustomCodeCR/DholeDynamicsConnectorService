@@ -250,6 +250,12 @@ public static class TemplateMapper
                         if(id is null)throw new ReadRejected(404,"external_reference_missing");
                         current=JsonSerializer.SerializeToElement(id.Value.ToString("D"));break;
                     case "lookup_name":
+                        // Pricing uses the fixed tenant currency GUID even when
+                        // an older published crear_oferta template still has
+                        // lookup_name on transactioncurrencyid.
+                        if(omitMissingQuoteCustomer &&
+                            IsFixedPricingCurrency(definition,mapping,current))
+                            break;
                         if(resolveName is null)throw new ReadRejected(409,"lookup_name_resolver_unavailable");
                         Guid? namedId;
                         try
@@ -288,6 +294,17 @@ public static class TemplateMapper
         }
         return result;
     }
+
+    private static bool IsFixedPricingCurrency(
+        IntegrationTemplate definition, TemplateMapping mapping, JsonElement current) =>
+        definition.EntityName == "quote" && definition.Operation == "create" &&
+        mapping.Source == "transactioncurrencyid" &&
+        mapping.Target.StartsWith("transactioncurrencyid", StringComparison.OrdinalIgnoreCase) &&
+        mapping.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
+        current.ValueKind == JsonValueKind.String &&
+        string.Equals(current.GetString(),
+            "b3a963da-2eda-e611-80f2-fc15b42826a0",
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool IsOptionalPricingCustomerLookup(
         IntegrationTemplate definition, TemplateMapping mapping, TemplateStep step) =>

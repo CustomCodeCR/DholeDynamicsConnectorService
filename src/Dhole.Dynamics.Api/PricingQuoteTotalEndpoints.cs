@@ -259,7 +259,7 @@ public static class PricingQuoteTotalEndpoints
             [
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
                 new Claim("client_id", key.ClientId),
-                new Claim("scope", "dynamics.records.read"),
+                new Claim("scope", "dynamics.records.create dynamics.records.read"),
                 new Claim("sub", key.Id.ToString("D"))
             ], "DholePricingKey"));
             // PreviewAsync applies the live metadata, the saved per-field

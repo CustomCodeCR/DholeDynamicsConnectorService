@@ -233,6 +233,19 @@ public static class PricingQuoteTotalEndpoints
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, request.Inputs),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true);
+            if (header is WriteResult { State: "rejected" } rejectedHeader)
+            {
+                // Dataverse explicitly returned a non-success HTTP status for
+                // the header. Do not mislabel this as an ambiguous 409 or
+                // claim that the quote total line was attempted.
+                var status = rejectedHeader.HttpStatus is >= 400 and < 500
+                    ? rejectedHeader.HttpStatus.Value : 400;
+                var safeCode = SafeDataverseCode(rejectedHeader.Reference);
+                return ApiProblems.Create(http, status, "quote_header_dataverse_rejected",
+                    "Dataverse rechazó la cabecera de la QUO (HTTP " + status +
+                    "). No se intentó crear la línea de venta." +
+                    (safeCode is null ? "" : " Código Dataverse: " + safeCode));
+            }
             if (header is not WriteResult created || created.State != "succeeded" ||
                 created.RecordId is not Guid quoteId || quoteId == Guid.Empty)
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
@@ -275,6 +288,20 @@ public static class PricingQuoteTotalEndpoints
             return ApiProblems.Create(http, 504, "dataverse_timeout",
                 "Dataverse timed out. Reconcile before retrying.");
         }
+    }
+
+    // The transport saves only a vetted Dataverse error code; never echo
+    // the provider's untrusted message, request body or client information.
+    private static string? SafeDataverseCode(string? reference)
+    {
+        const string prefix = "dataverse_code:";
+        if (reference is null || !reference.StartsWith(prefix, StringComparison.Ordinal))
+            return null;
+        var code = reference[prefix.Length..];
+        return code.Length is > 0 and <= 64 &&
+            System.Text.RegularExpressions.Regex.IsMatch(code,
+                @"^(?:0x[0-9A-Fa-f]{1,16}|[A-Za-z][A-Za-z0-9_.-]{0,63})$")
+            ? code : null;
     }
 
     private static async Task<IResult> GrantQuoteTotal(

@@ -224,11 +224,38 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         return normalized.Trim();
     }
 
+    // Ignore grammatical particles and legal boilerplate ONLY during the
+    // final verified account-name comparison. We never bind a customer from
+    // raw contains/search order. Require at least two substantive tokens so
+    // a generic single-word company name cannot resolve too broadly.
+    private static readonly HashSet<string> CustomerNameParticles =
+        new(StringComparer.Ordinal)
+        {
+            "DE", "DEL", "LA", "LAS", "EL", "LOS", "Y", "THE", "OF", "AND"
+        };
+
+    public static string CustomerAccountIdentityKey(string name)
+    {
+        var words = CustomerAccountNameKey(name)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => !CustomerNameParticles.Contains(word))
+            .ToArray();
+        return words.Length >= 2 && words.All(word => word.Length >= 2)
+            ? string.Join(' ', words)
+            : string.Empty;
+    }
+
     public static bool CustomerAccountNamesMatch(string providedName, string recordName)
     {
         var requested = CustomerAccountNameKey(providedName);
-        return requested.Length >= 3 &&
-            string.Equals(requested, CustomerAccountNameKey(recordName),
+        var actual = CustomerAccountNameKey(recordName);
+        if (requested.Length < 3 || actual.Length < 3)
+            return false;
+        if (string.Equals(requested, actual, StringComparison.Ordinal))
+            return true;
+        var requestedIdentity = CustomerAccountIdentityKey(providedName);
+        return requestedIdentity.Length > 0 &&
+            string.Equals(requestedIdentity, CustomerAccountIdentityKey(recordName),
                 StringComparison.Ordinal);
     }
 
@@ -252,8 +279,12 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             !string.Equals(input, core, StringComparison.OrdinalIgnoreCase))
             filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
                 Value:JsonSerializer.SerializeToElement(core)));
+        // Search substantive terms, not grammatical particles, so that
+        // "REINADO DE LAS LLANTAS" can find "REINADO LLANTAS S.A.".
+        // Final identity and uniqueness checks still protect the relationship.
         var words = core.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(x => x.Length is >= 3 and <= 100)
+            .Where(x => x.Length is >= 3 and <= 100 &&
+                        !CustomerNameParticles.Contains(x))
             .Distinct(StringComparer.Ordinal)
             .Take(4).ToArray();
         if (words.Length >= 2)
@@ -293,6 +324,10 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 var candidates=ResolveLookupNameFields(
                     target,rel.ReferencingAttribute??"",field);
                 var anyAuthorized=false;
+                // Collect confirmed account IDs across every authorized
+                // fallback predicate. Choosing the first partial search match
+                // can silently select the wrong legal entity.
+                var matchingCustomerIds = new HashSet<Guid>();
                 foreach(var searchField in candidates)
                 {
                     var nameColumn=lookupPolicy.Table.Columns.FirstOrDefault(c=>c.LogicalName==searchField);
@@ -361,24 +396,32 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                         }
                         if (accountNameLookup)
                         {
-                            // A contains filter alone is not sufficient to
-                            // identify a customer: confirm its entire legal-
-                            // suffix-normalized name, and reject duplicates.
+                            // Final check requires a full normalized legal
+                            // name match, not merely a substring or fuzzy token.
+                            // Gather across all fallbacks to detect distinct
+                            // accounts that are otherwise legal-name equivalent.
                             var matches = result.Items.Where(item =>
                                 item.TryGetProperty(searchField, out var value) &&
                                 value.ValueKind == JsonValueKind.String &&
                                 CustomerAccountNamesMatch(name, value.GetString() ?? ""))
                                 .ToArray();
-                            if (matches.Length > 1 || result.NextCursor is not null)
+                            if (result.NextCursor is not null)
                                 throw new ReadRejected(409, "lookup_name_ambiguous",
                                     rel.ReferencingAttribute, searchField);
-                            if (matches.Length == 0) continue;
-                            return matches[0].TryGetProperty(
-                                    lookupPolicy.Table.PrimaryIdAttribute, out var customerIdElement) &&
-                                customerIdElement.ValueKind == JsonValueKind.String &&
-                                Guid.TryParse(customerIdElement.GetString(), out var customerId) &&
-                                customerId != Guid.Empty
-                                ? customerId : throw new ReadRejected(502, "lookup_name_invalid_record");
+                            foreach (var match in matches)
+                            {
+                                if (!match.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,
+                                        out var customerIdElement) ||
+                                    customerIdElement.ValueKind != JsonValueKind.String ||
+                                    !Guid.TryParse(customerIdElement.GetString(), out var customerId) ||
+                                    customerId == Guid.Empty)
+                                    throw new ReadRejected(502, "lookup_name_invalid_record");
+                                matchingCustomerIds.Add(customerId);
+                                if (matchingCustomerIds.Count > 1)
+                                    throw new ReadRejected(409, "lookup_name_ambiguous",
+                                        rel.ReferencingAttribute, searchField);
+                            }
+                            continue;
                         }
                         if(result.Items.Count>1 || result.NextCursor is not null)
                             throw new ReadRejected(409,"lookup_name_ambiguous",
@@ -390,6 +433,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                             ? id : throw new ReadRejected(502,"lookup_name_invalid_record");
                     }
                 }
+                if (matchingCustomerIds.Count == 1)
+                    return matchingCustomerIds.Single();
                 if(!anyAuthorized)
                     throw new ReadRejected(403,"lookup_name_field_not_authorized");
                 throw new ReadRejected(404,"lookup_name_not_found",

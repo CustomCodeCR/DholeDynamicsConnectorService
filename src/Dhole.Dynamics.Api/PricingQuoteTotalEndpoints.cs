@@ -32,6 +32,10 @@ public static class PricingQuoteTotalEndpoints
         // retry. It neither reserves write idempotency nor contacts Dataverse.
         app.MapGet("/api/v1/keyed/templates/crear_oferta/write-readiness", WriteReadiness)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        // Resolves a tenant ISO currency to its real Dataverse GUID (never a
+        // hardcoded currency or the connection default). Read-only.
+        app.MapGet("/api/v1/keyed/templates/crear_oferta/resolve-currency", ResolveQuoteCurrency)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         app.MapGet("/api/v1/keyed/templates/crear_oferta/recovery-eligibility", RecoveryEligibility)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         // A read-only preview of the exact active quote template: checks
@@ -48,6 +52,52 @@ public static class PricingQuoteTotalEndpoints
         return app;
     }
 
+
+    private static async Task<IResult> ResolveQuoteCurrency(
+        string connectionCode, string currencyCode, TemplateApiKeyRepository keys,
+        ReadSearchService reader, HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (connectionCode != "principal" || currencyCode is null ||
+                currencyCode.Length != 3 || !currencyCode.All(c => c is >= 'A' and <= 'Z'))
+                throw new ReadRejected(400, "quote_currency_code_invalid");
+            var key = await keys.ValidateAndChargeAsync(
+                http.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                connectionCode, "crear_oferta", ct, chargeQuota: false);
+            if (key.EntityName != "quote" || key.Operation != "create")
+                throw new ReadRejected(403, "quote_creation_key_required");
+            var actor = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
+                new Claim("client_id", key.ClientId),
+                new Claim("scope", "dynamics.records.read"),
+                new Claim("sub", key.Id.ToString("D"))
+            ], "DholePricingKey"));
+            var result = await reader.SearchAsync(actor, "transactioncurrency",
+                new ReadSearchRequest(connectionCode, new ReadSpec(
+                    ["transactioncurrencyid", "isocurrencycode"],
+                    new ReadPredicate(Field: "isocurrencycode", Op: "eq",
+                        Value: JsonSerializer.SerializeToElement(currencyCode)), PageSize: 2)),
+                ct);
+            if (result.Items.Count == 0)
+                throw new ReadRejected(404, "quote_currency_not_found");
+            if (result.Items.Count != 1 || result.NextCursor is not null)
+                throw new ReadRejected(409, "quote_currency_ambiguous");
+            var row = result.Items[0];
+            if (!row.TryGetProperty("isocurrencycode", out var iso) ||
+                iso.GetString() != currencyCode ||
+                !row.TryGetProperty("transactioncurrencyid", out var value) ||
+                !Guid.TryParse(value.GetString(), out var currencyId) ||
+                currencyId == Guid.Empty)
+                throw new ReadRejected(502, "quote_currency_invalid_record");
+            return Results.Ok(new { currencyCode, currencyId, noPostExecuted = true });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "La divisa indicada no se pudo resolver en Dynamics. No se creó ninguna QUO.");
+        }
+    }
 
     private static async Task<IResult> GetQuoteSyncLedger(
         string code, Guid rateId, int revision, NpgsqlDataSource data,

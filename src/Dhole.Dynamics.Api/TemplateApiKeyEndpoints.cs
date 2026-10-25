@@ -50,7 +50,7 @@ public static class TemplateApiKeyEndpoints
         {
             var key=await keys.ValidateAndChargeAsync(
                 context.Request.Headers["X-Dhole-Api-Key"].ToString(),
-                connectionCode,name,ct);
+                connectionCode,name,ct,chargeQuota:false);
             var template=await templates.FindAsync(key.ConnectionId,name,ct)
                 ?? throw new ReadRejected(404,"crud_template_not_found");
             if(template.ActiveVersion is not int active)

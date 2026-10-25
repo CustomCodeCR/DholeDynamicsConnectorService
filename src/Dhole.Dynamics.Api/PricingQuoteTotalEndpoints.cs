@@ -667,13 +667,81 @@ public static class PricingQuoteTotalEndpoints
 
     private static async Task<IResult> GrantQuoteTotal(
         string code, Guid keyId, NpgsqlDataSource dbSource,
-        WriteAccessService access, TemplateRepository templates, ClaimsPrincipal admin,
-        HttpContext http, CancellationToken ct)
+        WriteAccessService access, TemplateRepository templates,
+        MetadataRepository catalog, MetadataRefreshService metadataRefresh,
+        ClaimsPrincipal admin, HttpContext http, CancellationToken ct)
     {
         try
         {
             if (code != "principal" || keyId == Guid.Empty)
                 throw new ReadRejected(400, "invalid_quote_total_grant_request");
+            // One-time *authenticated administrator* approval of the exact
+            // fixed Pricing QUO fields. This is not performed by keyed workers.
+            // Later key rotations reuse these durable metadata approvals.
+            var quoteBeforeApproval = await access.ResolveAsync(code, "quote", ct);
+            var connectionId = quoteBeforeApproval.Connection.Id;
+            var snapshot = await catalog.LatestAsync(connectionId, ct)
+                ?? throw new ReadRejected(409, "metadata_missing");
+            if (!snapshot.Catalog.Tables.Any(t => t.LogicalName == "transactioncurrency"))
+            {
+                await metadataRefresh.RefreshAsync(code, "manual",
+                    ScopeSecurity.ActorId(admin), ct);
+                snapshot = await catalog.LatestAsync(connectionId, ct)
+                    ?? throw new ReadRejected(409, "metadata_missing");
+            }
+            if (!snapshot.Catalog.Tables.Any(t => t.LogicalName == "transactioncurrency"))
+                throw new ReadRejected(409, "quote_currency_catalog_missing");
+            var currencyTable = snapshot.Catalog.Tables.First(t =>
+                t.LogicalName == "transactioncurrency");
+            if (!currencyTable.Columns.Any(c => c.LogicalName == "isocurrencycode") ||
+                !currencyTable.Columns.Any(c => c.LogicalName == "transactioncurrencyid"))
+            {
+                await metadataRefresh.RefreshTableAsync(code, "transactioncurrency",
+                    ScopeSecurity.ActorId(admin), ct);
+                snapshot = await catalog.LatestAsync(connectionId, ct)
+                    ?? throw new ReadRejected(409, "metadata_missing");
+            }
+            var actorId = ScopeSecurity.ActorId(admin);
+            var policies = await catalog.PoliciesAsync(connectionId, ct);
+            if (!policies.Entities.Any(e =>
+                e.LogicalName == "transactioncurrency" && e.Enabled) &&
+                !await catalog.SetEntityAsync(connectionId, "transactioncurrency",
+                    true, actorId, ct))
+                throw new ReadRejected(409, "quote_currency_table_approval_failed");
+            var approval = new (string Entity, string[] Fields, bool Create)[]
+            {
+                ("quote", Enumerable.Range(1, 9)
+                    .Select(index => "new_monto" + index).ToArray(), true),
+                ("transactioncurrency",
+                    ["transactioncurrencyid", "isocurrencycode"], false)
+            };
+            foreach (var group in approval)
+            {
+                var table = snapshot.Catalog.Tables.FirstOrDefault(t =>
+                    t.LogicalName == group.Entity)
+                    ?? throw new ReadRejected(409, "quote_metadata_entity_missing");
+                foreach (var name in group.Fields)
+                {
+                    var column = table.Columns.FirstOrDefault(c => c.LogicalName == name);
+                    if (column is null || column.IsCalculated ||
+                        group.Create && !column.CanCreate ||
+                        !group.Create && !column.CanRead)
+                        throw new ReadRejected(409, "quote_metadata_field_not_supported",
+                            group.Entity, name);
+                    var existing = policies.Fields.FirstOrDefault(p =>
+                        p.EntityName == group.Entity && p.FieldName == name);
+                    if (existing is { Enabled: true } &&
+                        existing.MetadataFingerprint == MetadataRepository.Fingerprint(column) &&
+                        (group.Create ? existing.CanCreate : existing.CanRead))
+                        continue;
+                    if (!await catalog.SetFieldAsync(connectionId, group.Entity,
+                        name, new MetadataFieldToggle(
+                            true, column.CanRead, group.Create && column.CanCreate, false),
+                        actorId, ct))
+                        throw new ReadRejected(409, "quote_metadata_field_approval_failed",
+                            group.Entity, name);
+                }
+            }
             var detail = await access.ResolveAsync(code, "quotedetail", ct);
             var quote = await access.ResolveAsync(code, "quote", ct);
             var writable = new[]

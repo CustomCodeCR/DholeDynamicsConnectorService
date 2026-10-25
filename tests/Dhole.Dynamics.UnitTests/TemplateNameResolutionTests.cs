@@ -77,19 +77,22 @@ public sealed class TemplateNameResolutionTests
     {
         var filters = TemplateOrchestrator.CustomerNameFallbackFilters(
             "name", "Grupo Castro Fallas S.A.");
-        Assert.Equal(2, filters.Count);
+        Assert.Equal(3, filters.Count);
         Assert.Equal("contains", filters[0].Op);
         Assert.Equal("Grupo Castro Fallas S.A.", filters[0].Value?.GetString());
-        Assert.Equal("and", filters[1].Join);
-        Assert.NotNull(filters[1].Children);
-        Assert.Equal(3, filters[1].Children!.Count);
-        Assert.All(filters[1].Children, part =>
+        Assert.Equal("contains", filters[1].Op);
+        Assert.Equal("GRUPO CASTRO FALLAS", filters[1].Value?.GetString());
+        Assert.Equal("and", filters[2].Join);
+        Assert.NotNull(filters[2].Children);
+        Assert.Equal(3, filters[2].Children!.Count);
+        Assert.All(filters[2].Children, part =>
         {
             Assert.Equal("name", part.Field);
             Assert.Equal("contains", part.Op);
         });
-        Assert.Contains(filters[1].Children, part => part.Value?.GetString() == "Castro");
-        Assert.Contains(filters[1].Children, part => part.Value?.GetString() == "Fallas");
+        Assert.Contains(filters[2].Children, part => part.Value?.GetString() == "GRUPO");
+        Assert.Contains(filters[2].Children, part => part.Value?.GetString() == "CASTRO");
+        Assert.Contains(filters[2].Children, part => part.Value?.GetString() == "FALLAS");
     }
 
     [Fact]
@@ -97,7 +100,7 @@ public sealed class TemplateNameResolutionTests
     {
         var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", "Renapa S.A.");
         Assert.Equal(2, filters.Count);
-        Assert.Equal("Renapa", filters[1].Value?.GetString());
+        Assert.Equal("RENAPA", filters[1].Value?.GetString());
     }
 
     [Theory]

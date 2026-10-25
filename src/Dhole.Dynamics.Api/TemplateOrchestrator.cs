@@ -245,9 +245,17 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             : string.Empty;
     }
 
+    // Verified business alias for the principal Dynamics tenant. This does
+    // not fabricate an account ID: the exact registered legal name still
+    // requires a unique, authorized Dataverse account lookup.
+    public static string CanonicalPricingCustomerName(string name) =>
+        CustomerAccountNameKey(name) == "CICADEX"
+            ? "Consorcio Interamericano Caribe de Exportación S.A."
+            : name;
+
     public static bool CustomerAccountNamesMatch(string providedName, string recordName)
     {
-        var requested = CustomerAccountNameKey(providedName);
+        var requested = CustomerAccountNameKey(CanonicalPricingCustomerName(providedName));
         var actual = CustomerAccountNameKey(recordName);
         if (requested.Length < 3 || actual.Length < 3)
             return false;
@@ -285,7 +293,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     public static IReadOnlyList<ReadPredicate> CustomerNameFallbackFilters(
         string searchField, string name)
     {
-        var input = name.Trim();
+        var input = CanonicalPricingCustomerName(name).Trim();
         var core = CustomerAccountNameKey(input);
         var filters = new List<ReadPredicate>();
         // A legal suffix alone is NOT a valid search term (S.A., LTDA,

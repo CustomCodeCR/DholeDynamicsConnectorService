@@ -194,9 +194,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         // Only remove TRAILING corporate legal forms. Other words, including
         // "ON" in SOLUCIONES LUMINICAS ON, remain part of the identity.
         const string corporateSuffix =
-            @"(?: SOCIEDAD DE RESPONSABILIDAD LIMITADA| SOCIEDAD ANONIMA" +
-            @"| SOCIEDAD DE RESPONSABILIDAD LTDA| S DE R L| S R L| S A" +
-            @"| SRL| SA| LTDA| LLC| INC| LIMITED| LIMITADA)$";
+            @"(?:^| )(?:SOCIEDAD DE RESPONSABILIDAD LIMITADA|SOCIEDAD ANONIMA" +
+            @"|SOCIEDAD DE RESPONSABILIDAD LTDA|S A DE C V|S DE R L|S R L|S A" +
+            @"|SRL|SA|LTDA|LLC|INC|LIMITED|LIMITADA)$";
         string previous;
         do
         {
@@ -221,7 +221,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var input = name.Trim();
         var core = CustomerAccountNameKey(input);
         var filters = new List<ReadPredicate>();
-        if (core.Length < 3)
+        // A legal suffix alone is NOT a valid search term (S.A., LTDA,
+        // S.A. DE C.V.). Require a recognizable substantive account name.
+        if (core.Length < 3 || !Regex.IsMatch(core, @"\p{L}{3,}"))
             return filters;
         // All queries are metadata-authorized contains. First search the
         // supplied name, then the legal-suffix-free name, then individual

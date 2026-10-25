@@ -169,4 +169,36 @@ public sealed class Phase07TemplateTests
             TemplateMapper.ValidateInputs(tooMany,excess));
     }
 
+
+    [Theory]
+    [InlineData("REINADO DE LAS LLANTAS", "EL REINADO LLANTAS SOCIEDAD ANONIMA")]
+    [InlineData("EMPRESA DE ESCUDOS AZULES SA", "EMPRESA ESCUDOS AZULES S.A.")]
+    [InlineData("EUROPA MOTOR", "EUROPA MOTOR LTDA.")]
+    public void PricingAccountNameUsesOnlyVerifiedLegalNameEquivalent(
+        string pricingName, string dynamicsName)
+    {
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            pricingName, dynamicsName));
+    }
+
+    [Theory]
+    [InlineData("REINADO DE LAS LLANTAS", "REINADO DE LAS LLANTAS IMPORTACIONES")]
+    [InlineData("REINADO DE LAS LLANTAS", "REINADO DE LOS MOTORES")]
+    [InlineData("CASTRO", "CASTRO LOGISTICS")]
+    public void DoesNotBindDifferentCustomersByPartialText(
+        string pricingName, string dynamicsName)
+    {
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            pricingName, dynamicsName));
+    }
+
+    [Fact]
+    public void CustomerSearchFiltersExcludeGrammaticalArticles()
+    {
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters(
+            "name", "REINADO DE LAS LLANTAS");
+        Assert.Contains(filters, x => x.Join == "and" &&
+            x.Children is { Count: 2 } &&
+            x.Children.All(c => c.Op == "contains"));
+    }
 }

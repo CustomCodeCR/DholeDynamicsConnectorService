@@ -309,8 +309,11 @@ public static class TemplateMapper
         IntegrationTemplate definition, TemplateMapping mapping, TemplateStep step) =>
         definition.EntityName=="quote" && definition.Operation=="create" &&
         step.Op=="lookup_name" && step.Argument=="name" &&
-        (mapping.Target.StartsWith("customerid_",StringComparison.OrdinalIgnoreCase) ||
-         mapping.Target.StartsWith("msdyn_account",StringComparison.OrdinalIgnoreCase)) &&
+        // msdyn_account is a supplemental lookup and may legitimately be
+        // absent. The native quote customerid_account/contact is REQUIRED:
+        // propagate lookup_name_not_found (404) instead of swallowing it and
+        // hiding the root cause behind quote_customer_required (422).
+        mapping.Target.StartsWith("msdyn_account",StringComparison.OrdinalIgnoreCase) &&
         mapping.Target.EndsWith("@odata.bind",StringComparison.Ordinal);
 
     private static string Str(JsonElement value)

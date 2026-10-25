@@ -407,10 +407,11 @@ public static class PricingQuoteTotalEndpoints
             if (request.ConnectionCode != "principal" ||
                 request.DholeRateId == Guid.Empty ||
                 request.TotalSaleAmount < 0 || request.TotalSaleAmount > 999999999999m ||
-                request.TotalCostAmount is not decimal { } supplierCost ||
-                supplierCost < 0 || supplierCost > 999999999999m ||
+                request.TotalCostAmount is null ||
+                request.TotalCostAmount < 0 || request.TotalCostAmount > 999999999999m ||
                 request.Inputs is null || request.Inputs.Count is < 1 or > 64)
                 throw new ReadRejected(400, "invalid_pricing_quote_request");
+            var supplierCost = request.TotalCostAmount.Value;
             var rawKey = http.Request.Headers["Idempotency-Key"].ToString();
             if (!WriteLedger.ValidKey(rawKey))
                 throw new ReadRejected(400, "pricing_quote_idempotency_key_invalid");

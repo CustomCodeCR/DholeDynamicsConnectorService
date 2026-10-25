@@ -105,7 +105,7 @@ public sealed class TemplateRepository(NpgsqlDataSource database)
     }
 
     public async Task<bool> SetActiveAsync(Guid connection,string name,int? version,
-        string actor,CancellationToken ct,IReadOnlyList<string>? managedPricingFields=null)
+        string actor,CancellationToken ct)
     {
         await using var db=await database.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
@@ -121,50 +121,7 @@ public sealed class TemplateRepository(NpgsqlDataSource database)
         cmd.Parameters.AddWithValue("connection",connection);
         cmd.Parameters.AddWithValue("name",name);
         cmd.Parameters.AddWithValue("version",(object?)version??DBNull.Value);
-        if(await cmd.ExecuteScalarAsync(ct) is not Guid templateId)return false;
-        // SecurityAdmin approved this published definition and every field in
-        // managedPricingFields passed live metadata and policy validation.
-        // Re-pin ONLY currently enabled Dhole_System keys. This is the SAME
-        // transaction as the active template pointer, preventing a window in
-        // which a previously configured key becomes invalid on activation.
-        if (name == "crear_oferta" && version is int revision &&
-            managedPricingFields is { Count: > 0 })
-        {
-            await using var migrate = new NpgsqlCommand("""
-                UPDATE dynamics.template_api_keys k
-                   SET template_version=@revision,allowed_fields=@fields
-                FROM dynamics.api_clients client
-                WHERE k.template_id=@template AND k.connection_id=@connection
-                  AND k.client_id=client.id AND client.enabled=true
-                  AND k.enabled=true AND k.expires_at>now()
-                  AND k.entity_name='quote' AND k.operation='create'
-                  AND lower(k.label)='dhole_system'
-                RETURNING k.client_id
-                """,db,tx);
-            migrate.Parameters.AddWithValue("revision",revision);
-            migrate.Parameters.AddWithValue("fields",managedPricingFields.ToArray());
-            migrate.Parameters.AddWithValue("template",templateId);
-            migrate.Parameters.AddWithValue("connection",connection);
-            var clients = new List<Guid>();
-            await using(var rows = await migrate.ExecuteReaderAsync(ct))
-                while(await rows.ReadAsync(ct)) clients.Add(rows.GetGuid(0));
-            foreach (var clientId in clients)
-            {
-                await using var grant = new NpgsqlCommand("""
-                    UPDATE dynamics.api_grants
-                       SET allowed_fields=ARRAY(
-                           SELECT DISTINCT unnest(allowed_fields || @fields))
-                    WHERE api_client_id=@client AND connection_id=@connection
-                      AND entity_set='quote' AND operation='create'
-                      AND enabled=true
-                    """,db,tx);
-                grant.Parameters.AddWithValue("client",clientId);
-                grant.Parameters.AddWithValue("connection",connection);
-                grant.Parameters.AddWithValue("fields",managedPricingFields.ToArray());
-                if (await grant.ExecuteNonQueryAsync(ct) != 1)
-                    throw new ReadRejected(409,"managed_quote_create_grant_missing");
-            }
-        }
+        if(await cmd.ExecuteScalarAsync(ct) is null)return false;
         await AuditAsync(db,tx,connection,actor,
             version is null?"template.deactivated":"template.activated",ct);
         await tx.CommitAsync(ct);

@@ -88,8 +88,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
         string? idempotencyKey,CancellationToken ct,
         bool omitMissingQuoteCustomer = false,
-        decimal? trustedPricingSupplierCost = null,
-        Guid? trustedPricingCurrencyId = null)
+        decimal? trustedPricingSupplierCost = null)
     {
         var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
         var template=await templates.FindAsync(conn.Id,name,ct);
@@ -119,25 +118,6 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             for (var index = 1; index <= 9; index++)
                 completed["new_monto" + index] = JsonSerializer.SerializeToElement(
                     index == 1 ? supplierCost : 0m);
-            values = completed;
-        }
-        if (trustedPricingCurrencyId is Guid currencyId)
-        {
-            if (name != "crear_oferta" || definition.EntityName != "quote" ||
-                definition.Operation != "create" || currencyId == Guid.Empty)
-                throw new ReadRejected(400, "invalid_pricing_quote_currency");
-            var relation = policy.Table.Relationships.SingleOrDefault(r =>
-                r.Kind == "ManyToOneRelationships" &&
-                r.ReferencingEntity == "quote" &&
-                r.ReferencingAttribute == "transactioncurrencyid" &&
-                r.ReferencedEntity == "transactioncurrency" &&
-                !string.IsNullOrEmpty(r.ReferencingNavigation));
-            if (relation is null)
-                throw new ReadRejected(409, "pricing_quote_currency_relation_missing");
-            var completed = values.ToDictionary(x => x.Key, x => x.Value,
-                StringComparer.Ordinal);
-            completed[relation.ReferencingNavigation + "@odata.bind"] =
-                JsonSerializer.SerializeToElement(currencyId.ToString("D"));
             values = completed;
         }
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&

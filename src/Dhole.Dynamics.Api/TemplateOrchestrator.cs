@@ -273,7 +273,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                         rel.ReferencingAttribute ?? "") &&
                         searchField.Equals("title", StringComparison.OrdinalIgnoreCase) &&
                         name.Length is >= 8 and <= 100 &&
-                        Regex.IsMatch(name.Trim(), @"^IDTRA[\\p{L}\\p{N}.\\-]+$",
+                        Regex.IsMatch(name.Trim(), @"^IDTRA[\p{L}\p{N}.\-]+$",
                             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
                     if (isIdtraTitle)
                         predicates.Add(new ReadPredicate(Field: searchField, Op: "contains",
@@ -301,7 +301,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                                 value.ValueKind == JsonValueKind.String &&
                                 Regex.IsMatch(value.GetString() ?? "", "^" +
                                     Regex.Escape(name.Trim()) +
-                                    @"\\s*[-–—]\\s*QUO(?:[-#\\s].*)?$",
+                                    @"\s*[-–—]\s*QUO(?:[-#\s].*)?$",
                                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
                                 .ToArray();
                             if (valid.Length > 1 || result.NextCursor is not null)

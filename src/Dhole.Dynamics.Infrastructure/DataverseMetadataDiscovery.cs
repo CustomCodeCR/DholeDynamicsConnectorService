@@ -276,6 +276,41 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
         return choices.Values.OrderBy(c => c.Value).ToArray();
     }
 
+    /// <summary>
+    /// Read actual tenant string limits for a single approved Dataverse table,
+    /// without changing snapshot fingerprints or field grants. Called before
+    /// Pricing's first quote POST, never after a possible write.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, int>> DiscoverTextMaxLengthsAsync(
+        DynamicsConnection connection, string entity, CancellationToken ct)
+    {
+        if (!SafeName(entity))
+            throw new ArgumentException("Invalid Dataverse table name.", nameof(entity));
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        var prefix = ApiPath + "(LogicalName='" + entity + "')" +
+            "/Attributes/Microsoft.Dynamics.CRM.";
+        var lengths = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var cast in new[] { "StringAttributeMetadata", "MemoAttributeMetadata" })
+        {
+            var rows = await CollectionAsync(host, token, prefix + cast +
+                "?$select=LogicalName,MaxLength", ct);
+            if (rows.Count > MaxColumns)
+                throw new InvalidOperationException("Dataverse text metadata field limit exceeded.");
+            foreach (var row in rows)
+            {
+                var field = Str(row, "LogicalName");
+                var limit = Int(row, "MaxLength");
+                if (SafeName(field) && limit is > 0 and <= 1048576)
+                    lengths[field!] = limit.Value;
+            }
+        }
+        if (lengths.Count == 0)
+            throw new InvalidOperationException("Dataverse did not return quote text limits.");
+        return lengths;
+    }
+
     private async Task<List<JsonElement>> CollectionAsync(string host, string token, string relative, CancellationToken ct)
     {
         var items = new List<JsonElement>();

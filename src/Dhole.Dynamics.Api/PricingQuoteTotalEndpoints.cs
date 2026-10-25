@@ -319,6 +319,13 @@ public static class PricingQuoteTotalEndpoints
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
             gate.DemandPricingQuote();
+            // The underlying WriteLedger is scoped by API client. When an
+            // administrator rotates a key, the SAME Pricing idempotency key
+            // must never be silently treated as a brand new Quote request.
+            if (await PricingKeyUsedByAnotherClientAsync(
+                http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                key.ConnectionId, key.ClientId, rawKey, ct))
+                throw new ReadRejected(409, "pricing_quote_prior_key_requires_reconciliation");
             if (recoveryAttempt > 0)
             {
                 var allowed = await IsRecoveryEligibleAsync(
@@ -675,6 +682,30 @@ public static class PricingQuoteTotalEndpoints
         return (revision, attempt);
     }
 
+    // Read the durable ledger across all past Pricing integration keys, not
+    // only the currently configured key. This prevents a key rotation from
+    // bypassing a prior ambiguous/succeeded header or duplicating a QUO.
+    private static async Task<bool> PricingKeyUsedByAnotherClientAsync(
+        NpgsqlDataSource database, Guid connectionId, string clientId,
+        string prefix, CancellationToken ct)
+    {
+        await using var db = await database.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM dynamics.write_operations
+                WHERE connection_id=@connection AND issuer=@issuer
+                  AND oauth_client_id<>@client
+                  AND idempotency_key=ANY(@keys)
+            )
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connectionId);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("client", clientId);
+        cmd.Parameters.AddWithValue("keys", new[] {
+            prefix + "-header", prefix + "-total" });
+        return await cmd.ExecuteScalarAsync(ct) is true;
+    }
+
     private static async Task<bool> IsRecoveryEligibleAsync(
         NpgsqlDataSource source, Guid connectionId, string clientId,
         Guid rateId, int revision, int attempt, CancellationToken ct)
@@ -689,7 +720,6 @@ public static class PricingQuoteTotalEndpoints
             SELECT idempotency_key, entity_name, status, http_status, record_id
             FROM dynamics.write_operations
             WHERE connection_id = @connection AND issuer = @issuer
-              AND oauth_client_id = @client
               AND idempotency_key = ANY(@keys)
             """, db);
         cmd.Parameters.AddWithValue("connection", connectionId);

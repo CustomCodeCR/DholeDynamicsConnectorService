@@ -581,9 +581,24 @@ public static class PricingQuoteTotalEndpoints
                 definition.Operation != "create")
                 throw new ReadRejected(409, "crud_template_scope_denied");
 
+            // Check the real tenant's MaxLength before any Quote POST. The
+            // prior Dataverse 0x80044331 was StringLengthTooLong, and the
+            // generic 4,000-character compiler bound is NOT each field's real
+            // limit. Only the generated description may be shortened, with an
+            // explicit Dhole reference. Identity and commercial terms fail
+            // closed with their field name instead of being silently cut.
+            var tenantTextLimits = await discovery.DiscoverTextMaxLengthsAsync(
+                quote.Connection, "quote", ct);
             var preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
                 "crear_oferta", version, request.Inputs, ct, actor,
                 omitMissingQuoteCustomer: true);
+            var safeInputs = PricingQuoteTextLimits.Prepare(
+                definition, request.Inputs, preview.Payload, tenantTextLimits);
+            if (!ReferenceEquals(safeInputs, request.Inputs))
+                preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
+                    "crear_oferta", version, safeInputs, ct, actor,
+                    omitMissingQuoteCustomer: true);
+            PricingQuoteTextLimits.Check(preview.Payload, tenantTextLimits);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
             // All nine inputs feed Dynamics' legacy utility calculation.
             // Validate metadata AND API key grants before sending the header.
@@ -642,7 +657,7 @@ public static class PricingQuoteTotalEndpoints
             // The prefix is common but the suffix is different for the two
             // separate WriteLedger entries (header and sales line).
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
-                new TemplateInputs(request.ConnectionCode, request.Inputs),
+                new TemplateInputs(request.ConnectionCode, safeInputs),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
                 trustedPricingSupplierCost: supplierCost);
             if (header is WriteResult { State: "rejected" } rejectedHeader)

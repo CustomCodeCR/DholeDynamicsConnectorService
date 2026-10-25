@@ -160,7 +160,10 @@ public sealed class TemplateNameResolutionTests
                 new TemplateMapping("new_IDTRA1@odata.bind","new_idtra1",
                     [new TemplateStep("lookup_name","ticketnumber")])
             ]);
-        var data=await TemplateMapper.BuildAsync(mapping,
+        // The native Dataverse Quote customer relation cannot be optional.
+        // Reject before any write instead of silently sending a header
+        // without customerid and receiving a generic HTTP 422.
+        var error=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(mapping,
             new Dictionary<string,JsonElement>
             {
                 ["customerid"]=String("PRUEBA DYNAMICS"),
@@ -171,9 +174,8 @@ public sealed class TemplateNameResolutionTests
             (navigation,_,_,_)=>navigation.StartsWith("customerid_",StringComparison.Ordinal)
                 ? Task.FromResult<Guid?>(null)
                 : Task.FromResult<Guid?>(incidentId),
-            omitMissingQuoteCustomer:true);
-        Assert.False(data.ContainsKey("customerid_account@odata.bind"));
-        Assert.Equal(incidentId.ToString("D"),data["new_IDTRA1@odata.bind"].GetString());
+            omitMissingQuoteCustomer:true));
+        Assert.Equal("lookup_name_not_found",error.Code);
     }
 
     [Fact]
@@ -183,13 +185,15 @@ public sealed class TemplateNameResolutionTests
             [new TemplateInput("customerid","string")],
             [new TemplateMapping("customerid_account@odata.bind","customerid",
                 [new TemplateStep("lookup_name","name")])]);
-        var values=await TemplateMapper.BuildAsync(mapping,
+        var notFound=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(mapping,
             new Dictionary<string,JsonElement> { ["customerid"]=String("PRUEBA DYNAMICS") },
             Guid.NewGuid(),(_,_,_,_)=>Task.FromResult<Guid?>(null),
             CancellationToken.None,(_,_,_,_)=>throw new ReadRejected(404,
                 "lookup_name_not_found","customerid","name"),
-            omitMissingQuoteCustomer:true);
-        Assert.Empty(values);
+            omitMissingQuoteCustomer:true));
+        Assert.Equal("lookup_name_not_found",notFound.Code);
+        Assert.Equal("customerid",notFound.LookupInput);
+        Assert.Equal("name",notFound.LookupSearchField);
 
         var error=await Assert.ThrowsAsync<ReadRejected>(()=>TemplateMapper.BuildAsync(
             mapping,new Dictionary<string,JsonElement>

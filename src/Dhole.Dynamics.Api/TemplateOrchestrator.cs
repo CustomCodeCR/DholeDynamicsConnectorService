@@ -58,7 +58,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             ? PricingQuoteTermOmission.FilterDefinition(revision.Definition)
             : revision.Definition;
         var effectiveInputs = omitPricingQuoteTerms
-            ? PricingQuoteTermOmission.FilterInputs(definition, inputs) : inputs;
+            ? PricingQuoteTermOmission.FilterInputs(revision.Definition, definition, inputs) : inputs;
         var bound=TemplateMapper.ValidateInputs(definition.Inputs,effectiveInputs);
         var data=await BuildAsync(definition,policy,bound,ct,actor,
             omitMissingQuoteCustomer);
@@ -106,12 +106,13 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var definition=revision.Definition;
         var policy=await writerAccess.ResolveAsync(request.ConnectionCode,definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,definition,ct);
+        var originalDefinition = definition;
         // The saved CRUD definition is immutable. Filter only the dedicated
         // Pricing execution, including historical 'required' input specs.
         if (omitPricingQuoteTerms)
             definition = PricingQuoteTermOmission.FilterDefinition(definition);
         var effectiveInputs = omitPricingQuoteTerms
-            ? PricingQuoteTermOmission.FilterInputs(definition, request.Inputs)
+            ? PricingQuoteTermOmission.FilterInputs(originalDefinition, definition, request.Inputs)
             : request.Inputs;
         var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
             ? new Dictionary<string,JsonElement>()

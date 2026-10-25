@@ -38,7 +38,7 @@ public sealed class PricingQuoteTermOmissionTests
             ["sujetaa"] = J(new string('Y', 5000)),
             ["incluye"] = J(new string('Z', 5000))
         };
-        var filtered = PricingQuoteTermOmission.FilterInputs(effective, raw);
+        var filtered = PricingQuoteTermOmission.FilterInputs(original, effective, raw);
         var bound = TemplateMapper.ValidateInputs(effective.Inputs, filtered);
         var built = await TemplateMapper.BuildAsync(effective, bound, Guid.NewGuid(),
             (_, _, _, _) => Task.FromResult<Guid?>(null),
@@ -68,7 +68,7 @@ public sealed class PricingQuoteTermOmissionTests
         Assert.Single(effective.Inputs);
         Assert.Single(effective.Mappings);
         Assert.Equal("name", effective.Mappings[0].Target);
-        var filtered = PricingQuoteTermOmission.FilterInputs(effective,
+        var filtered = PricingQuoteTermOmission.FilterInputs(original, effective,
             new Dictionary<string, JsonElement> { ["name"] = J("QUO") });
         Assert.Equal("QUO", TemplateMapper.ValidateInputs(effective.Inputs, filtered)["name"].GetString());
     }
@@ -81,5 +81,26 @@ public sealed class PricingQuoteTermOmissionTests
             [new TemplateMapping("name", "name")]);
         var ex = Assert.Throws<ReadRejected>(() => PricingQuoteTermOmission.FilterDefinition(other));
         Assert.Equal("pricing_quote_terms_only_for_quote_create", ex.Code);
+    }
+
+    [Fact]
+    public void UnexpectedInputsAreNotSilentlyDiscarded()
+    {
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("name", "string"), new TemplateInput("includes", "string")],
+            [new TemplateMapping("name", "name"),
+             new TemplateMapping("new_tarifaincluye", "includes")]);
+        var effective = PricingQuoteTermOmission.FilterDefinition(definition);
+        var untrusted = new Dictionary<string, JsonElement>
+        {
+            ["name"] = J("QUO"),
+            ["includes"] = J("Original Dhole terms"),
+            ["unknown_parameter"] = J("MUST BE REJECTED")
+        };
+        var filtered = PricingQuoteTermOmission.FilterInputs(definition, effective, untrusted);
+        Assert.False(filtered.ContainsKey("includes"));
+        Assert.True(filtered.ContainsKey("unknown_parameter"));
+        var ex = Assert.Throws<ReadRejected>(() => TemplateMapper.ValidateInputs(effective.Inputs, filtered));
+        Assert.Equal("unexpected_template_input", ex.Code);
     }
 }

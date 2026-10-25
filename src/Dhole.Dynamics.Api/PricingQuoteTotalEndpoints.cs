@@ -35,6 +35,8 @@ public static class PricingQuoteTotalEndpoints
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         // Resolves a tenant ISO currency to its real Dataverse GUID (never a
         // hardcoded currency or the connection default). Read-only.
+        app.MapGet("/api/v1/keyed/templates/crear_oferta/write-result", GetPricingWriteResult)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         app.MapGet("/api/v1/keyed/templates/crear_oferta/resolve-currency", ResolveQuoteCurrency)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         app.MapGet("/api/v1/keyed/templates/crear_oferta/recovery-eligibility", RecoveryEligibility)
@@ -53,6 +55,75 @@ public static class PricingQuoteTotalEndpoints
         return app;
     }
 
+
+    // Only reports confirmed succeeded writes owned by the CURRENT
+    // integration client and matching the exact rate/revision. A 409 from
+    // Pricing alone is never evidence that a Dataverse operation succeeded.
+    private static async Task<IResult> GetPricingWriteResult(
+        string connectionCode, Guid dholeRateId, int revisionNumber,
+        TemplateApiKeyRepository keys, NpgsqlDataSource database,
+        HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            if (connectionCode != "principal" || dholeRateId == Guid.Empty ||
+                revisionNumber is < 1 or > 999999999)
+                throw new ReadRejected(400, "quote_result_query_invalid");
+            var key = await keys.ValidateAndChargeAsync(
+                http.Request.Headers["X-Dhole-Api-Key"].ToString(),
+                connectionCode, "crear_oferta", ct, chargeQuota: false);
+            if (key.EntityName != "quote" || key.Operation != "create")
+                throw new ReadRejected(403, "quote_creation_key_required");
+
+            var prefix = "dhole-pricing-quote-" + dholeRateId.ToString("N") +
+                "-v" + revisionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var suffixes = new[] { prefix + "-header", prefix + "-total" };
+            var status = new Dictionary<string, (string State, Guid? RecordId)>(
+                StringComparer.Ordinal);
+            await using var db = await database.OpenConnectionAsync(ct);
+            await using var cmd = new NpgsqlCommand("""
+                SELECT idempotency_key,entity_name,status,record_id
+                FROM dynamics.write_operations
+                WHERE connection_id=@connection AND issuer=@issuer
+                  AND oauth_client_id=@client AND operation='create'
+                  AND idempotency_key=ANY(@keys)
+                """, db);
+            cmd.Parameters.AddWithValue("connection", key.ConnectionId);
+            cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+            cmd.Parameters.AddWithValue("client", key.ClientId);
+            cmd.Parameters.AddWithValue("keys", suffixes);
+            await using var rows = await cmd.ExecuteReaderAsync(ct);
+            while (await rows.ReadAsync(ct))
+            {
+                var idem = rows.GetString(0);
+                var expectedEntity = idem == suffixes[0] ? "quote" : "quotedetail";
+                if (rows.GetString(1) != expectedEntity ||
+                    !status.TryAdd(idem, (rows.GetString(2),
+                        rows.IsDBNull(3) ? null : rows.GetGuid(3))))
+                    throw new ReadRejected(409, "quote_result_ledger_ambiguous");
+            }
+            var headerOk = status.TryGetValue(suffixes[0], out var header) &&
+                header.State == "succeeded" && header.RecordId is Guid h && h != Guid.Empty;
+            var totalOk = status.TryGetValue(suffixes[1], out var total) &&
+                total.State == "succeeded" && total.RecordId is Guid t && t != Guid.Empty;
+            return Results.Ok(new
+            {
+                confirmed = headerOk && totalOk,
+                headerStatus = status.TryGetValue(suffixes[0], out var hs)
+                    ? hs.State : "not_sent",
+                totalStatus = status.TryGetValue(suffixes[1], out var ts)
+                    ? ts.State : "not_sent",
+                quoteId = headerOk ? header.RecordId : null,
+                lineId = totalOk ? total.RecordId : null,
+                noPostExecuted = true
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http, ex.Status, ex.Code,
+                "No se pudo comprobar la finalización de la QUO.");
+        }
+    }
 
     private static async Task<IResult> ResolveQuoteCurrency(
         string connectionCode, string currencyCode, TemplateApiKeyRepository keys,

@@ -53,6 +53,21 @@ public sealed class Phase10QuoteTests
         Assert.True(WriteLedger.ValidKey("dhole-rate-" + Guid.NewGuid().ToString("N")));
     }
 
+    [Theory]
+    [InlineData("new_idtra1")]
+    [InlineData("new_idtra2")]
+    [InlineData("new_idtra9")]
+    [InlineData("new_idtra10")]
+    public void PricingIdtraRelationsSupportBothApprovedIncidentReferenceColumns(string relation)
+    {
+        Assert.Equal(new[] { "title", "ticketnumber" },
+            TemplateOrchestrator.ResolveLookupNameFields("incident", relation, "title"));
+        Assert.Equal(new[] { "title", "ticketnumber" },
+            TemplateOrchestrator.ResolveLookupNameFields("incident", relation, "ticketnumber"));
+        Assert.Equal(new[] { "name" },
+            TemplateOrchestrator.ResolveLookupNameFields("account", relation, "name"));
+    }
+
     private static Dhole.Dynamics.Api.WritePolicy QuotePolicy()
     {
         var columns = new[]

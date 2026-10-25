@@ -253,6 +253,29 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             return false;
         if (string.Equals(requested, actual, StringComparison.Ordinal))
             return true;
+
+        // Lookup uses OData contains(account.name, Pricing.clientName). A
+        // Dynamics legal name can be "EL REINADO DE LAS LLANTAS SOCIEDAD
+        // ANONIMA" while Dhole stores "REINADO DE LAS LLANTAS". Accept
+        // that whole-word substring after stripping the legal suffix, but
+        // only if the surrounding words are grammatical particles. This
+        // refuses distinct companies like "... SUCURSAL NORTE" or
+        // "... IMPORTACIONES". Multiple verified account IDs are rejected
+        // by BuildAsync, never resolved by first-result order.
+        var at = actual.IndexOf(requested, StringComparison.Ordinal);
+        if (at >= 0 &&
+            (at == 0 || actual[at - 1] == ' ') &&
+            (at + requested.Length == actual.Length ||
+             actual[at + requested.Length] == ' '))
+        {
+            static bool ArticlesOnly(string surrounding) =>
+                surrounding.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .All(CustomerNameParticles.Contains);
+            if (ArticlesOnly(actual[..at]) &&
+                ArticlesOnly(actual[(at + requested.Length)..]))
+                return true;
+        }
+
         var requestedIdentity = CustomerAccountIdentityKey(providedName);
         return requestedIdentity.Length > 0 &&
             string.Equals(requestedIdentity, CustomerAccountIdentityKey(recordName),

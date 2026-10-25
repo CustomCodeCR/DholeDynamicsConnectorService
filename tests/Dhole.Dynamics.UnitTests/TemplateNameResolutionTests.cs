@@ -272,4 +272,37 @@ public sealed class TemplateNameResolutionTests
     }
 
 
+
+    [Fact]
+    public void PricingCustomerLookupUsesContainsForReinadoDeLasLlantas()
+    {
+        const string dhole = "REINADO DE LAS LLANTAS";
+        const string dynamics = "EL REINADO DE LAS LLANTAS SOCIEDAD ANONIMA";
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(dhole, dynamics));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "Reinado de las llantas", "El reinado de las llantas sociedad anónima"));
+
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", dhole);
+        Assert.NotEmpty(filters);
+        Assert.Equal("contains", filters[0].Op);
+        Assert.Equal("name", filters[0].Field);
+        Assert.Equal(dhole, filters[0].Value?.GetString());
+        Assert.All(filters, filter =>
+        {
+            if (filter.Children is { Count: > 0 } children)
+                Assert.All(children, child => Assert.Equal("contains", child.Op));
+            else
+                Assert.Equal("contains", filter.Op);
+        });
+    }
+
+    [Theory]
+    [InlineData("REINADO DE LAS LLANTAS", "EL REINADO DE LAS LLANTAS IMPORTACIONES")]
+    [InlineData("REINADO DE LAS LLANTAS", "COMERCIAL EL REINADO DE LAS LLANTAS")]
+    [InlineData("REINADO DE LAS LLANTAS", "EL REINADO DE LAS LLANTAS SUCURSAL NORTE")]
+    public void ContainsMustNotLinkDifferentBusinesses(
+        string dhole, string dynamics)
+    {
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(dhole, dynamics));
+    }
 }

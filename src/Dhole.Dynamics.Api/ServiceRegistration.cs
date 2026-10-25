@@ -196,13 +196,24 @@ public static class ServiceRegistration
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddPolicy("AdminRate", http =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            {
+                // Admin console and keyed integrations used to share one
+                // reverse-proxy IP bucket (100/min). Background Pricing
+                // diagnostics could therefore lock out real operations.
+                // Separate the two fixed, bounded categories; the key's
+                // durable DB quota continues to govern actual writes.
+                var keyed = http.Request.Path.StartsWithSegments("/api/v1/keyed");
+                var category = keyed ? "keyed" : "admin";
+                var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    category + ":" + ip,
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 100, Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = keyed ? 600 : 100,
+                        Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0, AutoReplenishment = true
-                    }));
+                    });
+            });
         });
 
         services.AddAntiforgery(options =>

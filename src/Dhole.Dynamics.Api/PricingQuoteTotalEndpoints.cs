@@ -19,7 +19,8 @@ public static class PricingQuoteTotalEndpoints
     public sealed record PricingQuoteTotalRequest(
         string ConnectionCode, Guid DholeRateId, decimal TotalSaleAmount,
         IReadOnlyDictionary<string, JsonElement> Inputs,
-        decimal? TotalCostAmount = null);
+        decimal? TotalCostAmount = null,
+        string? CurrencyCode = null, Guid? CurrencyId = null);
 
     public sealed record PricingQuoteTotalResponse(
         string State, Guid? RecordId, Guid? LineRecordId,

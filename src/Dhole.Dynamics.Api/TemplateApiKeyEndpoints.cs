@@ -32,9 +32,32 @@ public static class TemplateApiKeyEndpoints
         Guard(context,async()=>Results.Ok(await keys.ListAsync(code,ct)));
 
     private static Task<IResult> Issue(string code,CrudIntegrationKeyRequest request,
-        TemplateApiKeyRepository keys,ClaimsPrincipal actor,HttpContext context,CancellationToken ct) =>
-        Guard(context,async()=>Results.Ok(await keys.IssueAsync(code,request,
-            ScopeSecurity.ActorId(actor),ct)));
+        TemplateApiKeyRepository keys,WriteAccessService access,
+        TemplateRepository templates,MetadataRepository catalog,
+        MetadataRefreshService refresh,Npgsql.NpgsqlDataSource database,
+        ClaimsPrincipal actor,HttpContext context,CancellationToken ct) =>
+        Guard(context,async()=>
+        {
+            var issued = await keys.IssueAsync(code,request,ScopeSecurity.ActorId(actor),ct);
+            if (code == "principal" && request.TemplateName == "crear_oferta" &&
+                request.Label.Equals("Dhole_System",StringComparison.OrdinalIgnoreCase) &&
+                issued.Key.Operation == "create" && issued.Key.EntityName == "quote")
+            {
+                // Key issuance already requires SecurityAdmin. Provision the
+                // same narrow, audited grants that this administrator could
+                // formerly apply by pressing a second button. Do not enable
+                // them from an unauthenticated keyed Pricing request.
+                var result = await PricingQuoteTotalEndpoints.GrantQuoteTotal(code,
+                    issued.Key.Id,database,access,templates,catalog,refresh,actor,context,ct);
+                if (result is IStatusCodeHttpResult { StatusCode: >= 400 })
+                {
+                    await keys.RevokeAsync(code,issued.Key.Id,
+                        ScopeSecurity.ActorId(actor),ct);
+                    return result;
+                }
+            }
+            return Results.Ok(issued);
+        });
 
     private static Task<IResult> Revoke(string code,Guid id,
         TemplateApiKeyRepository keys,ClaimsPrincipal actor,HttpContext context,CancellationToken ct) =>

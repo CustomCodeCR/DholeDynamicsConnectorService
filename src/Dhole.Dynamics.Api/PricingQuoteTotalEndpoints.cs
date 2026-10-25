@@ -173,7 +173,7 @@ public static class PricingQuoteTotalEndpoints
 
     private static async Task<IResult> GetQuoteSyncLedger(
         string code, Guid rateId, int revision, NpgsqlDataSource data,
-        CancellationToken ct)
+        ReadSearchService live, ClaimsPrincipal administrator, CancellationToken ct)
     {
         if (code != "principal" || rateId == Guid.Empty || revision is < 1 or > 999999999)
             return Results.BadRequest(new { code = "invalid_quote_ledger_query" });
@@ -182,6 +182,8 @@ public static class PricingQuoteTotalEndpoints
             revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var keys = new[] { prefix + "-header", prefix + "-total" };
         var entries = new Dictionary<string, object?>(StringComparer.Ordinal);
+        Guid? headerId = null;
+        Guid? detailId = null;
         await using var db = await data.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
             SELECT w.idempotency_key, w.entity_name, w.status,
@@ -214,7 +216,48 @@ public static class PricingQuoteTotalEndpoints
             var providerCode = SafeDataverseCode(reference);
             var item = new { status, httpStatus, recordId, providerCode };
             entries[isHeader ? "header" : "total"] = item;
+            if (status == "succeeded" && recordId is Guid validId &&
+                validId != Guid.Empty)
+            {
+                if (isHeader) headerId = validId;
+                else detailId = validId;
+            }
         }
+        // Live, read-only Dataverse verification. The write ledger proves
+        // what the connector recorded, NOT that records still exist in CRM.
+        // Do not infer absence from a 403/timeout or issue a replacement POST.
+        async Task<(bool? Exists, string State)> VerifyAsync(
+            string entity, Guid? id, string primary)
+        {
+            if (id is not Guid recordId || recordId == Guid.Empty)
+                return (null, "no_record_id");
+            try
+            {
+                await live.ByIdAsync(administrator, code, entity,
+                    recordId, [primary], ct, admin: true);
+                return (true, "exists");
+            }
+            catch (ReadRejected ex) when (ex.Status == 404)
+            {
+                return (false, "not_found");
+            }
+            catch (ReadRejected ex) when (ex.Status == 403)
+            {
+                return (null, "read_not_authorized");
+            }
+            catch (ReadRejected)
+            {
+                return (null, "verification_unavailable");
+            }
+            catch (HttpRequestException)
+            {
+                return (null, "verification_unavailable");
+            }
+        }
+        // Dispose the journal reader before opening independent read-only CRM
+        // requests. Reads are scoped to the two exact recorded identifiers.
+        var liveHeader = await VerifyAsync("quote", headerId, "quoteid");
+        var liveDetail = await VerifyAsync("quotedetail", detailId, "quotedetailid");
         // NotFound/not_sent is NOT proof of no Dataverse side effect; it only
         // describes this connector's durable ledger at query time.
         return Results.Ok(new
@@ -226,8 +269,16 @@ public static class PricingQuoteTotalEndpoints
             total = entries.GetValueOrDefault("total") ??
                 (object)new { status = "not_sent", httpStatus = (int?)null,
                     recordId = (Guid?)null, providerCode = (string?)null },
+            live = new
+            {
+                headerExists = liveHeader.Exists,
+                headerStatus = liveHeader.State,
+                detailExists = liveDetail.Exists,
+                detailStatus = liveDetail.State,
+                confirmed = liveHeader.Exists == true && liveDetail.Exists == true
+            },
             noPostExecuted = true,
-            message = "Consulta de operaciones registradas; no se envió ningún POST a Dataverse."
+            message = "Verificación de solo lectura del ledger y de los registros reales de Dynamics. No se creó ninguna QUO."
         });
     }
 

@@ -59,4 +59,88 @@ public sealed class PricingQuoteTextLimitsTests
         Assert.Same(input, PricingQuoteTextLimits.Prepare(definition, input, input,
             new Dictionary<string, int> { ["description"] = 200 }));
     }
+
+    [Theory]
+    [InlineData("name", 45)]
+    [InlineData("new_pol", 20)]
+    [InlineData("new_poe", 20)]
+    [InlineData("new_pod", 20)]
+    [InlineData("new_tiempodetransitoaprox", 15)]
+    public void DisplaySummariesFitRealDataverseLimitWithoutChangingSource(string field, int max)
+    {
+        var original = "QUO-00000-000072 REINADO DE LAS LLANTAS Xiamen China";
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("label", "string")],
+            [new TemplateMapping(field, "label", [new TemplateStep("trim")])]);
+        var input = new Dictionary<string, JsonElement> { ["label"] = J(original) };
+        var preview = new Dictionary<string, JsonElement> { [field] = J(original) };
+        var bounds = new Dictionary<string, int> { [field] = max };
+        var prepared = PricingQuoteTextLimits.Prepare(definition, input, preview, bounds);
+        var clipped = prepared["label"].GetString()!;
+        Assert.True(clipped.Length <= max);
+        Assert.EndsWith("…", clipped);
+        Assert.Equal(original, input["label"].GetString());
+        PricingQuoteTextLimits.Check(new Dictionary<string, JsonElement>
+            { [field] = J(clipped) }, bounds);
+    }
+
+    [Fact]
+    public void MultipleAllowedTextSummariesAreAbbreviatedTogether()
+    {
+        var name = new string('N', 120);
+        var description = new string('D', 300);
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("name", "string"), new TemplateInput("description", "string")],
+            [new TemplateMapping("name", "name"),
+             new TemplateMapping("description", "description")]);
+        var input = new Dictionary<string, JsonElement>
+        {
+            ["name"] = J(name), ["description"] = J(description)
+        };
+        var payload = new Dictionary<string, JsonElement>
+        {
+            ["name"] = J(name), ["description"] = J(description)
+        };
+        var bounds = new Dictionary<string, int> { ["name"] = 35, ["description"] = 80 };
+        var prepared = PricingQuoteTextLimits.Prepare(definition, input, payload, bounds);
+        Assert.True(prepared["name"].GetString()!.Length <= 35);
+        Assert.True(prepared["description"].GetString()!.Length <= 80);
+        Assert.Contains("Detalle completo en Dhole", prepared["description"].GetString());
+        Assert.Equal(name, input["name"].GetString());
+        Assert.Equal(description, input["description"].GetString());
+    }
+
+    [Fact]
+    public void NeverShortensSourceSharedWithCustomerRelationship()
+    {
+        var original = new string('X', 150);
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("same", "string")],
+            [new TemplateMapping("name", "same"),
+             new TemplateMapping("customerid_account@odata.bind", "same",
+                 [new TemplateStep("lookup_name", "name")])]);
+        var input = new Dictionary<string, JsonElement> { ["same"] = J(original) };
+        var payload = new Dictionary<string, JsonElement> { ["name"] = J(original) };
+        var ex = Assert.Throws<ReadRejected>(() =>
+            PricingQuoteTextLimits.Prepare(definition, input, payload,
+                new Dictionary<string, int> { ["name"] = 100 }));
+        Assert.Equal("quote_text_exceeds_dataverse_limit", ex.Code);
+        Assert.Equal("name", ex.LookupInput);
+    }
+
+    [Fact]
+    public void UnapprovedTextFieldFailsWithItsActualName()
+    {
+        var original = new string('X', 300);
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("idtra", "string")],
+            [new TemplateMapping("new_idtraasignado", "idtra")]);
+        var data = new Dictionary<string, JsonElement> { ["idtra"] = J(original) };
+        var preview = new Dictionary<string, JsonElement>
+            { ["new_idtraasignado"] = J(original) };
+        var ex = Assert.Throws<ReadRejected>(() =>
+            PricingQuoteTextLimits.Prepare(definition, data, preview,
+                new Dictionary<string, int> { ["new_idtraasignado"] = 100 }));
+        Assert.Equal("new_idtraasignado", ex.LookupInput);
+    }
 }

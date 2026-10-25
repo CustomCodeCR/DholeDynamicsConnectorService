@@ -16,7 +16,8 @@ public static class ApiProblems
             ["code"] = code,
             ["correlationId"] = http.TraceIdentifier
         };
-        if (code is "lookup_name_not_found" or "lookup_name_ambiguous")
+        if (code is "lookup_name_not_found" or "lookup_name_ambiguous" or
+            "quote_text_exceeds_dataverse_limit" or "client_denied")
         {
             if (SafeField(lookupInput)) extensions["lookupInput"] = lookupInput;
             if (SafeField(lookupSearchField)) extensions["lookupSearchField"] = lookupSearchField;

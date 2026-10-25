@@ -134,7 +134,7 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(400, "invalid_pricing_connection");
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
-                connectionCode, "crear_oferta", ct);
+                connectionCode, "crear_oferta", ct, chargeQuota: false);
             if (key.Operation != "create" || key.EntityName != "quote")
                 throw new ReadRejected(403, "quote_creation_key_required");
             var allowed = ProductionQuoteRouteAllowed(gate);
@@ -249,7 +249,7 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(400, "invalid_quote_lookup_validation");
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
-                request.ConnectionCode, "crear_oferta", ct);
+                request.ConnectionCode, "crear_oferta", ct, chargeQuota: false);
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
             var current = await templates.FindAsync(key.ConnectionId, "crear_oferta", ct);
@@ -730,7 +730,7 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(400, "invalid_recovery_query");
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
-                connectionCode, "crear_oferta", ct);
+                connectionCode, "crear_oferta", ct, chargeQuota: false);
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
             var eligible = await IsRecoveryEligibleAsync(

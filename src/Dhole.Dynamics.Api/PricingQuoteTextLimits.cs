@@ -43,7 +43,7 @@ public static class PricingQuoteTextLimits
                 ? room - 1 : room)];
         var shorter = prefix.TrimEnd() + Suffix;
         if (shorter.Length > max) throw TooLong("description");
-        var normalized = new Dictionary<string, JsonElement>(input, StringComparer.Ordinal)
+        var normalized = input.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal)
         {
             [mappings[0].Source!] = JsonSerializer.SerializeToElement(shorter)
         };

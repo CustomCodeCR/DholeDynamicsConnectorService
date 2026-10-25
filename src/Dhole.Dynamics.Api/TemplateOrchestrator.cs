@@ -87,7 +87,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
 
     public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
         string? idempotencyKey,CancellationToken ct,
-        bool omitMissingQuoteCustomer = false)
+        bool omitMissingQuoteCustomer = false,
+        decimal? trustedPricingSupplierCost = null)
     {
         var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
         var template=await templates.FindAsync(conn.Id,name,ct);
@@ -101,8 +102,24 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
             ? new Dictionary<string,JsonElement>()
             : TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
-        var values=await BuildAsync(definition,policy,input,ct,actor,
-            omitMissingQuoteCustomer);
+        IReadOnlyDictionary<string, JsonElement> values =
+            await BuildAsync(definition,policy,input,ct,actor,
+                omitMissingQuoteCustomer);
+        if (trustedPricingSupplierCost is decimal supplierCost)
+        {
+            // Only the dedicated Pricing QUO route supplies this trusted value,
+            // never an arbitrary template caller. Populate all the source
+            // fields of the legacy Dynamics utility calculation exactly once.
+            if (name != "crear_oferta" || definition.EntityName != "quote" ||
+                definition.Operation != "create" || supplierCost < 0)
+                throw new ReadRejected(400, "invalid_pricing_cost_fields");
+            var completed = values.ToDictionary(x => x.Key, x => x.Value,
+                StringComparer.Ordinal);
+            for (var index = 1; index <= 9; index++)
+                completed["new_monto" + index] = JsonSerializer.SerializeToElement(
+                    index == 1 ? supplierCost : 0m);
+            values = completed;
+        }
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))
             throw new ReadRejected(400,"idempotency_key_required");

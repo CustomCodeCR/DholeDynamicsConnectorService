@@ -18,7 +18,8 @@ public static class PricingQuoteTotalEndpoints
 {
     public sealed record PricingQuoteTotalRequest(
         string ConnectionCode, Guid DholeRateId, decimal TotalSaleAmount,
-        IReadOnlyDictionary<string, JsonElement> Inputs);
+        IReadOnlyDictionary<string, JsonElement> Inputs,
+        decimal? TotalCostAmount = null);
 
     public sealed record PricingQuoteTotalResponse(
         string State, Guid? RecordId, Guid? LineRecordId,
@@ -271,7 +272,8 @@ public static class PricingQuoteTotalEndpoints
                 if (approved is null || !approved.Contains(field))
                     missing.Add(entity + "." + operation + ":" + field);
         }
-        Check("quote", "create", ["name"]);
+        Check("quote", "create",
+            ["name", ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
         if (quote is not null)
             Check("quote", "read", [quote.Table.PrimaryIdAttribute]);
         Check("quotedetail", "create",
@@ -280,6 +282,13 @@ public static class PricingQuoteTotalEndpoints
 
         if (definition is not null && quote is not null)
         {
+            if (!definition.Mappings.Any(m => m.Target.StartsWith(
+                    "transactioncurrencyid", StringComparison.OrdinalIgnoreCase) &&
+                    m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
+                missing.Add("crear_oferta.currency_relationship");
+            // The resolver explicitly reads both ISO code and its Dataverse ID.
+            Check("transactioncurrency", "read",
+                ["transactioncurrencyid", "isocurrencycode"]);
             if (!definition.Mappings.Any(m => m.Target.StartsWith(
                 "customerid_", StringComparison.OrdinalIgnoreCase) &&
                 m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
@@ -398,6 +407,8 @@ public static class PricingQuoteTotalEndpoints
             if (request.ConnectionCode != "principal" ||
                 request.DholeRateId == Guid.Empty ||
                 request.TotalSaleAmount < 0 || request.TotalSaleAmount > 999999999999m ||
+                request.TotalCostAmount is not decimal { } supplierCost ||
+                supplierCost < 0 || supplierCost > 999999999999m ||
                 request.Inputs is null || request.Inputs.Count is < 1 or > 64)
                 throw new ReadRejected(400, "invalid_pricing_quote_request");
             var rawKey = http.Request.Headers["Idempotency-Key"].ToString();
@@ -451,6 +462,22 @@ public static class PricingQuoteTotalEndpoints
                 "crear_oferta", version, request.Inputs, ct, actor,
                 omitMissingQuoteCustomer: true);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
+            // All nine inputs feed Dynamics' legacy utility calculation.
+            // Validate metadata AND API key grants before sending the header.
+            var costFields = Enumerable.Range(1, 9)
+                .Select(n => "new_monto" + n).ToArray();
+            foreach (var name in costFields)
+            {
+                var column = quote.Table.Columns.FirstOrDefault(c =>
+                    c.LogicalName == name);
+                var permission = quote.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == "quote" && p.FieldName == name);
+                if (column is null || !column.CanCreate || column.IsCalculated ||
+                    permission is null || !permission.Enabled || !permission.CanCreate ||
+                    permission.MetadataFingerprint != MetadataRepository.Fingerprint(column))
+                    throw new ReadRejected(409, "quote_cost_fields_not_authorized", name);
+            }
+            await access.PermitAsync(actor, quote, "create", costFields, ct);
             // customerid is ApplicationRequired in Dataverse quote. Suppressing
             // an unknown customer only hides the lookup failure and produces a
             // Dataverse 400. Fail BEFORE any POST with an actionable error.
@@ -493,7 +520,8 @@ public static class PricingQuoteTotalEndpoints
             // separate WriteLedger entries (header and sales line).
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, request.Inputs),
-                rawKey + "-header", ct, omitMissingQuoteCustomer: true);
+                rawKey + "-header", ct, omitMissingQuoteCustomer: true,
+                trustedPricingSupplierCost: supplierCost);
             if (header is WriteResult { State: "rejected" } rejectedHeader)
             {
                 // Dataverse explicitly returned a non-success HTTP status for
@@ -600,6 +628,28 @@ public static class PricingQuoteTotalEndpoints
                 quoteIdGrant.MetadataFingerprint != MetadataRepository.Fingerprint(quoteIdColumn))
                 throw new ReadRejected(409, "quote_id_read_not_authorized");
 
+            var amountNames = Enumerable.Range(1, 9).Select(n => "new_monto" + n).ToArray();
+            foreach (var name in amountNames)
+            {
+                var field = quote.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
+                var permission = quote.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == "quote" && p.FieldName == name);
+                if (field is null || !field.CanCreate || field.IsCalculated ||
+                    permission is null || !permission.Enabled || !permission.CanCreate ||
+                    permission.MetadataFingerprint != MetadataRepository.Fingerprint(field))
+                    throw new ReadRejected(409, "quote_cost_fields_not_authorized", name);
+            }
+            var isoPolicy = await access.ResolveAsync(code, "transactioncurrency", ct);
+            foreach (var name in new[] { "transactioncurrencyid", "isocurrencycode" })
+            {
+                var field = isoPolicy.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
+                var permission = isoPolicy.Permissions.Fields.FirstOrDefault(p =>
+                    p.EntityName == "transactioncurrency" && p.FieldName == name);
+                if (field is null || !field.CanRead || permission is null ||
+                    !permission.Enabled || !permission.CanRead ||
+                    permission.MetadataFingerprint != MetadataRepository.Fingerprint(field))
+                    throw new ReadRejected(409, "quote_currency_iso_field_not_authorized", name);
+            }
             await using var db = await dbSource.OpenConnectionAsync(ct);
             await using var tx = await db.BeginTransactionAsync(ct);
             Guid client;
@@ -645,7 +695,10 @@ public static class PricingQuoteTotalEndpoints
             var grants = new List<(string Entity, string Operation, string[] Fields)>
             {
                 ("quotedetail", "create", writable),
-                ("quote", "read", new[] { quote.Table.PrimaryIdAttribute })
+                ("quote", "read", [quote.Table.PrimaryIdAttribute]),
+                ("quote", "create", amountNames),
+                ("transactioncurrency", "read",
+                    ["transactioncurrencyid", "isocurrencycode"])
             };
             foreach (var target in targets)
             {

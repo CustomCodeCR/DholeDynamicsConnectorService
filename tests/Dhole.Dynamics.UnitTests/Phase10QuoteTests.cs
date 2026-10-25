@@ -68,6 +68,56 @@ public sealed class Phase10QuoteTests
             TemplateOrchestrator.ResolveLookupNameFields("account", relation, "name"));
     }
 
+    [Fact]
+    public void CustomerAccountLookupUsesContainsOnlyAndRecognizesFullLegalName()
+    {
+        const string pricing = "SOLUCIONES LUMINICAS ON SRL";
+        const string dataverse = "SOLUCIONES LUMINICAS ON SOCIEDAD DE RESPONSABILIDAD LIMITADA";
+        Assert.Equal("SOLUCIONES LUMINICAS ON",
+            TemplateOrchestrator.CustomerAccountNameKey(pricing));
+        Assert.Equal("SOLUCIONES LUMINICAS ON",
+            TemplateOrchestrator.CustomerAccountNameKey(dataverse));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(pricing, dataverse));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(pricing,
+            "SOLUCIONES LUMINICAS ON DEL NORTE SOCIEDAD DE RESPONSABILIDAD LIMITADA"));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(pricing,
+            "OTRA EMPRESA SOLUCIONES LUMINICAS ON SOCIEDAD DE RESPONSABILIDAD LIMITADA"));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "Compañía Náutica S.A.", "COMPANIA NAUTICA SOCIEDAD ANONIMA"));
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", pricing);
+        Assert.NotEmpty(filters);
+        Assert.All(filters, p =>
+        {
+            if (p.Children is { Count: > 0 } children)
+                Assert.All(children, child => Assert.Equal("contains", child.Op));
+            else
+                Assert.Equal("contains", p.Op);
+        });
+        Assert.Contains(filters, p => p.Op == "contains" &&
+            p.Value?.GetString() == "SOLUCIONES LUMINICAS ON");
+    }
+
+    [Fact]
+    public void CustomerNameSearchCompilesToContainsWithoutODataEquals()
+    {
+        var name = new MetadataColumn("name","String",true,true,true,false,
+            null,null,null,[],new Dictionary<int,string>(),[]);
+        var id = new MetadataColumn("accountid","Uniqueidentifier",true,false,false,false,
+            null,null,null,[],new Dictionary<int,string>(),[]);
+        var table = new MetadataTable("account","accounts","accountid","name",true,
+            new Dictionary<int,string>(),[id,name],[]);
+        foreach (var filter in TemplateOrchestrator.CustomerNameFallbackFilters(
+            "name", "SOLUCIONES LUMINICAS ON SRL"))
+        {
+            var query = ReadQueryCompiler.Compile(table,
+                new ReadSpec(["accountid", "name"], filter, PageSize:25),
+                new HashSet<string>(StringComparer.Ordinal) { "accountid", "name" });
+            var odata = Uri.UnescapeDataString(query.RelativeUrl);
+            Assert.Contains("contains(name,", odata, StringComparison.Ordinal);
+            Assert.DoesNotContain("name eq ", odata, StringComparison.Ordinal);
+        }
+    }
+
     private static Dhole.Dynamics.Api.WritePolicy QuotePolicy()
     {
         var columns = new[]

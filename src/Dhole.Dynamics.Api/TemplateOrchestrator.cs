@@ -355,11 +355,11 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                                     rel.ReferencingAttribute, searchField);
                             if (matches.Length == 0) continue;
                             return matches[0].TryGetProperty(
-                                    lookupPolicy.Table.PrimaryIdAttribute, out var idElement) &&
-                                idElement.ValueKind == JsonValueKind.String &&
-                                Guid.TryParse(idElement.GetString(), out var id) &&
-                                id != Guid.Empty
-                                ? id : throw new ReadRejected(502, "lookup_name_invalid_record");
+                                    lookupPolicy.Table.PrimaryIdAttribute, out var customerIdElement) &&
+                                customerIdElement.ValueKind == JsonValueKind.String &&
+                                Guid.TryParse(customerIdElement.GetString(), out var customerId) &&
+                                customerId != Guid.Empty
+                                ? customerId : throw new ReadRejected(502, "lookup_name_invalid_record");
                         }
                         if(result.Items.Count>1 || result.NextCursor is not null)
                             throw new ReadRejected(409,"lookup_name_ambiguous",

@@ -305,4 +305,18 @@ public sealed class TemplateNameResolutionTests
     {
         Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(dhole, dynamics));
     }
+
+    [Fact]
+    public void VerifiedCicadexAliasFindsUniqueLegalAccountUsingContains()
+    {
+        const string legal = "Consorcio Interamericano Caribe de Exportación S.A.";
+        Assert.Equal(legal, TemplateOrchestrator.CanonicalPricingCustomerName("CICADEX"));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch("CICADEX", legal));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "CICADEX", "Consorcio Interamericano Caribe Importaciones S.A."));
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", "CICADEX");
+        Assert.NotEmpty(filters);
+        Assert.Equal("contains", filters[0].Op);
+        Assert.Equal(legal, filters[0].Value?.GetString());
+    }
 }

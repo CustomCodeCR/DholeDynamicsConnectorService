@@ -209,9 +209,128 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
             if(!await row.ReadAsync(ct))throw new ReadRejected(409,"template_version_changed");
             issued=Read(row);
         }
+        // Rotate the managed Dhole_System credential without making the
+        // administrator repeat permissions that were already approved.
+        // Copy only grants from another ENABLED key of the SAME published
+        // crear_oferta integration. We do not enable metadata, add arbitrary
+        // tables or copy grants from revoked keys.
+        if (code == "principal" && request.TemplateName == "crear_oferta" &&
+            definition.EntityName == "quote" && definition.Operation == "create" &&
+            request.Label.Equals("Dhole_System", StringComparison.OrdinalIgnoreCase))
+        {
+            await using var inherit = new NpgsqlCommand("""
+                INSERT INTO dynamics.api_grants
+                  (id,api_client_id,connection_id,entity_set,operation,
+                   allowed_fields,max_requests_per_minute,enabled)
+                SELECT @grant,@newclient,@connection,g.entity_set,g.operation,
+                       ARRAY(
+                         SELECT DISTINCT allowed.field
+                         FROM unnest(g.allowed_fields) AS allowed(field)
+                         JOIN dynamics.metadata_allowed_fields ma
+                           ON ma.connection_id=@connection
+                          AND ma.entity_name=g.entity_set
+                          AND ma.field_name=allowed.field
+                          AND ma.enabled=true
+                          AND (g.operation='read' AND ma.can_read=true OR
+                               g.operation='create' AND ma.can_create=true)
+                       ), @quota,true
+                FROM dynamics.template_api_keys oldkey
+                JOIN dynamics.api_clients oldclient ON oldclient.id=oldkey.client_id
+                JOIN dynamics.api_grants g ON g.api_client_id=oldkey.client_id
+                 AND g.connection_id=@connection AND g.enabled=true
+                WHERE oldkey.template_id=@template
+                  AND oldkey.connection_id=@connection
+                  AND oldkey.enabled=true AND oldclient.enabled=true
+                  AND lower(oldkey.label)='dhole_system'
+                  AND oldkey.id<>@newkey
+                  AND g.operation IN ('read','create')
+                  AND g.entity_set IN ('quote','quotedetail',
+                      'transactioncurrency','account','incident')
+                  AND EXISTS (
+                      SELECT 1 FROM unnest(g.allowed_fields) AS allowed(field)
+                      JOIN dynamics.metadata_allowed_fields ma
+                        ON ma.connection_id=@connection
+                       AND ma.entity_name=g.entity_set AND ma.field_name=allowed.field
+                       AND ma.enabled=true
+                       AND (g.operation='read' AND ma.can_read=true OR
+                            g.operation='create' AND ma.can_create=true)
+                  )
+                ON CONFLICT(api_client_id,connection_id,entity_set,operation)
+                  DO UPDATE SET
+                    allowed_fields=ARRAY(
+                      SELECT DISTINCT unnest(dynamics.api_grants.allowed_fields ||
+                                             EXCLUDED.allowed_fields)),
+                    enabled=true
+                """,db,tx);
+            inherit.Parameters.AddWithValue("grant",Guid.NewGuid());
+            inherit.Parameters.AddWithValue("newclient",clientId);
+            inherit.Parameters.AddWithValue("connection",policy.Connection.Id);
+            inherit.Parameters.AddWithValue("template",summary.Id);
+            inherit.Parameters.AddWithValue("newkey",keyId);
+            inherit.Parameters.AddWithValue("quota",request.MaxRequestsPerMinute);
+            await inherit.ExecuteNonQueryAsync(ct);
+        }
         await AuditAsync(db,tx,policy.Connection.Id,actor,"template_key.created",ct);
         await tx.CommitAsync(ct);
         return new(issued,secret);
+    }
+
+    /// <summary>
+    /// Re-pin only active managed Pricing keys when an authorized administrator
+    /// publishes an approved new version. Fields were already validated by
+    /// TemplateOrchestrator against current Dataverse metadata and field policy.
+    /// No revoked/expired key is re-enabled and no other template is affected.
+    /// </summary>
+    public async Task<int> RenewApprovedPricingTemplateAsync(
+        string code, Guid templateId, int version, IReadOnlyCollection<string> approvedFields,
+        CancellationToken ct)
+    {
+        if (code != "principal" || templateId == Guid.Empty || version <= 0 ||
+            approvedFields.Count is < 1 or > 64)
+            return 0;
+        await using var db = await database.OpenConnectionAsync(ct);
+        await using var tx = await db.BeginTransactionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            UPDATE dynamics.template_api_keys k
+            SET template_version=@version,
+                allowed_fields=@fields
+            FROM dynamics.integration_templates t,
+                 dynamics.connections c,
+                 dynamics.api_clients client
+            WHERE k.template_id=@template
+              AND t.id=k.template_id
+              AND c.id=k.connection_id
+              AND client.id=k.client_id
+              AND c.code='principal'
+              AND t.name='crear_oferta' AND t.active_version=@version
+              AND k.entity_name='quote' AND k.operation='create'
+              AND lower(k.label)='dhole_system'
+              AND k.enabled=true AND k.expires_at>now() AND client.enabled=true
+            RETURNING k.client_id
+            """,db,tx);
+        cmd.Parameters.AddWithValue("template",templateId);
+        cmd.Parameters.AddWithValue("version",version);
+        cmd.Parameters.AddWithValue("fields",approvedFields.ToArray());
+        var clients = new List<Guid>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct)) clients.Add(reader.GetGuid(0));
+        foreach (var client in clients)
+        {
+            await using var grant = new NpgsqlCommand("""
+                UPDATE dynamics.api_grants
+                SET allowed_fields=ARRAY(
+                    SELECT DISTINCT unnest(allowed_fields || @fields))
+                WHERE api_client_id=@client
+                  AND entity_set='quote' AND operation='create'
+                  AND enabled=true
+                """,db,tx);
+            grant.Parameters.AddWithValue("client",client);
+            grant.Parameters.AddWithValue("fields",approvedFields.ToArray());
+            if (await grant.ExecuteNonQueryAsync(ct) != 1)
+                throw new ReadRejected(409, "managed_quote_grant_missing");
+        }
+        await tx.CommitAsync(ct);
+        return clients.Count;
     }
 
     public async Task<CrudIntegrationKeyIdentity> ValidateAndChargeAsync(string? token,

@@ -4,48 +4,75 @@ using Dhole.Dynamics.Contracts;
 namespace Dhole.Dynamics.Api;
 
 /// <summary>
-/// Field-length preflight against LIVE Dataverse metadata, for the narrow
-/// trusted Pricing quote route. Original Pricing snapshot is immutable.
-/// Only a generated description is shortened, with a visible pointer back
-/// to the complete original quote; customer, IDTRA and business terms are
-/// NEVER silently truncated.
+/// Validates the final trusted Pricing quote payload against the *live*
+/// Dataverse String/Memo MaxLength values BEFORE any quote POST. Only
+/// presentation labels may be abbreviated; original immutable Pricing data
+/// (including legal relationships, IDTRA and conditions) is untouched.
 /// </summary>
 public static class PricingQuoteTextLimits
 {
-    private const string Suffix = " … [Detalle completo en Dhole]";
+    private const string DescriptionSuffix = " … [Detalle completo en Dhole]";
+    private const string ShortSuffix = "…";
+
+    // Only human-readable display summaries. NEVER customerid, IDTRA,
+    // financial values, conditions, binding GUIDs or custom business fields.
+    private static readonly HashSet<string> DisplaySummaries = new(StringComparer.Ordinal)
+    {
+        "name", "description",
+        "new_pol", "new_poe", "new_pod", "new_tiempodetransitoaprox"
+    };
 
     public static IReadOnlyDictionary<string, JsonElement> Prepare(
-        IntegrationTemplate definition, IReadOnlyDictionary<string, JsonElement> input,
+        IntegrationTemplate definition,
+        IReadOnlyDictionary<string, JsonElement> input,
         IReadOnlyDictionary<string, JsonElement> payload,
         IReadOnlyDictionary<string, int> limits)
     {
-        if (!payload.TryGetValue("description", out var description) ||
-            description.ValueKind != JsonValueKind.String ||
-            !limits.TryGetValue("description", out var max) ||
-            description.GetString() is not string text || text.Length <= max)
-            return input;
+        Dictionary<string, JsonElement>? adjusted = null;
+        foreach (var (field, value) in payload)
+        {
+            if (!limits.TryGetValue(field, out var max) ||
+                value.ValueKind != JsonValueKind.String ||
+                value.GetString() is not string output ||
+                output.Length <= max)
+                continue;
 
-        var mappings = definition.Mappings
-            .Where(m => m.Target == "description" && m.Source is not null)
-            .ToArray();
-        if (mappings.Length != 1 ||
-            (mappings[0].Steps?.Any(step => step.Op != "trim") ?? false) ||
-            !input.TryGetValue(mappings[0].Source!, out var original) ||
-            original.ValueKind != JsonValueKind.String ||
-            max < Suffix.Length + 10)
-            throw TooLong("description");
+            if (!DisplaySummaries.Contains(field) || max < 8)
+                throw TooLong(field);
 
-        var originalText = original.GetString() ?? "";
-        var room = max - Suffix.Length;
-        // Avoid splitting a surrogate pair at the Dataverse length boundary.
-        var prefix = originalText.Length <= room ? originalText :
-            originalText[..(room > 0 && char.IsHighSurrogate(originalText[room - 1])
-                ? room - 1 : room)];
-        var shorter = prefix.TrimEnd() + Suffix;
-        if (shorter.Length > max) throw TooLong("description");
-        var normalized = input.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
-        normalized[mappings[0].Source!] = JsonSerializer.SerializeToElement(shorter);
-        return normalized;
+            // Do not modify a shared input used by another mapping: that
+            // could accidentally change customer lookups or commercial data.
+            var mappings = definition.Mappings.Where(m => m.Target == field).ToArray();
+            if (mappings.Length != 1 ||
+                mappings[0].Source is not string source ||
+                (mappings[0].Steps?.Any(s => s.Op is not ("trim" or "upper" or "lower")) ?? false) ||
+                definition.Mappings.Count(m => m.Source == source) != 1 ||
+                !input.TryGetValue(source, out var original) ||
+                original.ValueKind != JsonValueKind.String)
+                throw TooLong(field);
+
+            var suffix = field == "description" && max >= DescriptionSuffix.Length + 12
+                ? DescriptionSuffix : ShortSuffix;
+            var size = max - suffix.Length;
+            if (size < 5) throw TooLong(field);
+            var originalText = original.GetString() ?? "";
+            var clip = Math.Min(originalText.Length, size);
+            if (clip > 0 && clip < originalText.Length &&
+                char.IsHighSurrogate(originalText[clip - 1]))
+                clip--;
+            var prefix = originalText[..clip].TrimEnd();
+            // Prefer ending on a word boundary when enough context survives.
+            var lastSpace = prefix.LastIndexOf(' ');
+            if (lastSpace > size * 3 / 5 && lastSpace > 8)
+                prefix = prefix[..lastSpace].TrimEnd();
+            var shorter = prefix + suffix;
+            if (shorter.Length > max || shorter.Length < suffix.Length + 3)
+                throw TooLong(field);
+
+            adjusted ??= input.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            adjusted[source] = JsonSerializer.SerializeToElement(shorter);
+        }
+        return adjusted ?? input;
     }
 
     public static void Check(IReadOnlyDictionary<string, JsonElement> payload,
@@ -54,10 +81,10 @@ public static class PricingQuoteTextLimits
         foreach (var (field, value) in payload)
         {
             if (value.ValueKind != JsonValueKind.String ||
-                !limits.TryGetValue(field, out var limit) ||
+                !limits.TryGetValue(field, out var max) ||
                 value.GetString() is not string text)
                 continue;
-            if (text.Length > limit)
+            if (text.Length > max)
                 throw TooLong(field);
         }
     }

@@ -60,14 +60,20 @@ public sealed class ReadAccessRepository(IConnectionRepository connections,
         var issuer = user.FindFirst("connector:issuer")?.Value;
         var client = ScopeSecurity.ClientId(user);
         if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(client))
-            throw new ReadRejected(403, "client_denied");
+            throw new ReadRejected(403, "client_denied", policy.Table.LogicalName);
         var result = await clients.AuthorizeAsync(issuer, client, policy.Connection.Code,
             policy.Table.LogicalName, "read", requiredFields, ct);
         switch (result)
         {
             case GrantDecision.Allowed: return;
             case GrantDecision.QuotaExceeded: throw new ReadRejected(429, "client_quota_exceeded");
-            default: throw new ReadRejected(403, "client_denied");
+            // Return ONLY authorized metadata identifiers. The failure for
+            // BRAME must tell the administrator which table/column the Pricing
+            // client is missing, without exposing record content or widening
+            // the client's grants from an unauthenticated request.
+            default: throw new ReadRejected(403, "client_denied",
+                policy.Table.LogicalName,
+                requiredFields.Count == 1 ? requiredFields.Single() : null);
         }
     }
 }

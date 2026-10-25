@@ -155,25 +155,25 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             definition.SavedQuery);
     }
 
-    // Dhole's existing IDTRA 1 relationship stores the business identifier
-    // in incident.title, not incident.ticketnumber. Only remap this specific
-    // legacy lookup; all other configured fields remain unchanged.
+    // The published crear_oferta v13 has up to nine IDTRA relationships.
+    // An incident may store its identifier in title or ticketnumber. Keep
+    // exact matching for both columns, never select a fuzzy candidate.
+    private static bool IsIdtraRelationship(string entity, string attribute) =>
+        entity.Equals("incident", StringComparison.OrdinalIgnoreCase) &&
+        Regex.IsMatch(attribute, @"^new_idtra(?:[1-9]|10)$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     public static string ResolveLookupNameField(string relatedEntity,
         string relationshipAttribute, string configuredField) =>
-        relatedEntity.Equals("incident", StringComparison.OrdinalIgnoreCase) &&
-        relationshipAttribute.Equals("new_idtra1", StringComparison.OrdinalIgnoreCase) &&
+        IsIdtraRelationship(relatedEntity, relationshipAttribute) &&
         configuredField.Equals("ticketnumber", StringComparison.OrdinalIgnoreCase)
             ? "title" : configuredField;
 
-    // The IDTRA relationship can refer to the Dynamics incident title or its
-    // ticket number, depending on how the record was created. Check both
-    // explicitly approved exact-match columns, without fuzzy/wildcard matching.
     public static IReadOnlyList<string> ResolveLookupNameFields(string relatedEntity,
         string relationshipAttribute, string configuredField)
     {
         var primary = ResolveLookupNameField(relatedEntity, relationshipAttribute, configuredField);
-        if (relatedEntity.Equals("incident", StringComparison.OrdinalIgnoreCase) &&
-            relationshipAttribute.Equals("new_idtra1", StringComparison.OrdinalIgnoreCase) &&
+        if (IsIdtraRelationship(relatedEntity, relationshipAttribute) &&
             (configuredField.Equals("ticketnumber", StringComparison.OrdinalIgnoreCase) ||
              configuredField.Equals("title", StringComparison.OrdinalIgnoreCase)))
             return ["title", "ticketnumber"];
@@ -269,15 +269,52 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                        (string.Equals(rel.ReferencingAttribute,"customerid",StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(rel.ReferencingAttribute,"msdyn_account",StringComparison.OrdinalIgnoreCase)))
                         predicates.AddRange(CustomerNameFallbackFilters(searchField,name));
+                    var isIdtraTitle = IsIdtraRelationship(target,
+                        rel.ReferencingAttribute ?? "") &&
+                        searchField.Equals("title", StringComparison.OrdinalIgnoreCase) &&
+                        name.Length is >= 8 and <= 100 &&
+                        Regex.IsMatch(name.Trim(), @"^IDTRA[\\p{L}\\p{N}.\\-]+$",
+                            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                    if (isIdtraTitle)
+                        predicates.Add(new ReadPredicate(Field: searchField, Op: "contains",
+                            Value: JsonSerializer.SerializeToElement(name.Trim())));
                     foreach(var predicate in predicates)
                     {
-                        var query=new ReadSpec([lookupPolicy.Table.PrimaryIdAttribute],
-                            predicate,PageSize:2);
+                        var suffixSearch = predicate.Op == "contains" && isIdtraTitle;
+                        var query=new ReadSpec(suffixSearch
+                            ? [lookupPolicy.Table.PrimaryIdAttribute, searchField]
+                            : [lookupPolicy.Table.PrimaryIdAttribute],
+                            predicate,PageSize:suffixSearch ? 25 : 2);
                         // All search operations are metadata-validated and
                         // restricted to the account's approved readable fields.
                         var result=await reader.SearchAsync(actor,target,
                             new ReadSearchRequest(policy.Connection.Code,query),token,
                             admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                        if (suffixSearch)
+                        {
+                            // Pricing removes '-QUO-...' from its IDTRA display
+                            // string. Search this documented suffix form only,
+                            // then verify the full value and uniqueness locally.
+                            // No partial/fuzzy account or incident association.
+                            var valid = result.Items.Where(item =>
+                                item.TryGetProperty(searchField, out var value) &&
+                                value.ValueKind == JsonValueKind.String &&
+                                Regex.IsMatch(value.GetString() ?? "", "^" +
+                                    Regex.Escape(name.Trim()) +
+                                    @"\\s*[-–—]\\s*QUO(?:[-#\\s].*)?$",
+                                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                                .ToArray();
+                            if (valid.Length > 1 || result.NextCursor is not null)
+                                throw new ReadRejected(409, "lookup_name_ambiguous",
+                                    rel.ReferencingAttribute, searchField);
+                            if (valid.Length == 0) continue;
+                            var match = valid[0];
+                            return match.TryGetProperty(lookupPolicy.Table.PrimaryIdAttribute,
+                                out var candidateId) &&
+                                Guid.TryParse(candidateId.GetString(), out var checkedId) &&
+                                checkedId != Guid.Empty
+                                ? checkedId : throw new ReadRejected(502, "lookup_name_invalid_record");
+                        }
                         if(result.Items.Count>1 || result.NextCursor is not null)
                             throw new ReadRejected(409,"lookup_name_ambiguous",
                                 rel.ReferencingAttribute,searchField);

@@ -665,7 +665,7 @@ public static class PricingQuoteTotalEndpoints
             ? code : null;
     }
 
-    private static async Task<IResult> GrantQuoteTotal(
+    internal static async Task<IResult> GrantQuoteTotal(
         string code, Guid keyId, NpgsqlDataSource dbSource,
         WriteAccessService access, TemplateRepository templates,
         MetadataRepository catalog, MetadataRefreshService metadataRefresh,

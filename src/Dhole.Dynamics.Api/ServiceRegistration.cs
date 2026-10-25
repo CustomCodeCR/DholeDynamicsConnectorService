@@ -196,13 +196,21 @@ public static class ServiceRegistration
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddPolicy("AdminRate", http =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            {
+                // Keep the admin console separate from key-authenticated
+                // integrations behind the same reverse proxy IP.
+                var keyed = http.Request.Path.StartsWithSegments("/api/v1/keyed");
+                var category = keyed ? "keyed" : "admin";
+                var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    category + ":" + ip,
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 100, Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = keyed ? 600 : 100,
+                        Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0, AutoReplenishment = true
-                    }));
+                    });
+            });
         });
 
         services.AddAntiforgery(options =>

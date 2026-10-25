@@ -180,44 +180,67 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         return [primary];
     }
 
-    // Customer account names can vary between Pricing and Dataverse (for
-    // example a legal suffix or extra words). Prefer exact account names, then
-    // allow bounded, approved contains filters; never silently select one of
-    // several matching accounts. Incident/IDTRA references stay exact.
+    // Dataverse may keep the full legal form while Dhole uses "SRL" or
+    // "S.A.". All account-name LOOKUP requests use OData contains (never
+    // eq), and must still verify a unique legal-name-equivalent account.
+    // This prevents a broad contains result from binding a wrong customer.
+    public static string CustomerAccountNameKey(string name)
+    {
+        var unaccented = Regex.Replace(
+            name.Normalize(NormalizationForm.FormD), @"\p{Mn}", "");
+        var normalized = Regex.Replace(unaccented.ToUpperInvariant(),
+            @"[^\p{L}\p{N}]+", " ").Trim();
+        normalized = Regex.Replace(normalized, @"\s+", " ");
+        // Only remove TRAILING corporate legal forms. Other words, including
+        // "ON" in SOLUCIONES LUMINICAS ON, remain part of the identity.
+        const string corporateSuffix =
+            @"(?: SOCIEDAD DE RESPONSABILIDAD LIMITADA| SOCIEDAD ANONIMA" +
+            @"| SOCIEDAD DE RESPONSABILIDAD LTDA| S DE R L| S R L| S A" +
+            @"| SRL| SA| LTDA| LLC| INC| LIMITED| LIMITADA)$";
+        string previous;
+        do
+        {
+            previous = normalized;
+            normalized = Regex.Replace(normalized, corporateSuffix, "",
+                RegexOptions.CultureInvariant);
+        } while (normalized != previous);
+        return normalized.Trim();
+    }
+
+    public static bool CustomerAccountNamesMatch(string providedName, string recordName)
+    {
+        var requested = CustomerAccountNameKey(providedName);
+        return requested.Length >= 3 &&
+            string.Equals(requested, CustomerAccountNameKey(recordName),
+                StringComparison.Ordinal);
+    }
+
     public static IReadOnlyList<ReadPredicate> CustomerNameFallbackFilters(
         string searchField, string name)
     {
         var input = name.Trim();
+        var core = CustomerAccountNameKey(input);
         var filters = new List<ReadPredicate>();
-        var ignore = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "SOCIEDAD", "ANONIMA", "LIMITADA", "COMPANIA", "COMPANY",
-            "CORPORATION", "CORP", "INC", "LLC", "LTDA", "SRL",
-            "SA", "SAS", "DE", "DEL", "LA", "LAS", "EL", "LOS", "THE", "AND"
-        };
-        var words = Regex.Matches(input, @"[\p{L}\p{N}]+")
-            .Select(x => x.Value)
-            .Where(x => x.Length is >= 3 and <= 100 && !ignore.Contains(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(x => x.Length)
-            .Take(3)
-            .ToArray();
-        // Never match solely on legal suffixes such as "S.A.".
-        if (words.Length == 0) return filters;
+        if (core.Length < 3)
+            return filters;
+        // All queries are metadata-authorized contains. First search the
+        // supplied name, then the legal-suffix-free name, then individual
+        // distinguishing terms for punctuation/spacing differences.
         if (input.Length is >= 3 and <= 100)
             filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
                 Value:JsonSerializer.SerializeToElement(input)));
+        if (core.Length is >= 3 and <= 100 &&
+            !string.Equals(input, core, StringComparison.OrdinalIgnoreCase))
+            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
+                Value:JsonSerializer.SerializeToElement(core)));
+        var words = core.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(x => x.Length is >= 3 and <= 100)
+            .Distinct(StringComparer.Ordinal)
+            .Take(4).ToArray();
         if (words.Length >= 2)
-        {
             filters.Add(new ReadPredicate(Join:"and", Children:
                 words.Select(x => new ReadPredicate(Field:searchField,
                     Op:"contains", Value:JsonSerializer.SerializeToElement(x))).ToArray()));
-        }
-        else if (words.Length == 1 && !words[0].Equals(input, StringComparison.OrdinalIgnoreCase))
-        {
-            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
-                Value:JsonSerializer.SerializeToElement(words[0])));
-        }
         return filters;
     }
 
@@ -259,16 +282,18 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                         !lookupPolicy.Allowed.Contains(lookupPolicy.Table.PrimaryIdAttribute))
                         continue;
                     anyAuthorized=true;
-                    var predicates=new List<ReadPredicate>
-                    {
-                        new(Field:searchField,Op:"eq",
-                            Value:JsonSerializer.SerializeToElement(name.Trim()))
-                    };
-                    if(target.Equals("account",StringComparison.OrdinalIgnoreCase) &&
-                       searchField.Equals("name",StringComparison.OrdinalIgnoreCase) &&
-                       (string.Equals(rel.ReferencingAttribute,"customerid",StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(rel.ReferencingAttribute,"msdyn_account",StringComparison.OrdinalIgnoreCase)))
-                        predicates.AddRange(CustomerNameFallbackFilters(searchField,name));
+                    var accountNameLookup =
+                        target.Equals("account", StringComparison.OrdinalIgnoreCase) &&
+                        searchField.Equals("name", StringComparison.OrdinalIgnoreCase);
+                    // Account customer references MUST use contains, not eq.
+                    // Incident and other lookup types remain strict/exact.
+                    var predicates = accountNameLookup
+                        ? CustomerNameFallbackFilters(searchField, name).ToList()
+                        : new List<ReadPredicate>
+                        {
+                            new(Field:searchField, Op:"eq",
+                                Value:JsonSerializer.SerializeToElement(name.Trim()))
+                        };
                     var isIdtraTitle = IsIdtraRelationship(target,
                         rel.ReferencingAttribute ?? "") &&
                         searchField.Equals("title", StringComparison.OrdinalIgnoreCase) &&
@@ -281,10 +306,10 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                     foreach(var predicate in predicates)
                     {
                         var suffixSearch = predicate.Op == "contains" && isIdtraTitle;
-                        var query=new ReadSpec(suffixSearch
+                        var query = new ReadSpec(suffixSearch || accountNameLookup
                             ? [lookupPolicy.Table.PrimaryIdAttribute, searchField]
                             : [lookupPolicy.Table.PrimaryIdAttribute],
-                            predicate,PageSize:suffixSearch ? 25 : 2);
+                            predicate, PageSize:suffixSearch || accountNameLookup ? 25 : 2);
                         // All search operations are metadata-validated and
                         // restricted to the account's approved readable fields.
                         var result=await reader.SearchAsync(actor,target,
@@ -314,6 +339,27 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                                 Guid.TryParse(candidateId.GetString(), out var checkedId) &&
                                 checkedId != Guid.Empty
                                 ? checkedId : throw new ReadRejected(502, "lookup_name_invalid_record");
+                        }
+                        if (accountNameLookup)
+                        {
+                            // A contains filter alone is not sufficient to
+                            // identify a customer: confirm its entire legal-
+                            // suffix-normalized name, and reject duplicates.
+                            var matches = result.Items.Where(item =>
+                                item.TryGetProperty(searchField, out var value) &&
+                                value.ValueKind == JsonValueKind.String &&
+                                CustomerAccountNamesMatch(name, value.GetString() ?? ""))
+                                .ToArray();
+                            if (matches.Length > 1 || result.NextCursor is not null)
+                                throw new ReadRejected(409, "lookup_name_ambiguous",
+                                    rel.ReferencingAttribute, searchField);
+                            if (matches.Length == 0) continue;
+                            return matches[0].TryGetProperty(
+                                    lookupPolicy.Table.PrimaryIdAttribute, out var idElement) &&
+                                idElement.ValueKind == JsonValueKind.String &&
+                                Guid.TryParse(idElement.GetString(), out var id) &&
+                                id != Guid.Empty
+                                ? id : throw new ReadRejected(502, "lookup_name_invalid_record");
                         }
                         if(result.Items.Count>1 || result.NextCursor is not null)
                             throw new ReadRejected(409,"lookup_name_ambiguous",

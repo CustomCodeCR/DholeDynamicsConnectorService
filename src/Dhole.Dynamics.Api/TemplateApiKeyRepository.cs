@@ -215,7 +215,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
     }
 
     public async Task<CrudIntegrationKeyIdentity> ValidateAndChargeAsync(string? token,
-        string connectionCode,string name,CancellationToken ct)
+        string connectionCode,string name,CancellationToken ct, bool chargeQuota = true)
     {
         if(!TryParseSecret(token,out var id) || string.IsNullOrWhiteSpace(connectionCode) ||
            string.IsNullOrWhiteSpace(name))throw new ReadRejected(401,"crud_key_invalid");
@@ -247,20 +247,26 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         }
         if(!CryptographicOperations.FixedTimeEquals(expected,provided))
             throw new ReadRejected(401,"crud_key_invalid");
-        await using(var charge=new NpgsqlCommand("""
-            INSERT INTO dynamics.template_api_key_quota(key_id,minute,requests)
-            VALUES(@id,@minute,1)
-            ON CONFLICT(key_id,minute) DO UPDATE
-                SET requests=dynamics.template_api_key_quota.requests+1
-            WHERE dynamics.template_api_key_quota.requests<@quota
-            RETURNING requests
-            """,db,tx))
+        // Read-only schema, readiness and lookup validation authenticate the key
+        // but must not exhaust the writer's one-minute execution quota.
+        // Their routes still have ASP.NET rate limiting; all real writes charge.
+        if (chargeQuota)
         {
-            charge.Parameters.AddWithValue("id",id);
-            charge.Parameters.AddWithValue("minute",DateTimeOffset.UtcNow.ToUnixTimeSeconds()/60);
-            charge.Parameters.AddWithValue("quota",quota);
-            if(await charge.ExecuteScalarAsync(ct) is null)
-                throw new ReadRejected(429,"crud_key_quota_exceeded");
+            await using(var charge=new NpgsqlCommand("""
+                INSERT INTO dynamics.template_api_key_quota(key_id,minute,requests)
+                VALUES(@id,@minute,1)
+                ON CONFLICT(key_id,minute) DO UPDATE
+                    SET requests=dynamics.template_api_key_quota.requests+1
+                WHERE dynamics.template_api_key_quota.requests<@quota
+                RETURNING requests
+                """,db,tx))
+            {
+                charge.Parameters.AddWithValue("id",id);
+                charge.Parameters.AddWithValue("minute",DateTimeOffset.UtcNow.ToUnixTimeSeconds()/60);
+                charge.Parameters.AddWithValue("quota",quota);
+                if(await charge.ExecuteScalarAsync(ct) is null)
+                    throw new ReadRejected(429,"crud_key_quota_exceeded");
+            }
         }
         await using(var used=new NpgsqlCommand("""
             UPDATE dynamics.template_api_keys SET last_used_at=now() WHERE id=@id

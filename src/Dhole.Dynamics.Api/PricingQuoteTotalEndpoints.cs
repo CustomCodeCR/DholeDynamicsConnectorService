@@ -488,7 +488,8 @@ public static class PricingQuoteTotalEndpoints
             // PreviewAsync applies the live metadata, the saved per-field
             // grants, and exact-name lookups. It NEVER calls CreateAsync.
             var preview = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
-                version, request.Inputs, ct, actor, omitMissingQuoteCustomer: true);
+                version, request.Inputs, ct, actor,
+                omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             var customerOmitted = !preview.Payload.Keys.Any(target =>
                 target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) &&
                 target.EndsWith("@odata.bind", StringComparison.Ordinal));
@@ -591,13 +592,13 @@ public static class PricingQuoteTotalEndpoints
                 quote.Connection, "quote", ct);
             var preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
                 "crear_oferta", version, request.Inputs, ct, actor,
-                omitMissingQuoteCustomer: true);
+                omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             var safeInputs = PricingQuoteTextLimits.Prepare(
                 definition, request.Inputs, preview.Payload, tenantTextLimits);
             if (!ReferenceEquals(safeInputs, request.Inputs))
                 preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
                     "crear_oferta", version, safeInputs, ct, actor,
-                    omitMissingQuoteCustomer: true);
+                    omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             PricingQuoteTextLimits.Check(preview.Payload, tenantTextLimits);
             await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
             // All nine inputs feed Dynamics' legacy utility calculation.
@@ -659,7 +660,7 @@ public static class PricingQuoteTotalEndpoints
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
-                trustedPricingSupplierCost: supplierCost);
+                trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true);
             if (header is WriteResult { State: "rejected" } rejectedHeader)
             {
                 // Dataverse explicitly returned a non-success HTTP status for

@@ -44,7 +44,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
 
     public async Task<TemplatePreview> PreviewAsync(string code,string name,int version,
         IReadOnlyDictionary<string,JsonElement> inputs,CancellationToken ct,
-        ClaimsPrincipal? actor = null, bool omitMissingQuoteCustomer = false)
+        ClaimsPrincipal? actor = null, bool omitMissingQuoteCustomer = false,
+        bool omitPricingQuoteTerms = false)
     {
         var conn=await readerAccess.ConnectionAsync(code,ct);
         var template=await templates.FindAsync(conn.Id,name,ct)
@@ -53,8 +54,13 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             ?? throw new ReadRejected(404,"template_version_missing");
         var policy=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,revision.Definition,ct);
-        var bound=TemplateMapper.ValidateInputs(revision.Definition.Inputs,inputs);
-        var data=await BuildAsync(revision.Definition,policy,bound,ct,actor,
+        var definition = omitPricingQuoteTerms
+            ? PricingQuoteTermOmission.FilterDefinition(revision.Definition)
+            : revision.Definition;
+        var effectiveInputs = omitPricingQuoteTerms
+            ? PricingQuoteTermOmission.FilterInputs(definition, inputs) : inputs;
+        var bound=TemplateMapper.ValidateInputs(definition.Inputs,effectiveInputs);
+        var data=await BuildAsync(definition,policy,bound,ct,actor,
             omitMissingQuoteCustomer);
         if(revision.Definition.Operation=="action")
         {
@@ -88,7 +94,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
     public async Task<object> ExecuteAsync(ClaimsPrincipal actor,string name,TemplateInputs request,
         string? idempotencyKey,CancellationToken ct,
         bool omitMissingQuoteCustomer = false,
-        decimal? trustedPricingSupplierCost = null)
+        decimal? trustedPricingSupplierCost = null,
+        bool omitPricingQuoteTerms = false)
     {
         var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
         var template=await templates.FindAsync(conn.Id,name,ct);
@@ -99,9 +106,16 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var definition=revision.Definition;
         var policy=await writerAccess.ResolveAsync(request.ConnectionCode,definition.EntityName,ct);
         await ValidateDefinitionAsync(policy,definition,ct);
+        // The saved CRUD definition is immutable. Filter only the dedicated
+        // Pricing execution, including historical 'required' input specs.
+        if (omitPricingQuoteTerms)
+            definition = PricingQuoteTermOmission.FilterDefinition(definition);
+        var effectiveInputs = omitPricingQuoteTerms
+            ? PricingQuoteTermOmission.FilterInputs(definition, request.Inputs)
+            : request.Inputs;
         var input=definition.Operation=="find" && !string.IsNullOrEmpty(request.Cursor)
             ? new Dictionary<string,JsonElement>()
-            : TemplateMapper.ValidateInputs(definition.Inputs,request.Inputs);
+            : TemplateMapper.ValidateInputs(definition.Inputs,effectiveInputs);
         IReadOnlyDictionary<string, JsonElement> values =
             await BuildAsync(definition,policy,input,ct,actor,
                 omitMissingQuoteCustomer);

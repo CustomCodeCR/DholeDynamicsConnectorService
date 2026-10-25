@@ -40,12 +40,20 @@ public static class PricingQuoteTermOmission
     }
 
     public static IReadOnlyDictionary<string, JsonElement> FilterInputs(
+        IntegrationTemplate originalDefinition,
         IntegrationTemplate effectiveDefinition,
         IReadOnlyDictionary<string, JsonElement> inputs)
     {
-        var allowed = effectiveDefinition.Inputs.Select(i => i.Name)
+        // Drop ONLY sources belonging exclusively to omitted quote targets.
+        // An unexpected input must still be rejected by ValidateInputs rather
+        // than being silently discarded from an authenticated API request.
+        var retained = effectiveDefinition.Inputs.Select(i => i.Name)
             .ToHashSet(StringComparer.Ordinal);
-        return inputs.Where(item => allowed.Contains(item.Key))
+        var removed = originalDefinition.Inputs
+            .Where(input => !retained.Contains(input.Name))
+            .Select(input => input.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        return inputs.Where(item => !removed.Contains(item.Key))
             .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
     }
 }

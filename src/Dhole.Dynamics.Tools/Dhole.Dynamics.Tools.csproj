@@ -12,20 +12,11 @@
     <ProjectReference Include="../Dhole.Dynamics.Domain/Dhole.Dynamics.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../../sql/001_init.sql" Link="migrations/001_init.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/002_secret_rotation.sql" Link="migrations/002_secret_rotation.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/003_api_access.sql" Link="migrations/003_api_access.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/004_metadata_catalog.sql" Link="migrations/004_metadata_catalog.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/005_saved_queries.sql" Link="migrations/005_saved_queries.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/006_generic_writes.sql" Link="migrations/006_generic_writes.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/007_integration_templates.sql" Link="migrations/007_integration_templates.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/008_admin_console.sql" Link="migrations/008_admin_console.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/009_legacy_migration.sql" Link="migrations/009_legacy_migration.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/010_durable_jobs.sql" Link="migrations/010_durable_jobs.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/011_metadata_lookup_shadow_fields.sql" Link="migrations/011_metadata_lookup_shadow_fields.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/012_saved_query_api_keys.sql" Link="migrations/012_saved_query_api_keys.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/013_integration_key_query_pin.sql" Link="migrations/013_integration_key_query_pin.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/014_event_automation_rules.sql" Link="migrations/014_event_automation_rules.sql" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../sql/015_template_api_keys.sql" Link="migrations/015_template_api_keys.sql" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Include every versioned SQL migration in build and publish output.
+         This avoids missing-file errors when adding the next migration. -->
+    <Content Include="../../sql/*.sql"
+             Link="migrations/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

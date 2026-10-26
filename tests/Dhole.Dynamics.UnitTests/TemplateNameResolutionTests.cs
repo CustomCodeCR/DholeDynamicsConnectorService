@@ -306,6 +306,50 @@ public sealed class TemplateNameResolutionTests
         Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(dhole, dynamics));
     }
 
+    [Theory]
+    [InlineData("LUTZ HERMANOS & COMPAÑÍA LIMITADA")]
+    [InlineData("LUTZ HERMANOS Y COMPAÑIA LIMITADA")]
+    [InlineData("LUTZ HERMANOS COMPAÑIA LTDA.")]
+    [InlineData("LUTZ HERMANOS Y CIA LTDA")]
+    public void SpanishLegalCompanySuffixDoesNotPreventLutzLookup(string legalName)
+    {
+        Assert.Equal("LUTZ HERMANOS",
+            TemplateOrchestrator.CustomerAccountNameKey(legalName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch("LUTZ HERMANOS", legalName));
+    }
+
+    [Fact]
+    public void RykOutdoorDisplayAliasResolvesOnlyItsVerifiedLegalAccount()
+    {
+        const string shortName = "RYK OUTDOOR";
+        const string legalName = "RYK OUTDOOR ADVENTURE S.A.";
+        Assert.Equal(legalName, TemplateOrchestrator.CanonicalPricingCustomerName(shortName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(shortName, legalName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(shortName, "RYK OUTDOOR S.A."));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(shortName,
+            "RYK OUTDOOR ADVENTURE IMPORTACIONES S.A."));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(shortName,
+            "RYK OUTDOOR ADVENTURE SUCURSAL NORTE S.A."));
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", shortName);
+        Assert.Contains(filters, filter => filter.Value?.GetString() == legalName);
+        Assert.Contains(filters, filter => filter.Value?.GetString() == shortName);
+        Assert.All(filters, filter =>
+        {
+            if (filter.Children is { Count: > 0 } children)
+                Assert.All(children, child => Assert.Equal("contains", child.Op));
+            else
+                Assert.Equal("contains", filter.Op);
+        });
+    }
+
+    [Theory]
+    [InlineData("LUTZ HERMANOS COMERCIAL S.A.")]
+    [InlineData("LUTZ HERMANOS & COMPAÑÍA LIMITADA SUCURSAL NORTE")]
+    public void LutzLookupRejectsOtherBusinessIdentities(string unrelated)
+    {
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch("LUTZ HERMANOS", unrelated));
+    }
+
     [Fact]
     public void VerifiedCicadexAliasFindsUniqueLegalAccountUsingContains()
     {

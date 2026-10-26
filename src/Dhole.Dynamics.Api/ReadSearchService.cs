@@ -71,7 +71,8 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
             if (!root.RootElement.TryGetProperty("value", out var items) || items.ValueKind != JsonValueKind.Array
                 || items.GetArrayLength() > query.PageSize)
                 throw new ReadRejected(502, "invalid_dataverse_page");
-            var records = items.EnumerateArray().Select(x => x.Clone()).ToArray();
+            var records = items.EnumerateArray().Select(x =>
+                ReadFormattedValues.AddChoiceLabels(x, context.Table, query.Select)).ToArray();
             long? count = root.RootElement.TryGetProperty("@odata.count", out var size) &&
                 size.ValueKind == JsonValueKind.Number && size.TryGetInt64(out var parsed) ? parsed : null;
             var link = root.RootElement.TryGetProperty("@odata.nextLink", out var nextLink) &&
@@ -100,7 +101,7 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         var path = "/api/data/v9.2/" + context.Table.EntitySetName + "(" + id.ToString("D") + ")" +
             compiled.RelativeUrl[compiled.RelativeUrl.IndexOf('?', StringComparison.Ordinal)..];
         using var body = await RequestAsync(context, path, 1, ct, singleRecord: true);
-        return Record(entity, body, context.Snapshot.Version);
+        return Record(entity, body, context.Snapshot.Version, context.Table, select);
     }
 
     public async Task<ReadRecordResponse> ByKeyAsync(ClaimsPrincipal user, string code, string entity,
@@ -127,14 +128,15 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         var path = "/api/data/v9.2/" + context.Table.EntitySetName + "(" + string.Join(",", pieces) + ")" +
             compiled.RelativeUrl[compiled.RelativeUrl.IndexOf('?', StringComparison.Ordinal)..];
         using var body = await RequestAsync(context, path, 1, ct, singleRecord: true);
-        return Record(entity, body, context.Snapshot.Version);
+        return Record(entity, body, context.Snapshot.Version, context.Table, select);
     }
 
-    private static ReadRecordResponse Record(string entity, JsonDocument doc, int version)
+    private static ReadRecordResponse Record(string entity, JsonDocument doc, int version,
+        MetadataTable table, IReadOnlyList<string> selected)
     {
         if (doc.RootElement.ValueKind != JsonValueKind.Object)
             throw new ReadRejected(502, "invalid_dataverse_record");
-        var item = doc.RootElement.Clone();
+        var item = ReadFormattedValues.AddChoiceLabels(doc.RootElement, table, selected);
         var etag = item.TryGetProperty("@odata.etag", out var e) && e.ValueKind == JsonValueKind.String
             ? e.GetString() : null;
         return new ReadRecordResponse(entity, item, etag, version);
@@ -183,7 +185,8 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         using var req = new HttpRequestMessage(HttpMethod.Get, uri);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
             await tokens.AcquireAsync(context.Connection, ct));
-        req.Headers.TryAddWithoutValidation("Prefer", "odata.maxpagesize=" + size);
+        req.Headers.TryAddWithoutValidation("Prefer", "odata.maxpagesize=" + size +
+            ", odata.include-annotations=\"OData.Community.Display.V1.FormattedValue\"");
         req.Headers.TryAddWithoutValidation("OData-Version", "4.0");
         using var response = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         if (singleRecord && response.StatusCode == HttpStatusCode.NotFound)

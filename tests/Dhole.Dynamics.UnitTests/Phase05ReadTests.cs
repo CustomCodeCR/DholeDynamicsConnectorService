@@ -106,6 +106,48 @@ public sealed class Phase05ReadTests
     }
 
     [Fact]
+    public void ChoiceLabelsPreserveProviderFormattingAndNumericCodes()
+    {
+        var choices = new[]
+        {
+            new MetadataChoice(35, new Dictionary<int, string>
+            {
+                [3082] = "En tránsito", [1033] = "In transit"
+            })
+        };
+        var table = Table with
+        {
+            Columns = Table.Columns.Select(column => column.LogicalName == "new_status"
+                ? column with { Choices = choices }
+                : column).ToArray()
+        };
+
+        using var original = JsonDocument.Parse("""
+            {"new_name":"Test","new_status":35}
+            """);
+        var decorated = ReadFormattedValues.AddChoiceLabels(original.RootElement, table,
+            ["new_name", "new_status"]);
+        Assert.Equal(35, decorated.GetProperty("new_status").GetInt32());
+        Assert.Equal("En tránsito", decorated.GetProperty("new_status" +
+            ReadFormattedValues.AnnotationSuffix).GetString());
+
+        var notSelected = ReadFormattedValues.AddChoiceLabels(original.RootElement, table, ["new_name"]);
+        Assert.False(notSelected.TryGetProperty("new_status" +
+            ReadFormattedValues.AnnotationSuffix, out _));
+
+        using var provider = JsonDocument.Parse("""
+            {"new_status":35,"new_status@OData.Community.Display.V1.FormattedValue":"Provider label"}
+            """);
+        var providerResult = ReadFormattedValues.AddChoiceLabels(provider.RootElement, table, ["new_status"]);
+        Assert.Equal("Provider label", providerResult.GetProperty("new_status" +
+            ReadFormattedValues.AnnotationSuffix).GetString());
+
+        using var unknown = JsonDocument.Parse("""{"new_status":9999}""");
+        var noLabel = ReadFormattedValues.AddChoiceLabels(unknown.RootElement, table, ["new_status"]);
+        Assert.False(noLabel.TryGetProperty("new_status" + ReadFormattedValues.AnnotationSuffix, out _));
+    }
+
+    [Fact]
     public void NextLinksCannotRedirectToAnotherHostOrEntitySet()
     {
         var conn=new DynamicsConnection(Guid.NewGuid(),"fixture","https://fixture.crm.dynamics.com",

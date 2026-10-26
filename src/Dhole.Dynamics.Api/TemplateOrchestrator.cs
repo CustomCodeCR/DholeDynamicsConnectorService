@@ -227,7 +227,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         // "ON" in SOLUCIONES LUMINICAS ON, remain part of the identity.
         const string corporateSuffix =
             @"(?:^| )(?:SOCIEDAD DE RESPONSABILIDAD LIMITADA|SOCIEDAD ANONIMA" +
-            @"|SOCIEDAD DE RESPONSABILIDAD LTDA|S A DE C V|S DE R L|S R L|S A" +
+            @"|SOCIEDAD DE RESPONSABILIDAD LTDA|Y COMPANIA LIMITADA|COMPANIA LIMITADA" +
+            @"|Y COMPANIA LTDA|COMPANIA LTDA|Y CIA LTDA|CIA LTDA|S A DE C V|S DE R L|S R L|S A" +
             @"|SRL|SA|LTDA|LLC|INC|LIMITED|LIMITADA)$";
         string previous;
         do
@@ -260,31 +261,38 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             : string.Empty;
     }
 
-    // Verified business alias for the principal Dynamics tenant. This does
-    // not fabricate an account ID: the exact registered legal name still
-    // requires a unique, authorized Dataverse account lookup.
+    // Verified display-name aliases for the connected Dynamics tenant. These
+    // never supply a fixed account GUID; every name must resolve to a unique,
+    // metadata-authorized Dataverse account before it can be written.
     public static string CanonicalPricingCustomerName(string name) =>
-        CustomerAccountNameKey(name) == "CICADEX"
-            ? "Consorcio Interamericano Caribe de Exportación S.A."
-            : name;
+        CustomerAccountNameKey(name) switch
+        {
+            "CICADEX" => "Consorcio Interamericano Caribe de Exportación S.A.",
+            "RYK OUTDOOR" => "RYK OUTDOOR ADVENTURE S.A.",
+            _ => name
+        };
 
     public static bool CustomerAccountNamesMatch(string providedName, string recordName)
     {
-        var requested = CustomerAccountNameKey(CanonicalPricingCustomerName(providedName));
         var actual = CustomerAccountNameKey(recordName);
+        var original = CustomerAccountNameKey(providedName);
+        var canonical = CustomerAccountNameKey(CanonicalPricingCustomerName(providedName));
+        // The original exact name remains valid even for an alias. If both the
+        // short and registered legal names exist as different accounts, the
+        // lookup will collect both IDs and fail with lookup_name_ambiguous.
+        return CustomerAccountNameKeysMatch(original, actual) ||
+            (canonical != original && CustomerAccountNameKeysMatch(canonical, actual));
+    }
+
+    private static bool CustomerAccountNameKeysMatch(string requested, string actual)
+    {
         if (requested.Length < 3 || actual.Length < 3)
             return false;
         if (string.Equals(requested, actual, StringComparison.Ordinal))
             return true;
 
-        // Lookup uses OData contains(account.name, Pricing.clientName). A
-        // Dynamics legal name can be "EL REINADO DE LAS LLANTAS SOCIEDAD
-        // ANONIMA" while Dhole stores "REINADO DE LAS LLANTAS". Accept
-        // that whole-word substring after stripping the legal suffix, but
-        // only if the surrounding words are grammatical particles. This
-        // refuses distinct companies like "... SUCURSAL NORTE" or
-        // "... IMPORTACIONES". Multiple verified account IDs are rejected
-        // by BuildAsync, never resolved by first-result order.
+        // Legal suffixes and grammatical particles are allowed, but not
+        // additional business words, branches or other company identities.
         var at = actual.IndexOf(requested, StringComparison.Ordinal);
         if (at >= 0 &&
             (at == 0 || actual[at - 1] == ' ') &&
@@ -299,9 +307,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 return true;
         }
 
-        var requestedIdentity = CustomerAccountIdentityKey(providedName);
+        var requestedIdentity = CustomerAccountIdentityKey(requested);
         return requestedIdentity.Length > 0 &&
-            string.Equals(requestedIdentity, CustomerAccountIdentityKey(recordName),
+            string.Equals(requestedIdentity, CustomerAccountIdentityKey(actual),
                 StringComparison.Ordinal);
     }
 
@@ -321,6 +329,13 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         if (input.Length is >= 3 and <= 100)
             filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
                 Value:JsonSerializer.SerializeToElement(input)));
+        // Search the original short name too, so a distinct account having
+        // that exact name cannot be silently bypassed by a verified alias.
+        var original = name.Trim();
+        if (original.Length is >= 3 and <= 100 &&
+            !string.Equals(original, input, StringComparison.OrdinalIgnoreCase))
+            filters.Add(new ReadPredicate(Field:searchField, Op:"contains",
+                Value:JsonSerializer.SerializeToElement(original)));
         if (core.Length is >= 3 and <= 100 &&
             !string.Equals(input, core, StringComparison.OrdinalIgnoreCase))
             filters.Add(new ReadPredicate(Field:searchField, Op:"contains",

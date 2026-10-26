@@ -83,6 +83,44 @@ public sealed class Phase13IntegrationKeyTests
                 issued.ApiKey,code,"ofertas_abiertas",CancellationToken.None));
             Assert.Equal(429,exceeded.Status);
 
+            // A single application credential can read every enabled saved query
+            // on this connection, including queries added after key issuance.
+            var universal=await repo.IssueAsync(code,
+                new(null,"Pangolin Todas",30,5),"ci",CancellationToken.None);
+            Assert.Equal("all",universal.Key.Scope);
+            Assert.Null(universal.Key.QueryName);
+            var universalFirst=await repo.ValidateAndChargeAsync(universal.ApiKey,code,
+                "ofertas_abiertas",CancellationToken.None);
+            Assert.Equal("all",universalFirst.Scope);
+            await using(var extra=new NpgsqlCommand("""
+                INSERT INTO dynamics.saved_queries
+                    (id,connection_id,name,entity_name,spec,parameter_schema,enabled)
+                VALUES(@id,@connection,'clientes','account',
+                  '{"select":["name"]}'::jsonb,'[]'::jsonb,true)
+                """,conn))
+            {
+                extra.Parameters.AddWithValue("id",Guid.NewGuid());
+                extra.Parameters.AddWithValue("connection",id);
+                await extra.ExecuteNonQueryAsync();
+            }
+            await repo.ValidateAndChargeAsync(universal.ApiKey,code,
+                "clientes",CancellationToken.None);
+            await Assert.ThrowsAsync<ReadRejected>(()=>repo.ValidateAndChargeAsync(
+                issued.ApiKey,code,"clientes",CancellationToken.None));
+            await using(var disable=new NpgsqlCommand("""
+                UPDATE dynamics.saved_queries SET enabled=false
+                WHERE connection_id=@connection AND name='clientes'
+                """,conn))
+            {
+                disable.Parameters.AddWithValue("connection",id);
+                await disable.ExecuteNonQueryAsync();
+            }
+            var disabled=await Assert.ThrowsAsync<ReadRejected>(()=>repo.ValidateAndChargeAsync(
+                universal.ApiKey,code,"clientes",CancellationToken.None));
+            Assert.Equal(401,disabled.Status);
+            await repo.ValidateAndChargeAsync(universal.ApiKey,code,
+                "ofertas_abiertas",CancellationToken.None);
+
             var second=await repo.IssueAsync(code,
                 new("ofertas_abiertas","Otra",30,5),"ci",CancellationToken.None);
             await using(var change=new NpgsqlCommand("""
@@ -105,7 +143,7 @@ public sealed class Phase13IntegrationKeyTests
                   AND octet_length(key_sha256)=32
                 """,conn);
             hashCount.Parameters.AddWithValue("id",id);
-            Assert.Equal(2L,(long)(await hashCount.ExecuteScalarAsync())!);
+            Assert.Equal(3L,(long)(await hashCount.ExecuteScalarAsync())!);
         }
         finally
         {

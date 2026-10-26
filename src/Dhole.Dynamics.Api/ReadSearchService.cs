@@ -20,7 +20,9 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
     {
         var context = await policy.ResolveAsync(request.ConnectionCode, entity, ct);
         if (apiKey is not null && (apiKey.ConnectionId != context.Connection.Id ||
-                apiKey.QueryName != savedName || admin))
+                string.IsNullOrWhiteSpace(savedName) ||
+                apiKey.Scope is not ("all" or "single") ||
+                (apiKey.Scope == "single" && apiKey.QueryName != savedName) || admin))
             throw new ReadRejected(403,"integration_key_scope_denied");
         var issuer = apiKey is not null ? "integration-key" : admin
             ? "admin:oidc" : user.FindFirst("connector:issuer")?.Value ?? "";
@@ -52,8 +54,8 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         var primary = ReadQueryCompiler.Compile(context.Table, query with { Expand = null }, context.Allowed);
         if (apiKey is not null)
         {
-            // The key has already been validated against this single saved query
-            // and billed under its quota. Never grant arbitrary searches or expands.
+            // The key was validated against this enabled saved query and charged
+            // under its shared per-key quota. Arbitrary searches/expands remain denied.
             if (query.Expand is { Count: > 0 } ||
                 primary.RequiredFields.Count == 0 ||
                 primary.RequiredFields.Any(f => !context.Allowed.Contains(f)))

@@ -5,17 +5,18 @@ using Npgsql;
 
 namespace Dhole.Dynamics.Api;
 
-public sealed record SavedQueryApiKeyRequest(string QueryName, string Label,
+public sealed record SavedQueryApiKeyRequest(string? QueryName, string Label,
     int ExpiresInDays = 30, int MaxRequestsPerMinute = 60);
-public sealed record SavedQueryApiKeyInfo(Guid Id, string QueryName, string Label, bool Enabled,
+public sealed record SavedQueryApiKeyInfo(Guid Id, string? QueryName, string Label, bool Enabled,
     DateTimeOffset ExpiresAt, int MaxRequestsPerMinute, DateTimeOffset CreatedAt,
-    DateTimeOffset? LastUsedAt);
+    DateTimeOffset? LastUsedAt, string Scope);
 public sealed record SavedQueryApiKeyIssued(SavedQueryApiKeyInfo Key, string ApiKey);
-public sealed record SavedQueryApiKeyIdentity(Guid Id, Guid ConnectionId, string QueryName);
+public sealed record SavedQueryApiKeyIdentity(Guid Id, Guid ConnectionId, string? QueryName, string Scope);
 
 /// <summary>
 /// Dedicated read-only integration credentials. Secrets are revealed once, hashed at rest,
-/// scoped to ONE connection and ONE enabled saved query, and revocable by Dhole admins.
+/// scoped to ONE connection and its enabled saved queries (or a legacy pinned query),
+/// and revocable by Dhole admins.
 /// This is deliberately separate from the Entra machine identity used for CRUD.
 /// </summary>
 public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
@@ -46,7 +47,7 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         await using var db = await source.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
             SELECT k.id,k.saved_query_name,k.label,k.enabled,k.expires_at,
-                   k.max_requests_per_minute,k.created_at,k.last_used_at
+                   k.max_requests_per_minute,k.created_at,k.last_used_at,k.key_scope
             FROM dynamics.saved_query_api_keys k
             JOIN dynamics.connections c ON c.id=k.connection_id
             WHERE c.code=@code ORDER BY k.created_at DESC LIMIT 200
@@ -61,7 +62,8 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
     public async Task<SavedQueryApiKeyIssued> IssueAsync(string code,
         SavedQueryApiKeyRequest request,string actor,CancellationToken ct)
     {
-        if (!ReadQueryCompiler.ValidParam(request.QueryName) ||
+        var singleQuery = !string.IsNullOrWhiteSpace(request.QueryName);
+        if ((singleQuery && !ReadQueryCompiler.ValidParam(request.QueryName!)) ||
             string.IsNullOrWhiteSpace(request.Label) || request.Label.Length > 120 ||
             request.ExpiresInDays is < 1 or > 90 ||
             request.MaxRequestsPerMinute is < 1 or > 120)
@@ -75,17 +77,20 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         await using var insert=new NpgsqlCommand("""
             INSERT INTO dynamics.saved_query_api_keys
                 (id,connection_id,saved_query_name,key_sha256,label,enabled,
-                 expires_at,max_requests_per_minute,created_by,saved_query_updated_at)
-            SELECT @id,c.id,q.name,@hash,@label,true,@expires,@quota,@actor,q.updated_at
+                 expires_at,max_requests_per_minute,created_by,saved_query_updated_at,key_scope)
+            SELECT @id,c.id,q.name,@hash,@label,true,@expires,@quota,@actor,q.updated_at,@scope
             FROM dynamics.connections c
-            JOIN dynamics.saved_queries q ON q.connection_id=c.id
-            WHERE c.code=@code AND q.name=@name AND q.enabled=true
+            LEFT JOIN dynamics.saved_queries q ON q.connection_id=c.id
+                AND q.name=@name AND q.enabled=true
+            WHERE c.code=@code AND (@scope='all' OR q.id IS NOT NULL)
             RETURNING id,saved_query_name,label,enabled,expires_at,
-                      max_requests_per_minute,created_at,last_used_at
+                      max_requests_per_minute,created_at,last_used_at,key_scope
             """,db,tx);
         insert.Parameters.AddWithValue("id",id);
         insert.Parameters.AddWithValue("code",code);
-        insert.Parameters.AddWithValue("name",request.QueryName);
+        insert.Parameters.Add("name",NpgsqlTypes.NpgsqlDbType.Varchar).Value =
+            singleQuery ? request.QueryName! : DBNull.Value;
+        insert.Parameters.AddWithValue("scope",singleQuery ? "single" : "all");
         insert.Parameters.AddWithValue("label",request.Label.Trim());
         insert.Parameters.AddWithValue("hash",digest);
         insert.Parameters.AddWithValue("expires",expiresAt);
@@ -95,7 +100,7 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         await using(var reader=await insert.ExecuteReaderAsync(ct))
         {
             if(!await reader.ReadAsync(ct))
-                throw new ReadRejected(409,"enabled_saved_query_required");
+                throw new ReadRejected(409,singleQuery ? "enabled_saved_query_required" : "connection_not_found");
             key=Read(reader);
         }
         await AuditAsync(db,tx,code,actor,"integration-key.create",ct);
@@ -130,19 +135,23 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         await using var db=await source.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
         await using var select=new NpgsqlCommand("""
-            SELECT k.key_sha256,k.connection_id,k.max_requests_per_minute
+            SELECT k.key_sha256,k.connection_id,k.max_requests_per_minute,
+                   k.key_scope,k.saved_query_name
             FROM dynamics.saved_query_api_keys k
             JOIN dynamics.connections c ON c.id=k.connection_id
             JOIN dynamics.saved_queries q ON q.connection_id=k.connection_id
-                AND q.name=k.saved_query_name AND q.updated_at=k.saved_query_updated_at
-            WHERE k.id=@key AND c.code=@code AND k.saved_query_name=@name
-              AND k.enabled=true AND k.expires_at>now() AND q.enabled=true
+                AND q.name=@name AND q.enabled=true
+            WHERE k.id=@key AND c.code=@code
+              AND k.enabled=true AND k.expires_at>now()
+              AND (k.key_scope='all' OR
+                   (k.key_scope='single' AND k.saved_query_name=q.name
+                    AND k.saved_query_updated_at=q.updated_at))
             FOR UPDATE OF k
             """,db,tx);
         select.Parameters.AddWithValue("key",keyId);
         select.Parameters.AddWithValue("code",connectionCode);
         select.Parameters.AddWithValue("name",queryName);
-        Guid connectionId;int quota;byte[] expected;
+        Guid connectionId;int quota;byte[] expected;string scope;string? pinnedQuery;
         await using(var reader=await select.ExecuteReaderAsync(ct))
         {
             if(!await reader.ReadAsync(ct))
@@ -150,6 +159,8 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
             expected=reader.GetFieldValue<byte[]>(0);
             connectionId=reader.GetGuid(1);
             quota=reader.GetInt32(2);
+            scope=reader.GetString(3);
+            pinnedQuery=reader.IsDBNull(4)?null:reader.GetString(4);
         }
         if(expected.Length!=submitted.Length ||
             !CryptographicOperations.FixedTimeEquals(submitted,expected))
@@ -174,14 +185,14 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         used.Parameters.AddWithValue("id",keyId);
         await used.ExecuteNonQueryAsync(ct);
         await tx.CommitAsync(ct);
-        return new(keyId,connectionId,queryName);
+        return new(keyId,connectionId,pinnedQuery,scope);
     }
 
     private static SavedQueryApiKeyInfo Read(NpgsqlDataReader r) =>
-        new(r.GetGuid(0),r.GetString(1),r.GetString(2),r.GetBoolean(3),
+        new(r.GetGuid(0),r.IsDBNull(1)?null:r.GetString(1),r.GetString(2),r.GetBoolean(3),
             r.GetFieldValue<DateTimeOffset>(4),r.GetInt32(5),
             r.GetFieldValue<DateTimeOffset>(6),
-            r.IsDBNull(7)?null:r.GetFieldValue<DateTimeOffset>(7));
+            r.IsDBNull(7)?null:r.GetFieldValue<DateTimeOffset>(7),r.GetString(8));
 
     private static async Task AuditAsync(NpgsqlConnection db,NpgsqlTransaction tx,string code,
         string actor,string action,CancellationToken ct)

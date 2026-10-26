@@ -19,6 +19,7 @@ public static class SavedQueryApiKeyEndpoints
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         admin.MapGet("",List);
         admin.MapPost("",Issue);
+        admin.MapPut("/{keyId:guid}/access",UpdateAccess);
         admin.MapDelete("/{keyId:guid}",Revoke);
         app.MapPost("/api/v1/keyed/saved-queries/{name}/execute",Execute)
             .WithGroupName("v1")
@@ -35,6 +36,14 @@ public static class SavedQueryApiKeyEndpoints
         SavedQueryApiKeyRepository repo,ClaimsPrincipal user,HttpContext http,CancellationToken ct) =>
         Guard(http,async()=>Results.Ok(await repo.IssueAsync(code,request,
             ScopeSecurity.ActorId(user),ct)));
+
+    private static Task<IResult> UpdateAccess(string code,Guid keyId,
+        SavedQueryApiKeyAccessUpdate request,SavedQueryApiKeyRepository repo,
+        ClaimsPrincipal user,HttpContext http,CancellationToken ct) =>
+        Guard(http,async()=>await repo.UpdateAccessAsync(code,keyId,request,
+            ScopeSecurity.ActorId(user),ct) is { } updated
+            ? Results.Ok(updated) : ApiProblems.Create(http,404,"integration_key_not_found",
+                "Integration key not found or no longer active."));
 
     private static Task<IResult> Revoke(string code,Guid keyId,
         SavedQueryApiKeyRepository repo,ClaimsPrincipal user,HttpContext http,CancellationToken ct) =>

@@ -21,7 +21,7 @@ public sealed class ReadSearchService(HttpClient http, IDataverseAccessTokenProv
         var context = await policy.ResolveAsync(request.ConnectionCode, entity, ct);
         if (apiKey is not null && (apiKey.ConnectionId != context.Connection.Id ||
                 string.IsNullOrWhiteSpace(savedName) ||
-                apiKey.Scope is not ("all" or "single") ||
+                apiKey.Scope is not ("all" or "single" or "selected") ||
                 (apiKey.Scope == "single" && apiKey.QueryName != savedName) || admin))
             throw new ReadRejected(403,"integration_key_scope_denied");
         var issuer = apiKey is not null ? "integration-key" : admin

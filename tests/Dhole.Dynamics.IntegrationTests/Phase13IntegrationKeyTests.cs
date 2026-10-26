@@ -121,6 +121,32 @@ public sealed class Phase13IntegrationKeyTests
             await repo.ValidateAndChargeAsync(universal.ApiKey,code,
                 "ofertas_abiertas",CancellationToken.None);
 
+            // Select several queries for one key; edit a legacy key in place
+            // without disclosing or changing the underlying credential.
+            var selected=await repo.IssueAsync(code,
+                new(null,"Pangolin Seleccionadas",30,5,"selected",["ofertas_abiertas"]),
+                "ci",CancellationToken.None);
+            Assert.Equal("selected",selected.Key.Scope);
+            Assert.Single(selected.Key.AllowedQueries!);
+            await repo.ValidateAndChargeAsync(selected.ApiKey,code,
+                "ofertas_abiertas",CancellationToken.None);
+            var selectedDenied=await Assert.ThrowsAsync<ReadRejected>(()=>
+                repo.ValidateAndChargeAsync(selected.ApiKey,code,"clientes",CancellationToken.None));
+            Assert.Equal(401,selectedDenied.Status);
+            var promoted=await repo.UpdateAccessAsync(code,issued.Key.Id,
+                new("all"),"ci",CancellationToken.None);
+            Assert.Equal("all",promoted!.Scope);
+            await repo.ValidateAndChargeAsync(issued.ApiKey,code,
+                "ofertas_abiertas",CancellationToken.None);
+            var restricted=await repo.UpdateAccessAsync(code,selected.Key.Id,
+                new("selected",["ofertas_abiertas"]),"ci",CancellationToken.None);
+            Assert.Equal("selected",restricted!.Scope);
+            Assert.Single(restricted.AllowedQueries!);
+            var invalid=await Assert.ThrowsAsync<ReadRejected>(()=>repo.UpdateAccessAsync(
+                code,selected.Key.Id,new("selected",["clientes"]),"ci",CancellationToken.None));
+            Assert.Equal(409,invalid.Status);
+            await repo.UpdateAccessAsync(code,selected.Key.Id,new("all"),"ci",CancellationToken.None);
+
             var second=await repo.IssueAsync(code,
                 new("ofertas_abiertas","Otra",30,5),"ci",CancellationToken.None);
             await using(var change=new NpgsqlCommand("""
@@ -143,7 +169,7 @@ public sealed class Phase13IntegrationKeyTests
                   AND octet_length(key_sha256)=32
                 """,conn);
             hashCount.Parameters.AddWithValue("id",id);
-            Assert.Equal(3L,(long)(await hashCount.ExecuteScalarAsync())!);
+            Assert.Equal(4L,(long)(await hashCount.ExecuteScalarAsync())!);
         }
         finally
         {

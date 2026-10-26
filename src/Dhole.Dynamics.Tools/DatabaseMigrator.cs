@@ -5,7 +5,7 @@ namespace Dhole.Dynamics.Tools;
 
 public static class DatabaseMigrator
 {
-    private static readonly string[] Migrations = ["001_init.sql", "002_secret_rotation.sql", "003_api_access.sql", "004_metadata_catalog.sql", "005_saved_queries.sql", "006_generic_writes.sql", "007_integration_templates.sql", "008_admin_console.sql", "009_legacy_migration.sql", "010_durable_jobs.sql", "011_metadata_lookup_shadow_fields.sql", "012_saved_query_api_keys.sql", "013_integration_key_query_pin.sql", "014_event_automation_rules.sql", "015_template_api_keys.sql", "016_multi_query_integration_keys.sql"];
+    private static readonly string[] Migrations = ["001_init.sql", "002_secret_rotation.sql", "003_api_access.sql", "004_metadata_catalog.sql", "005_saved_queries.sql", "006_generic_writes.sql", "007_integration_templates.sql", "008_admin_console.sql", "009_legacy_migration.sql", "010_durable_jobs.sql", "011_metadata_lookup_shadow_fields.sql", "012_saved_query_api_keys.sql", "013_integration_key_query_pin.sql", "014_event_automation_rules.sql", "015_template_api_keys.sql", "016_multi_query_integration_keys.sql", "017_integration_key_query_selection.sql"];
 
     public static async Task ApplyAsync(NpgsqlDataSource dataSource, string directory, CancellationToken ct = default)
     {

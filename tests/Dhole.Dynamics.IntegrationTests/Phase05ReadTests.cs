@@ -43,7 +43,9 @@ public sealed class Phase05ReadTests
             Requests.Add(uri);
             Assert.Equal("ci.crm.dynamics.com", uri.Host);
             Assert.StartsWith("/api/data/v9.2/new_shipments", uri.AbsolutePath);
-            Assert.Contains("odata.maxpagesize=", req.Headers.GetValues("Prefer").Single());
+            var prefer = req.Headers.GetValues("Prefer").Single();
+            Assert.Contains("odata.maxpagesize=", prefer);
+            Assert.Contains("odata.include-annotations=\"OData.Community.Display.V1.FormattedValue\"", prefer);
             var continuation = uri.Query.Contains("skiptoken", StringComparison.OrdinalIgnoreCase);
             var content = continuation
                 ? """{"value":[{"new_name":"Shipment 2"}]}"""

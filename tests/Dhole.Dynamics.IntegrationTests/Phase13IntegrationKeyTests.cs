@@ -136,8 +136,10 @@ public sealed class Phase13IntegrationKeyTests
             var promoted=await repo.UpdateAccessAsync(code,issued.Key.Id,
                 new("all"),"ci",CancellationToken.None);
             Assert.Equal("all",promoted!.Scope);
-            await repo.ValidateAndChargeAsync(issued.ApiKey,code,
-                "ofertas_abiertas",CancellationToken.None);
+            // Scope changes must not reset the already exhausted per-key quota.
+            var promotedLimit=await Assert.ThrowsAsync<ReadRejected>(()=>repo.ValidateAndChargeAsync(
+                issued.ApiKey,code,"ofertas_abiertas",CancellationToken.None));
+            Assert.Equal(429,promotedLimit.Status);
             var restricted=await repo.UpdateAccessAsync(code,selected.Key.Id,
                 new("selected",["ofertas_abiertas"]),"ci",CancellationToken.None);
             Assert.Equal("selected",restricted!.Scope);

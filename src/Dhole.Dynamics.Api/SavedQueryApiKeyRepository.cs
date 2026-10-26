@@ -114,7 +114,7 @@ public sealed class SavedQueryApiKeyRepository(NpgsqlDataSource source)
         {
             if(!await reader.ReadAsync(ct))
                 throw new ReadRejected(409,scope == "single" ? "enabled_saved_query_required" : "connection_not_found");
-            key=Read(reader);
+            key=Read(reader) with { AllowedQueries=allowed };
         }
         if(scope=="selected")
             await SaveSelectedAsync(db,tx,id,allowed,ct);

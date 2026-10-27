@@ -184,8 +184,20 @@ public static class MetadataEndpoints
             // preserve the existing quote data, field mappings and key grants.
             var (httpStatus, failureCode, reason) = ex.RemoteStatus switch
             {
+                400 when ex.Reason=="display_name" => (422, "dataverse_key_display_name_rejected",
+                    "Dataverse rechazó el nombre visible de la clave. Verificá la configuración de idiomas del entorno."),
+                400 when ex.Reason=="secured_field" => (422, "dataverse_key_secured_field",
+                    "Dataverse no permite crear una clave sobre una columna con seguridad de campo."),
+                400 when ex.Reason=="key_size" => (422, "dataverse_key_size_exceeded",
+                    "El tamaño definido para la columna supera el límite de índices de Dataverse (900 bytes)."),
+                400 when ex.Reason=="existing_or_duplicate" => (409, "dataverse_key_existing_or_duplicate",
+                    "Dataverse reporta una clave duplicada o existente. Actualizá las claves; no se intentó crear otra."),
+                400 when ex.Reason=="schema_name" => (422, "dataverse_key_schema_name_invalid",
+                    "Dataverse rechazó el nombre del índice o el prefijo de publicador."),
+                400 when ex.Reason=="attribute" => (422, "dataverse_key_attribute_invalid",
+                    "Dataverse rechazó la columna new_idtraasignado como componente de la clave."),
                 400 => (422, "dataverse_key_metadata_invalid",
-                    "Dataverse rechazó la definición de clave (400). Verificá tipo de columna, nombre del índice y valores existentes."),
+                    "Dataverse rechazó la definición de la clave. Revisá el tipo, permisos de metadata, el nombre y el tamaño de la columna."),
                 401 or 403 => (403, "dataverse_key_metadata_permission_denied",
                     "Dataverse rechazó los permisos para administrar claves de Oferta."),
                 409 or 412 => (409, "dataverse_key_metadata_conflict",

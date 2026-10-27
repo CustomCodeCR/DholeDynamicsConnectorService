@@ -1145,6 +1145,30 @@ public static class PricingQuoteTotalEndpoints
         return number.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Single authoritative calculation of Quote amounts, for both future
+    /// CREATE and UPSERT paths. Dataverse new_monto1 is supplier cost;
+    /// monto2..9 are always zero; new_flete is the customer SALE.
+    /// These trusted values override any caller/template-supplied amounts.
+    /// Standard totalamount remains calculated from the quotedetail line.
+    /// </summary>
+    public static IReadOnlyDictionary<string, JsonElement> WithExactQuoteAmounts(
+        IReadOnlyDictionary<string, JsonElement> source,
+        decimal totalSupplierCost, decimal totalSale)
+    {
+        if (totalSupplierCost < 0 || totalSale < 0 ||
+            totalSupplierCost > 999999999999m || totalSale > 999999999999m)
+            throw new ArgumentOutOfRangeException(nameof(totalSupplierCost),
+                "Quote sale and supplier cost must be finite and nonnegative.");
+        var values = source.ToDictionary(pair => pair.Key, pair => pair.Value,
+            StringComparer.Ordinal);
+        values["new_flete"] = JsonSerializer.SerializeToElement(totalSale);
+        for (var i = 1; i <= 9; i++)
+            values["new_monto" + i] = JsonSerializer.SerializeToElement(
+                i == 1 ? totalSupplierCost : 0m);
+        return values;
+    }
+
     public static Dictionary<string, JsonElement> BuildLine(
         Guid rateId, decimal totalSale, Guid quoteId, string relationship = "quoteid")
     {

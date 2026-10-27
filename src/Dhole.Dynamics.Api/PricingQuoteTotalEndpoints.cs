@@ -16,19 +16,29 @@ namespace Dhole.Dynamics.Api;
 /// </summary>
 public static class PricingQuoteTotalEndpoints
 {
+    // Explicit sales lines for the opt-in multi-line route. No arbitrary
+    // Dataverse field names or navigation properties are accepted.
+    public sealed record PricingQuoteLine(
+        string Name, string? Description, decimal Quantity, decimal UnitPrice);
+
     public sealed record PricingQuoteTotalRequest(
         string ConnectionCode, Guid DholeRateId, decimal TotalSaleAmount,
         IReadOnlyDictionary<string, JsonElement> Inputs,
         decimal? TotalCostAmount = null,
-        string? CurrencyCode = null, Guid? CurrencyId = null);
+        string? CurrencyCode = null, Guid? CurrencyId = null,
+        IReadOnlyList<PricingQuoteLine>? Lines = null);
 
     public sealed record PricingQuoteTotalResponse(
         string State, Guid? RecordId, Guid? LineRecordId,
-        string Stage, bool Replay);
+        string Stage, bool Replay, IReadOnlyList<Guid>? LineRecordIds = null);
 
     public static IEndpointRouteBuilder MapPricingQuoteTotalEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
+            .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
+        // Opt-in: accepts explicit itemized sale lines instead of the legacy
+        // single summary line. Existing Pricing callers remain unchanged.
+        app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-lines", Execute)
             .AllowAnonymous().WithGroupName("v1").RequireRateLimiting("AdminRate");
         // Read-only, key-protected check used by Pricing before an explicit
         // retry. It neither reserves write idempotency nor contacts Dataverse.
@@ -519,6 +529,25 @@ public static class PricingQuoteTotalEndpoints
         var quoteConfirmedCreated = false;
         try
         {
+            var itemized = http.Request.Path.Value?.EndsWith(
+                "/execute-with-lines", StringComparison.Ordinal) == true;
+            if (itemized)
+            {
+                if (request.Lines is not { Count: >= 1 and <= 50 } ||
+                    request.Lines.Any(line => line is null ||
+                        string.IsNullOrWhiteSpace(line.Name) ||
+                        line.Name.Trim().Length > 100 ||
+                        line.Description?.Length > 2000 ||
+                        line.Quantity <= 0 || line.Quantity > 100000m ||
+                        line.UnitPrice < 0 || line.UnitPrice > 999999999999m))
+                    throw new ReadRejected(400, "quote_lines_invalid");
+                var amount = request.Lines.Sum(line => line.Quantity * line.UnitPrice);
+                if (Math.Abs(Math.Round(amount, 2, MidpointRounding.AwayFromZero) -
+                             Math.Round(request.TotalSaleAmount, 2, MidpointRounding.AwayFromZero)) > 0.01m)
+                    throw new ReadRejected(400, "quote_lines_total_mismatch");
+            }
+            else if (request.Lines is not null)
+                throw new ReadRejected(400, "quote_lines_require_itemized_endpoint");
             if (request.ConnectionCode != "principal" ||
                 request.DholeRateId == Guid.Empty ||
                 request.TotalSaleAmount < 0 || request.TotalSaleAmount > 999999999999m ||
@@ -638,11 +667,18 @@ public static class PricingQuoteTotalEndpoints
                 !string.IsNullOrEmpty(r.ReferencingNavigation));
             if (relation is null)
                 throw new ReadRejected(409, "quote_detail_relationship_missing");
-            var validationLine = BuildLine(request.DholeRateId,
-                request.TotalSaleAmount, Guid.NewGuid(), relation.ReferencingNavigation!);
-            var compiled = await WriteValueCompiler.CompileAsync(detail, validationLine,
-                (rel, id, token) => access.EnsureLookupAsync(actor, detail, rel, id, token), ct);
-            await access.PermitAsync(actor, detail, "create", compiled.Fields, ct);
+            var validationQuoteId = Guid.NewGuid();
+            var validationLines = itemized
+                ? request.Lines!.Select(line => BuildItemizedLine(line,
+                    validationQuoteId, relation.ReferencingNavigation!)).ToArray()
+                : [BuildLine(request.DholeRateId, request.TotalSaleAmount,
+                    validationQuoteId, relation.ReferencingNavigation!)];
+            foreach (var validationLine in validationLines)
+            {
+                var compiled = await WriteValueCompiler.CompileAsync(detail, validationLine,
+                    (rel, id, token) => access.EnsureLookupAsync(actor, detail, rel, id, token), ct);
+                await access.PermitAsync(actor, detail, "create", compiled.Fields, ct);
+            }
 
             // The prefix is common but the suffix is different for the two
             // separate WriteLedger entries (header and sales line).
@@ -670,20 +706,36 @@ public static class PricingQuoteTotalEndpoints
                     null, null, "quote", false), statusCode: 409);
 
             quoteConfirmedCreated = true;
-            // The client has the right to create quotedetail only through the
-            // hardcoded aggregate line request here, not arbitrary field input.
-            var line = await writer.CreateWithResolvedMetadataAsync(actor, detail,
-                new GenericCreateRequest(request.ConnectionCode,
-                    BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId,
-                        relation.ReferencingNavigation!)),
-                rawKey + "-total", ct);
-            if (line.State != "succeeded" || line.RecordId is not Guid lineId ||
-                lineId == Guid.Empty)
-                return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
-                    quoteId, null, "total", created.Replay), statusCode: 409);
+            // A separate ledger key per detail ensures replays cannot create
+            // duplicated lines. No caller may pass arbitrary quotedetail fields.
+            var lineIds = new List<Guid>();
+            var allReplay = created.Replay;
+            for (var index = 0; index < validationLines.Length; index++)
+            {
+                var values = itemized
+                    ? BuildItemizedLine(request.Lines![index], quoteId,
+                        relation.ReferencingNavigation!)
+                    : BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId,
+                        relation.ReferencingNavigation!);
+                var suffix = itemized
+                    ? "-line-" + (index + 1).ToString("D3",
+                        System.Globalization.CultureInfo.InvariantCulture)
+                    : "-total";
+                var result = await writer.CreateWithResolvedMetadataAsync(actor, detail,
+                    new GenericCreateRequest(request.ConnectionCode, values),
+                    rawKey + suffix, ct);
+                if (result.State != "succeeded" || result.RecordId is not Guid lineId ||
+                    lineId == Guid.Empty)
+                    return Results.Json(new PricingQuoteTotalResponse(
+                        "requires_reconciliation", quoteId, lineIds.FirstOrDefault(),
+                        itemized ? "line-" + (index + 1) : "total", created.Replay, lineIds),
+                        statusCode: 409);
+                lineIds.Add(lineId);
+                allReplay &= result.Replay;
+            }
 
             return Results.Ok(new PricingQuoteTotalResponse("succeeded",
-                quoteId, lineId, "completed", created.Replay && line.Replay));
+                quoteId, lineIds.FirstOrDefault(), "completed", allReplay, lineIds));
         }
         catch (ReadRejected ex)
         {
@@ -1157,6 +1209,30 @@ public static class PricingQuoteTotalEndpoints
             values["new_monto" + i] = JsonSerializer.SerializeToElement(
                 i == 1 ? totalSupplierCost : 0m);
         return values;
+    }
+
+    // The connector owns both the target field set and the resolved relationship.
+    // Dataverse calculates totalamount; never accept it as a direct write.
+    public static Dictionary<string, JsonElement> BuildItemizedLine(
+        PricingQuoteLine line, Guid quoteId, string relationship = "quoteid")
+    {
+        if (quoteId == Guid.Empty || !DataverseMetadataDiscovery.SafeName(relationship) ||
+            string.IsNullOrWhiteSpace(line.Name) || line.Name.Trim().Length > 100 ||
+            line.Description?.Length > 2000 ||
+            line.Quantity <= 0 || line.Quantity > 100000m ||
+            line.UnitPrice < 0 || line.UnitPrice > 999999999999m)
+            throw new ArgumentException("Invalid quote detail line.", nameof(line));
+        return new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            [relationship + "@odata.bind"] = JsonSerializer.SerializeToElement(quoteId.ToString("D")),
+            ["isproductoverridden"] = JsonSerializer.SerializeToElement(true),
+            ["ispriceoverridden"] = JsonSerializer.SerializeToElement(true),
+            ["productdescription"] = JsonSerializer.SerializeToElement(
+                string.IsNullOrWhiteSpace(line.Description) ? line.Name.Trim() : line.Description.Trim()),
+            ["quotedetailname"] = JsonSerializer.SerializeToElement(line.Name.Trim()),
+            ["quantity"] = JsonSerializer.SerializeToElement(line.Quantity),
+            ["priceperunit"] = JsonSerializer.SerializeToElement(line.UnitPrice)
+        };
     }
 
     public static Dictionary<string, JsonElement> BuildLine(

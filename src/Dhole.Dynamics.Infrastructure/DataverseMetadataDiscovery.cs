@@ -193,6 +193,41 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
     }
 
     /// <summary>
+    /// A separately confirmed SecurityAdmin operation adds a UNIQUE KEY to an
+    /// existing Quote column, not a new column or a Quote record. Index
+    /// creation is asynchronous; callers must refresh and await Active status
+    /// before using UPSERT. Only fixed Quote metadata URLs are allowed.
+    /// </summary>
+    public async Task CreateQuoteAlternateKeyAsync(
+        DynamicsConnection connection, string field, CancellationToken ct)
+    {
+        if (!SafeName(field) || field.Length > 64)
+            throw new ArgumentException("Invalid quote alternate key field.", nameof(field));
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        var endpoint = new Uri(new Uri(host),
+            ApiPath + "(LogicalName='quote')/Keys");
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
+        request.Headers.TryAddWithoutValidation("OData-MaxVersion", "4.0");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        var metadata = new Dictionary<string, object>
+        {
+            ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
+            ["SchemaName"] = "new_DholeKey_" + field,
+            ["KeyAttributes"] = new[] { field }
+        };
+        request.Content = new StringContent(JsonSerializer.Serialize(metadata),
+            System.Text.Encoding.UTF8, "application/json");
+        using var response = await http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException("Dataverse rejected alternate key creation (HTTP " +
+                (int)response.StatusCode + "). Verify field type, uniqueness, privileges and existing keys.");
+    }
+
+    /// <summary>
     /// Refresh only existing Dataverse alternate keys without re-reading all
     /// fields or replacing user-approved lookup mappings. Returns active indexes
     /// only: pending/failed keys must never be offered for UPSERT.

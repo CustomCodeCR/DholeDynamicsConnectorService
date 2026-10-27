@@ -282,6 +282,10 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         {
             "CICADEX" => "Consorcio Interamericano Caribe de Exportación S.A.",
             "RYK OUTDOOR" => "RYK OUTDOOR ADVENTURE S.A.",
+            // Verified account name in this Dynamics tenant. Dhole's shorter
+            // display name omits the second surname; never allow arbitrary
+            // extra surname matches or reuse a hard-coded Dataverse account ID.
+            "GERARDO GAZEL" => "Gerardo Gazel Piedra",
             _ => name
         };
 

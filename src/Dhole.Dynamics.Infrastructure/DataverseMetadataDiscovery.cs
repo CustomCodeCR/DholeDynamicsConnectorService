@@ -7,6 +7,11 @@ using Dhole.Dynamics.Domain;
 
 namespace Dhole.Dynamics.Infrastructure;
 
+// Keep all index states visible to administrators. Only Active is usable for
+// record UPSERT. Dataverse creates the unique index asynchronously.
+public sealed record DataverseAlternateKeyState(
+    string LogicalName, IReadOnlyList<string> Attributes, string Status);
+
 /// <summary>
 /// Dataverse v9.2 metadata reader. Fixed resource paths and pinned HTTPS host; not an HTTP proxy.
 /// No source metadata is trusted to create a request URL without a strict logical-name check.
@@ -193,96 +198,147 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
     }
 
     /// <summary>
-    /// A separately confirmed SecurityAdmin operation adds a UNIQUE KEY to an
-    /// existing Quote column, not a new column or a Quote record. Index
-    /// creation is asynchronous; callers must refresh and await Active status
-    /// before using UPSERT. Only fixed Quote metadata URLs are allowed.
+    /// Creates only the UNIQUE metadata index on an EXISTING Quote field.
+    /// Duplicate clicks/retries first inspect real Dataverse metadata, so a
+    /// previously accepted but slow response does not create a second key.
+    /// Response headers are bounded to finish BEFORE the public proxy timeout.
     /// </summary>
-    public async Task CreateQuoteAlternateKeyAsync(
+    public async Task<DataverseAlternateKeyState> CreateQuoteAlternateKeyAsync(
         DynamicsConnection connection, string field, CancellationToken ct)
     {
-        if (!SafeName(field) || field.Length > 64)
-            throw new ArgumentException("Invalid quote alternate key field.", nameof(field));
+        if (field != "new_idtraasignado")
+            throw new ArgumentException("The Quote identity is reserved for the Dhole Rate GUID.",
+                nameof(field));
         if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
             throw new InvalidOperationException("Untrusted Dataverse host.");
-        var token = await tokens.AcquireAsync(connection, ct);
-        var endpoint = new Uri(new Uri(host),
-            ApiPath + "(LogicalName='quote')/Keys");
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
-        request.Headers.TryAddWithoutValidation("OData-MaxVersion", "4.0");
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        var metadata = new Dictionary<string, object>
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(TimeSpan.FromSeconds(22));
+        try
         {
-            ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
-            ["SchemaName"] = "new_DholeKey_" + field,
-            ["KeyAttributes"] = new[] { field }
-        };
-        request.Content = new StringContent(JsonSerializer.Serialize(metadata),
-            System.Text.Encoding.UTF8, "application/json");
-        using var response = await http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException("Dataverse rejected alternate key creation (HTTP " +
-                (int)response.StatusCode + "). Verify field type, uniqueness, privileges and existing keys.");
+            var token = await tokens.AcquireAsync(connection, bounded.Token);
+            var existing = await DiscoverKeyStatesWithTokenAsync(
+                host, token, "quote", bounded.Token);
+            var sameColumn = existing.Where(key => key.Attributes.Count == 1 &&
+                key.Attributes[0] == field).ToArray();
+            if (sameColumn.Length > 1)
+                throw new InvalidOperationException(
+                    "Dataverse has more than one key on the Dhole identity field.");
+            if (sameColumn.Length == 1)
+                return sameColumn[0]; // Active / Pending / InProgress / Failed, never duplicate
+
+            // Key metadata has its own SchemaName; it is not a new field.
+            var endpoint = new Uri(new Uri(host),
+                ApiPath + "(LogicalName='quote')/Keys");
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
+            request.Headers.TryAddWithoutValidation("OData-MaxVersion", "4.0");
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var metadata = new Dictionary<string, object>
+            {
+                ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
+                ["SchemaName"] = "new_DholeKey_" + field,
+                ["KeyAttributes"] = new[] { field }
+            };
+            request.Content = new StringContent(JsonSerializer.Serialize(metadata),
+                System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.SendAsync(request,
+                HttpCompletionOption.ResponseHeadersRead, bounded.Token);
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException(
+                    "Dataverse refused to create the unique key (HTTP " +
+                    (int)response.StatusCode + ").");
+            return new DataverseAlternateKeyState("new_DholeKey_" + field,
+                [field], "Pending");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Remote metadata change may have completed after the timeout.
+            // The caller must refresh status rather than blindly POST again.
+            throw new TimeoutException(
+                "Dataverse did not confirm key creation within 22 seconds.");
+        }
     }
 
-    /// <summary>
-    /// Refresh only existing Dataverse alternate keys without re-reading all
-    /// fields or replacing user-approved lookup mappings. Returns active indexes
-    /// only: pending/failed keys must never be offered for UPSERT.
-    /// </summary>
-    public async Task<IReadOnlyList<MetadataAlternateKey>> DiscoverAlternateKeysAsync(
-        DynamicsConnection connection, string entity,
-        IReadOnlyList<MetadataColumn> columns, CancellationToken ct)
+    public async Task<IReadOnlyList<DataverseAlternateKeyState>> DiscoverAlternateKeyStatesAsync(
+        DynamicsConnection connection, string entity, CancellationToken ct)
     {
         if (!SafeName(entity))
             throw new ArgumentException("Invalid Dataverse table name.", nameof(entity));
         if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
             throw new InvalidOperationException("Untrusted Dataverse host.");
         var token = await tokens.AcquireAsync(connection, ct);
-        return await DiscoverAlternateKeysWithTokenAsync(host, token, entity, columns, ct);
+        return await DiscoverKeyStatesWithTokenAsync(host, token, entity, ct);
+    }
+
+    private async Task<IReadOnlyList<DataverseAlternateKeyState>> DiscoverKeyStatesWithTokenAsync(
+        string host,string token,string entity,CancellationToken ct)
+    {
+        var path = ApiPath + "(LogicalName='" + entity + "')" +
+            "/Keys?$select=LogicalName,KeyAttributes,EntityKeyIndexStatus";
+        var rows = await CollectionAsync(host, token, path, ct);
+        return ParseAlternateKeyStates(rows);
+    }
+
+    /// <summary>Active-only return for the write-security metadata catalog.</summary>
+    public async Task<IReadOnlyList<MetadataAlternateKey>> DiscoverAlternateKeysAsync(
+        DynamicsConnection connection, string entity,
+        IReadOnlyList<MetadataColumn> columns, CancellationToken ct)
+    {
+        var states = await DiscoverAlternateKeyStatesAsync(connection, entity, ct);
+        return ActiveAlternateKeys(states, columns);
     }
 
     private async Task<IReadOnlyList<MetadataAlternateKey>> DiscoverAlternateKeysWithTokenAsync(
         string host, string token, string entity,
         IReadOnlyList<MetadataColumn> columns, CancellationToken ct)
     {
-        var path = ApiPath + "(LogicalName='" + entity + "')" +
-            "/Keys?$select=LogicalName,KeyAttributes,EntityKeyIndexStatus";
-        var rows = await CollectionAsync(host, token, path, ct);
-        return ParseActiveAlternateKeys(rows, columns);
+        return ActiveAlternateKeys(
+            await DiscoverKeyStatesWithTokenAsync(host, token, entity, ct), columns);
     }
 
-    public static IReadOnlyList<MetadataAlternateKey> ParseActiveAlternateKeys(
-        IReadOnlyList<JsonElement> rows, IReadOnlyList<MetadataColumn> columns)
+    public static IReadOnlyList<DataverseAlternateKeyState> ParseAlternateKeyStates(
+        IReadOnlyList<JsonElement> rows)
     {
-        var keys = new List<MetadataAlternateKey>();
-        foreach (var key in rows)
+        var keys = new List<DataverseAlternateKeyState>();
+        foreach(var row in rows)
         {
-            // The unique index is built asynchronously. Never present a
-            // pending or failed index as an operational UPSERT identity.
-            var status = Str(key, "EntityKeyIndexStatus");
-            var numericStatus = Int(key, "EntityKeyIndexStatus");
-            if (status != "Active" && numericStatus != 2)
-                continue;
-            var name = Str(key, "LogicalName");
-            if (!SafeName(name) ||
-                !TryGet(key, "KeyAttributes", out var fields) ||
-                fields.ValueKind != JsonValueKind.Array)
-                continue;
-            var attributes = fields.EnumerateArray()
-                .Where(value => value.ValueKind == JsonValueKind.String)
-                .Select(value => value.GetString()!).ToArray();
-            if (attributes.Length is < 1 or > 3 ||
-                attributes.Distinct(StringComparer.Ordinal).Count() != attributes.Length ||
-                attributes.Any(field => !SafeName(field) ||
-                    columns.All(column => column.LogicalName != field)))
-                continue;
-            keys.Add(new MetadataAlternateKey(name!, attributes));
+            var name=Str(row,"LogicalName");
+            if(!SafeName(name) ||
+                !TryGet(row,"KeyAttributes",out var fields) ||
+                fields.ValueKind!=JsonValueKind.Array) continue;
+            var attrs=fields.EnumerateArray()
+                .Where(v=>v.ValueKind==JsonValueKind.String)
+                .Select(v=>v.GetString()!).ToArray();
+            if(attrs.Length is < 1 or > 16 ||
+                attrs.Distinct(StringComparer.Ordinal).Count()!=attrs.Length ||
+                attrs.Any(x=>!SafeName(x))) continue;
+            var numeric=Int(row,"EntityKeyIndexStatus");
+            var raw=Str(row,"EntityKeyIndexStatus");
+            var status=numeric switch
+            {
+                0=>"Pending",1=>"InProgress",2=>"Active",3=>"Failed",_=>raw switch
+                {
+                    "Pending" or "InProgress" or "Active" or "Failed"=>raw,
+                    _=>"Unknown"
+                }
+            };
+            keys.Add(new DataverseAlternateKeyState(name!,attrs,status));
         }
-        return keys.OrderBy(key => key.LogicalName, StringComparer.Ordinal).ToArray();
+        return keys.OrderBy(k=>k.LogicalName,StringComparer.Ordinal).ToArray();
     }
+
+    public static IReadOnlyList<MetadataAlternateKey> ActiveAlternateKeys(
+        IReadOnlyList<DataverseAlternateKeyState> states,
+        IReadOnlyList<MetadataColumn> columns) =>
+        states.Where(k=>k.Status=="Active" && k.Attributes.Count is >= 1 and <= 3 &&
+                k.Attributes.All(field=>columns.Any(c=>c.LogicalName==field)))
+              .Select(k=>new MetadataAlternateKey(k.LogicalName,k.Attributes))
+              .ToArray();
+
+    public static IReadOnlyList<MetadataAlternateKey> ParseActiveAlternateKeys(
+        IReadOnlyList<JsonElement> rows, IReadOnlyList<MetadataColumn> columns) =>
+        ActiveAlternateKeys(ParseAlternateKeyStates(rows),columns);
 
     /// <summary>
     /// Fetch real option values only for an explicitly authorized field. This avoids

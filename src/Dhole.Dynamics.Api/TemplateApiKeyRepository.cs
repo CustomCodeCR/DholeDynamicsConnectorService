@@ -141,6 +141,40 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
             oldOperation=row.GetString(1);
             maxRequestsPerMinute=row.GetInt32(2);
         }
+        // Keep the special Pricing supplier-cost write grant on CREATE when
+        // reusing a previously authorized crear_oferta key. It is separate
+        // from the configurable template mappings and is required by
+        // execute-with-total. Never retain arbitrary removed fields.
+        if(code=="principal" && request.TemplateName=="crear_oferta" &&
+           definition.EntityName=="quote" && definition.Operation=="create")
+        {
+            await using var oldGrant=new NpgsqlCommand("""
+                SELECT allowed_fields FROM dynamics.api_grants
+                WHERE api_client_id=@client AND connection_id=@connection
+                  AND entity_set='quote' AND operation='create' AND enabled=true
+                """,db,tx);
+            oldGrant.Parameters.AddWithValue("client",clientId);
+            oldGrant.Parameters.AddWithValue("connection",policy.Connection.Id);
+            var previous=await oldGrant.ExecuteScalarAsync(ct) as string[] ?? [];
+            var preserved=new List<string>(fields);
+            for(var index=1;index<=9;index++)
+            {
+                var name="new_monto"+index;
+                if(!previous.Contains(name,StringComparer.Ordinal) || preserved.Contains(name))
+                    continue;
+                var col=policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==name);
+                var permit=policy.Permissions.Fields.FirstOrDefault(p=>
+                    p.EntityName=="quote" && p.FieldName==name);
+                if(col is null || !col.CanCreate || col.IsCalculated ||
+                   permit is null || !permit.Enabled || !permit.CanCreate ||
+                   permit.MetadataFingerprint!=MetadataRepository.Fingerprint(col))
+                    throw new ReadRejected(403,"quote_cost_fields_not_authorized",name);
+                preserved.Add(name);
+            }
+            if(preserved.Count>60)
+                throw new ReadRejected(400,"invalid_crud_key_fields");
+            fields=preserved.ToArray();
+        }
         // Retire only the previous operation for this one key/client/entity.
         // Read grants and grants on related tables (customer, IDTRA, line)
         // retain their independent authorization.

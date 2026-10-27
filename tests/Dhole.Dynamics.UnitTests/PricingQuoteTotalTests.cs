@@ -7,6 +7,45 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Fact]
+    public void TrustedPricingAmountsOverrideAllTemplateAmountsAndSalesLineUsesSale()
+    {
+        const decimal supplierCost = 271.08m;
+        const decimal saleTotal = 443.00m;
+        var untrusted = new Dictionary<string, JsonElement>
+        {
+            ["new_monto1"] = JsonSerializer.SerializeToElement(999m),
+            ["new_monto2"] = JsonSerializer.SerializeToElement(250m),
+            ["new_monto9"] = JsonSerializer.SerializeToElement(100m),
+            ["new_flete"] = JsonSerializer.SerializeToElement(271.08m),
+            ["name"] = JsonSerializer.SerializeToElement("QUO-00000-000355")
+        };
+        var amounts = PricingQuoteTotalEndpoints.WithExactQuoteAmounts(
+            untrusted, supplierCost, saleTotal);
+        Assert.Equal(supplierCost, amounts["new_monto1"].GetDecimal());
+        foreach(var index in Enumerable.Range(2, 8))
+            Assert.Equal(0m, amounts["new_monto" + index].GetDecimal());
+        Assert.Equal(saleTotal, amounts["new_flete"].GetDecimal());
+        Assert.Equal("QUO-00000-000355", amounts["name"].GetString());
+        Assert.DoesNotContain("totalamount", amounts.Keys);
+
+        var line = PricingQuoteTotalEndpoints.BuildLine(
+            Guid.NewGuid(), saleTotal, Guid.NewGuid());
+        Assert.Equal(1m, line["quantity"].GetDecimal());
+        Assert.Equal(saleTotal, line["priceperunit"].GetDecimal());
+        Assert.Equal("Tarifa logística Dhole", line["productdescription"].GetString());
+    }
+
+    [Theory]
+    [InlineData(-1, 443)]
+    [InlineData(271, -1)]
+    public void InvalidTrustedAmountsCannotBeWritten(decimal cost, decimal sale)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PricingQuoteTotalEndpoints.WithExactQuoteAmounts(
+                new Dictionary<string, JsonElement>(), cost, sale));
+    }
+
+    [Fact]
     public void OneWriteInProductHasExactlyOneQuantityAndOriginalSalesPrice()
     {
         var quoteId = Guid.NewGuid();

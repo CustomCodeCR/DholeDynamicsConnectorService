@@ -1,5 +1,6 @@
 using Dhole.Dynamics.Api;
 using Dhole.Dynamics.Contracts;
+using Dhole.Dynamics.Infrastructure;
 using Xunit;
 
 namespace Dhole.Dynamics.UnitTests;
@@ -30,6 +31,36 @@ public sealed class Phase16CrudOptionSchemaTests
              new MetadataFieldPolicy("quote","objecttypecode",true,false,true,true,
                 MetadataRepository.Fingerprint(entity))]);
         return new WritePolicy(null!,snapshot,quote,policies);
+    }
+
+    [Fact]
+    public void ActiveDataverseAlternateKeysAreExposedAndPendingKeysAreIgnored()
+    {
+        var cols = new[] {
+            Column("new_idtraasignado","String"),
+            Column("name","String")
+        };
+        var rows = new[] {
+            System.Text.Json.JsonSerializer.SerializeToElement(new {
+                LogicalName="new_dhole_quote_key",
+                KeyAttributes=new[]{"new_idtraasignado"},
+                EntityKeyIndexStatus="Active"
+            }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new {
+                LogicalName="new_pending_key",
+                KeyAttributes=new[]{"name"},
+                EntityKeyIndexStatus="Pending"
+            }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new {
+                LogicalName="new_failed_key",
+                KeyAttributes=new[]{"name"},
+                EntityKeyIndexStatus="Failed"
+            }),
+        };
+        var result=DataverseMetadataDiscovery.ParseActiveAlternateKeys(rows,cols);
+        var single=Assert.Single(result);
+        Assert.Equal("new_dhole_quote_key",single.LogicalName);
+        Assert.Equal(["new_idtraasignado"],single.Attributes);
     }
 
     [Fact]

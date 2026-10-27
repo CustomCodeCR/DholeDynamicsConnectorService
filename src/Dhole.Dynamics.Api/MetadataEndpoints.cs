@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Dhole.Dynamics.Api;
 
 public sealed record MetadataChoicesRequest(IReadOnlyList<string> Fields);
+public sealed record CreateQuoteAlternateKeyRequest(string Field, bool Confirm);
 
 public static class MetadataEndpoints
 {
@@ -21,6 +22,8 @@ public static class MetadataEndpoints
         group.MapPost("/entities/{entity}/choices", ReadChoices)
             .RequireAuthorization("SecurityAdmin");
         group.MapPost("/entities/{entity}/alternate-keys/refresh", RefreshAlternateKeys)
+            .RequireAuthorization("SecurityAdmin");
+        group.MapPost("/entities/{entity}/alternate-keys", CreateQuoteAlternateKey)
             .RequireAuthorization("SecurityAdmin");
         group.MapPut("/entities/{entity}/enabled", SetEntity);
         group.MapPut("/entities/{entity}/fields/{field}/policy", SetField);
@@ -118,6 +121,62 @@ public static class MetadataEndpoints
         {
             return ApiProblems.Create(http, 502, "choice_metadata_unavailable",
                 "Dataverse choice metadata is temporarily unavailable.");
+        }
+    }
+
+    public static bool CanCreateQuoteAlternateKey(MetadataTable table, string field)
+    {
+        var column = table.Columns.FirstOrDefault(c => c.LogicalName == field);
+        return table.LogicalName == "quote" &&
+            field.StartsWith("new_", StringComparison.Ordinal) &&
+            field.Length <= 64 &&
+            DataverseMetadataDiscovery.SafeName(field) &&
+            column is { Type: "String", CanRead: true, CanCreate: true,
+                CanUpdate: true, IsCalculated: false };
+    }
+
+    // Does not modify a quote, reuse a key name blindly, or create a column.
+    // A metadata key is a Dataverse UNIQUE INDEX; user confirmation is required.
+    private static async Task<IResult> CreateQuoteAlternateKey(
+        string code, string entity, CreateQuoteAlternateKeyRequest request,
+        WriteAccessService writer, DataverseMetadataDiscovery discovery,
+        HttpContext http, CancellationToken ct)
+    {
+        if (!request.Confirm || code != "principal" || entity != "quote" ||
+            string.IsNullOrWhiteSpace(request.Field))
+            return ApiProblems.Create(http,400,"alternate_key_confirmation_required",
+                "A SecurityAdmin must confirm a single existing Quote column.");
+        try
+        {
+            var policy = await writer.ResolveAsync(code, entity, ct);
+            if (!CanCreateQuoteAlternateKey(policy.Table,request.Field))
+                throw new ReadRejected(409,"alternate_key_field_incompatible");
+            var alreadyActive = (policy.Table.AlternateKeys??[]).Any(k=>
+                k.Attributes.Count==1 && k.Attributes[0]==request.Field);
+            if (alreadyActive)
+                throw new ReadRejected(409,"alternate_key_already_active");
+            await discovery.CreateQuoteAlternateKeyAsync(
+                policy.Connection, request.Field, ct);
+            return Results.Ok(new
+            {
+                status="pending",
+                field=request.Field,
+                message="La clave se solicitó en Dataverse sobre un campo existente, sin modificar ofertas. " +
+                        "Cuando el índice quede Activo, usá Actualizar claves desde Dataverse."
+            });
+        }
+        catch (ReadRejected ex)
+        {
+            return ApiProblems.Create(http,ex.Status,ex.Code,
+                "No se pudo crear la clave alternativa en la columna seleccionada.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or
+            TaskCanceledException or InvalidOperationException or
+            Microsoft.Identity.Client.MsalException)
+        {
+            return ApiProblems.Create(http,502,"alternate_key_creation_failed",
+                "Dataverse no aceptó crear la clave. Revisá privilegios, datos duplicados e índices pendientes. " +
+                "No se modificó ningún registro de la oferta.");
         }
     }
 

@@ -9,10 +9,13 @@ namespace Dhole.Dynamics.Infrastructure;
 
 // Keep all index states visible to administrators. Only Active is usable for
 // record UPSERT. Dataverse creates the unique index asynchronously.
-public sealed class DataverseKeyCreationRejected(int remoteStatus) : Exception(
-    "Dataverse rejected alternate key metadata; upstream status " + remoteStatus)
+public sealed class DataverseKeyCreationRejected(int remoteStatus, string reason) : Exception(
+    "Dataverse rejected alternate key metadata; upstream status " + remoteStatus +
+    "; sanitized reason " + reason)
 {
     public int RemoteStatus { get; } = remoteStatus;
+    // Fixed, allowlisted reason. Never return provider response text.
+    public string Reason { get; } = reason;
 }
 
 public sealed record DataverseAlternateKeyState(
@@ -240,22 +243,31 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             request.Headers.TryAddWithoutValidation("OData-Version", "4.0");
             request.Headers.TryAddWithoutValidation("OData-MaxVersion", "4.0");
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var metadata = new Dictionary<string, object>
-            {
-                ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
-                ["SchemaName"] = "new_DholeKey_" + field,
-                ["KeyAttributes"] = new[] { field }
-            };
+            // Dataverse requires a user-facing DisplayName for key metadata.
+            // A key is an index on this existing column, never a new column.
+            var metadata = BuildDholeQuoteKeyMetadata(field);
             request.Content = new StringContent(JsonSerializer.Serialize(metadata),
                 System.Text.Encoding.UTF8, "application/json");
             using var response = await http.SendAsync(request,
                 HttpCompletionOption.ResponseHeadersRead, bounded.Token);
             if (!response.IsSuccessStatusCode)
-                // Do not expose Dataverse response bodies: they can include
-                // tenant-specific metadata or the caller's configuration.
-                // Preserve the remote HTTP status so the API does not turn
-                // a 400/403 from Dataverse into an opaque Cloudflare 502.
-                throw new DataverseKeyCreationRejected((int)response.StatusCode);
+            {
+                // Read only a small amount of the provider error and reduce it
+                // to an allowlisted category. Never expose untrusted details,
+                // quotes, tenant URLs, GUIDs or credentials to the UI.
+                var category = "unknown";
+                try
+                {
+                    await using var errorStream = await response.Content.ReadAsStreamAsync(
+                        bounded.Token);
+                    var errorBuffer = new byte[8192];
+                    var size = await errorStream.ReadAsync(errorBuffer, bounded.Token);
+                    category = ClassifyKeyCreationError(
+                        System.Text.Encoding.UTF8.GetString(errorBuffer, 0, size));
+                }
+                catch (JsonException) { }
+                throw new DataverseKeyCreationRejected((int)response.StatusCode, category);
+            }
             return new DataverseAlternateKeyState("new_DholeKey_" + field,
                 [field], "Pending");
         }
@@ -266,6 +278,70 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             throw new TimeoutException(
                 "Dataverse did not confirm key creation within 22 seconds.");
         }
+    }
+
+    /// <summary>Fixed Dataverse metadata payload. No user-controlled schema names.</summary>
+    public static Dictionary<string, object> BuildDholeQuoteKeyMetadata(string field)
+    {
+        if (field != "new_idtraasignado")
+            throw new ArgumentException("Only the permanent Dhole RateId column is allowed.",
+                nameof(field));
+        return new Dictionary<string, object>
+        {
+            ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
+            ["SchemaName"] = "new_DholeKey_" + field,
+            ["DisplayName"] = new Dictionary<string, object>
+            {
+                ["@odata.type"] = "Microsoft.Dynamics.CRM.Label",
+                ["LocalizedLabels"] = new[]
+                {
+                    new { Label = "Dhole Rate GUID", LanguageCode = 1033 }
+                }
+            },
+            ["KeyAttributes"] = new[] { field }
+        };
+    }
+
+    /// <summary>Convert provider error text to a small set of safe metadata reasons.</summary>
+    public static string ClassifyKeyCreationError(string? errorJson)
+    {
+        if (string.IsNullOrWhiteSpace(errorJson) || errorJson.Length > 8192)
+            return "unknown";
+        try
+        {
+            using var doc = JsonDocument.Parse(errorJson);
+            if (!doc.RootElement.TryGetProperty("error", out var error) ||
+                error.ValueKind != JsonValueKind.Object ||
+                !error.TryGetProperty("message", out var msg) ||
+                msg.ValueKind != JsonValueKind.String)
+                return "unknown";
+            var message = msg.GetString() ?? "";
+            if (message.Contains("DisplayName", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("LocalizedLabel", StringComparison.OrdinalIgnoreCase))
+                return "display_name";
+            if (message.Contains("privilege", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("permission", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("access denied", StringComparison.OrdinalIgnoreCase))
+                return "permission";
+            if (message.Contains("secured", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("field level security", StringComparison.OrdinalIgnoreCase))
+                return "secured_field";
+            if (message.Contains("MaxLength", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("900 bytes", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("key size", StringComparison.OrdinalIgnoreCase))
+                return "key_size";
+            if (message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                return "existing_or_duplicate";
+            if (message.Contains("SchemaName", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("publisher", StringComparison.OrdinalIgnoreCase))
+                return "schema_name";
+            if (message.Contains("new_idtraasignado", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("attribute", StringComparison.OrdinalIgnoreCase))
+                return "attribute";
+        }
+        catch (JsonException) { }
+        return "unknown";
     }
 
     public async Task<IReadOnlyList<DataverseAlternateKeyState>> DiscoverAlternateKeyStatesAsync(

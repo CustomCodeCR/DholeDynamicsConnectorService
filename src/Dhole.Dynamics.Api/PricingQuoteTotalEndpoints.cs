@@ -19,7 +19,8 @@ public static class PricingQuoteTotalEndpoints
     public sealed record PricingQuoteTotalRequest(
         string ConnectionCode, Guid DholeRateId, decimal TotalSaleAmount,
         IReadOnlyDictionary<string, JsonElement> Inputs,
-        decimal? TotalCostAmount = null);
+        decimal? TotalCostAmount = null,
+        string? CurrencyCode = null, Guid? CurrencyId = null);
 
     public sealed record PricingQuoteTotalResponse(
         string State, Guid? RecordId, Guid? LineRecordId,
@@ -545,7 +546,7 @@ public static class PricingQuoteTotalEndpoints
                 request.ConnectionCode, "crear_oferta", ct);
             if (key.EntityName != "quote" || key.Operation != "create")
                 throw new ReadRejected(403, "quote_creation_key_required");
-            gate.DemandPricingQuote();
+            gate.Demand("create");
             // The underlying WriteLedger is scoped by API client. When an
             // administrator rotates a key, the SAME Pricing idempotency key
             // must never be silently treated as a brand new Quote request.
@@ -660,7 +661,8 @@ public static class PricingQuoteTotalEndpoints
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
-                trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true);
+                trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true,
+                trustedPricingTotalSale: request.TotalSaleAmount);
             if (header is WriteResult { State: "rejected" } rejectedHeader)
             {
                 // Dataverse explicitly returned a non-success HTTP status for
@@ -1142,6 +1144,30 @@ public static class PricingQuoteTotalEndpoints
             !int.TryParse(revision, out var number) || number <= 0)
             throw new ReadRejected(400, "pricing_quote_idempotency_key_invalid");
         return number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Single authoritative calculation of Quote amounts, for both future
+    /// CREATE and UPSERT paths. Dataverse new_monto1 is supplier cost;
+    /// monto2..9 are always zero; new_flete is the customer SALE.
+    /// These trusted values override any caller/template-supplied amounts.
+    /// Standard totalamount remains calculated from the quotedetail line.
+    /// </summary>
+    public static IReadOnlyDictionary<string, JsonElement> WithExactQuoteAmounts(
+        IReadOnlyDictionary<string, JsonElement> source,
+        decimal totalSupplierCost, decimal totalSale)
+    {
+        if (totalSupplierCost < 0 || totalSale < 0 ||
+            totalSupplierCost > 999999999999m || totalSale > 999999999999m)
+            throw new ArgumentOutOfRangeException(nameof(totalSupplierCost),
+                "Quote sale and supplier cost must be finite and nonnegative.");
+        var values = source.ToDictionary(pair => pair.Key, pair => pair.Value,
+            StringComparer.Ordinal);
+        values["new_flete"] = JsonSerializer.SerializeToElement(totalSale);
+        for (var i = 1; i <= 9; i++)
+            values["new_monto" + i] = JsonSerializer.SerializeToElement(
+                i == 1 ? totalSupplierCost : 0m);
+        return values;
     }
 
     public static Dictionary<string, JsonElement> BuildLine(

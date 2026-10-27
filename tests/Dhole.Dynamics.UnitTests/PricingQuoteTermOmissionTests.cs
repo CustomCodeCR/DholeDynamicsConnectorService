@@ -12,7 +12,6 @@ public sealed class PricingQuoteTermOmissionTests
     [Fact]
     public async Task DedicatedQuoteRouteOmitsAllThreeTextFieldsEvenWhenTemplateRequiresThem()
     {
-        var customerId = Guid.NewGuid();
         var original = new IntegrationTemplate("quote", "create",
             [
                 new TemplateInput("name", "string"),
@@ -43,16 +42,57 @@ public sealed class PricingQuoteTermOmissionTests
         var built = await TemplateMapper.BuildAsync(effective, bound, Guid.NewGuid(),
             (_, _, _, _) => Task.FromResult<Guid?>(null),
             CancellationToken.None,
-            (_, _, _, _) => Task.FromResult<Guid?>(customerId));
+            (_, _, _, _) => throw new InvalidOperationException("Unexpected customer lookup"));
         Assert.True(built.ContainsKey("name"));
-        Assert.True(built.ContainsKey("customerid_account@odata.bind"));
+        Assert.DoesNotContain("customerid_account@odata.bind", built.Keys);
         Assert.DoesNotContain("new_noincluye", built.Keys);
         Assert.DoesNotContain("new_tarifasujetaa", built.Keys);
         Assert.DoesNotContain("new_tarifaincluye", built.Keys);
         Assert.Equal(5, original.Mappings.Count);
         Assert.Equal(5, original.Inputs.Count);
-        Assert.Equal(2, effective.Mappings.Count);
+        Assert.Single(effective.Mappings);
+        Assert.Single(effective.Inputs);
+    }
+
+    [Fact]
+    public async Task QuoteCustomerAndSupplementalAccountAreNeverResolvedByPricing()
+    {
+        var template = new IntegrationTemplate("quote", "create",
+            [
+                new TemplateInput("name", "string"),
+                new TemplateInput("client", "string"),
+                new TemplateInput("customer_kind", "string")
+            ],
+            [
+                new TemplateMapping("name", "name"),
+                new TemplateMapping("description", "client"),
+                new TemplateMapping("customerid_account@odata.bind", "client",
+                    [new TemplateStep("lookup_name", "name")]),
+                new TemplateMapping("msdyn_account@odata.bind", "client",
+                    [new TemplateStep("lookup_name", "name")]),
+                new TemplateMapping("customeridtype", "customer_kind")
+            ]);
+
+        var effective = PricingQuoteTermOmission.FilterDefinition(template);
+        var inputs = PricingQuoteTermOmission.FilterInputs(template, effective,
+            new Dictionary<string, JsonElement>
+            {
+                ["name"] = J("QUO-00000-000327"),
+                ["client"] = J("SEIMAQ SERVICIOS INTEGRALES S.A."),
+                ["customer_kind"] = J("quote")
+            });
+        var validated = TemplateMapper.ValidateInputs(effective.Inputs, inputs);
+        var resolved = await TemplateMapper.BuildAsync(effective, validated,
+            Guid.NewGuid(), (_, _, _, _) => Task.FromResult<Guid?>(null),
+            CancellationToken.None,
+            (_, _, _, _) => throw new InvalidOperationException("Unexpected lookup"));
+
+        Assert.Equal("QUO-00000-000327", resolved["name"].GetString());
+        Assert.Equal("SEIMAQ SERVICIOS INTEGRALES S.A.", resolved["description"].GetString());
+        Assert.DoesNotContain(resolved.Keys, PricingQuoteTermOmission.IsExcludedTarget);
         Assert.Equal(2, effective.Inputs.Count);
+        Assert.Equal(2, effective.Mappings.Count);
+        Assert.Equal(5, template.Mappings.Count);
     }
 
     [Fact]

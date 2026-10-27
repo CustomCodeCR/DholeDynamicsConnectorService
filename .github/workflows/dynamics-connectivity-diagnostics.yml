@@ -80,6 +80,31 @@ jobs:
             lines="$(docker logs --since 2026-10-27T04:40:00Z --until 2026-10-27T04:46:00Z "$name" 2>&1 | grep -Eic 'error|exception|unhandled|disconnected|shutdown|failed' || true)"
             echo "$name diagnostic_error_line_count=$lines"
           done
+      - name: Locate Cloudflare 502 at origin proxies from access counts only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '---- Proxy containers at origin (names/health only) ----'
+          docker ps --format '{{.Names}}' | grep -Ei '(traefik|pangolin|cloudflared|nginx|gerbil|gateway)' || true
+          echo '---- Edge request reachability during incident 04:42 UTC ----'
+          for name in traefik dhole-api-gateway-1; do
+            if ! docker inspect "$name" >/dev/null 2>&1; then
+              echo "$name is absent"; continue
+            fi
+            access="$(docker logs --since 2026-10-27T04:42:30Z --until 2026-10-27T04:43:10Z "$name" 2>&1 | grep -Ec 'POST /api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys' || true)"
+            total="$(docker logs --since 2026-10-27T04:42:30Z --until 2026-10-27T04:43:10Z "$name" 2>&1 | grep -Ec 'HTTP/|Gateway forwarding' || true)"
+            echo "$name incident_exact_request_count=$access other_access_count=$total"
+          done
+          echo '---- Local reverse proxy direct request, no credentials or business action ----'
+          for host in traefik api-gateway; do
+            result="$(docker run --rm --network dhole curlimages/curl:8.15.0 \
+              --max-time 10 -sS -o /dev/null -w '%{http_code}|%{time_total}|%{content_type}' \
+              -H 'Host: api.logisticacastrofallas.com' \
+              -X POST -H 'Content-Type: application/json' \
+              --data '{"field":"new_idtraasignado","confirm":true}' \
+              "http://$host:80/api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys" 2>/dev/null)" || result='unreachable'
+            echo "$host: $result"
+          done
       - name: Check production Dynamics route observations and outbound DNS without exposing credentials
         shell: bash
         run: |

@@ -674,6 +674,25 @@ public static class PricingQuoteTotalEndpoints
                 !string.IsNullOrEmpty(r.ReferencingNavigation));
             if (relation is null)
                 throw new ReadRejected(409, "quote_detail_relationship_missing");
+            if (itemized)
+            {
+                // Validate the connected tenant's real text limits BEFORE the
+                // header POST; an overlong line must not leave an orphan Quote.
+                var detailTextLimits = await discovery.DiscoverTextMaxLengthsAsync(
+                    detail.Connection, "quotedetail", ct);
+                if (!detailTextLimits.TryGetValue("quotedetailname", out var titleMax) ||
+                    !detailTextLimits.TryGetValue("productdescription", out var descriptionMax))
+                    throw new ReadRejected(409, "quote_detail_text_metadata_missing");
+                foreach (var item in request.Lines!)
+                {
+                    var description = string.IsNullOrWhiteSpace(item.Description)
+                        ? item.Name.Trim() : item.Description.Trim();
+                    if (item.Name.Trim().Length > titleMax ||
+                        description.Length > descriptionMax)
+                        throw new ReadRejected(400, "quote_detail_text_too_long");
+                }
+            }
+
             var validationQuoteId = Guid.NewGuid();
             var validationLines = itemized
                 ? request.Lines!.Select(line => BuildItemizedLine(line,

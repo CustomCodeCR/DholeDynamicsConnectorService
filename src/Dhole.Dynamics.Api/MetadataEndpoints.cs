@@ -182,7 +182,7 @@ public static class MetadataEndpoints
             // A rejected Dataverse write is not an origin-gateway outage.
             // Give a stable sanitized code with the upstream status and
             // preserve the existing quote data, field mappings and key grants.
-            var (httpStatus, code, reason) = ex.RemoteStatus switch
+            var (httpStatus, failureCode, reason) = ex.RemoteStatus switch
             {
                 400 => (422, "dataverse_key_metadata_invalid",
                     "Dataverse rechazó la definición de clave (400). Verificá tipo de columna, nombre del índice y valores existentes."),
@@ -195,7 +195,7 @@ public static class MetadataEndpoints
                 _ => (424, "dataverse_key_metadata_rejected",
                     "Dataverse no aceptó la definición de clave. Consultá el estado antes de reintentar.")
             };
-            return ApiProblems.Create(http,httpStatus,code,
+            return ApiProblems.Create(http,httpStatus,failureCode,
                 reason + " Estado HTTP de Dataverse: " + ex.RemoteStatus + ".");
         }
         catch (TimeoutException)

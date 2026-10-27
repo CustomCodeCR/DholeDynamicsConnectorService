@@ -40,8 +40,8 @@ public sealed class TemplateActivationKeyCompatibilityTests
         try
         {
             await using(var template=new NpgsqlCommand("""
-                INSERT INTO dynamics.integration_templates(id,connection_id,name,active_version)
-                VALUES (@id,@connection,'crear_oferta',2)
+                INSERT INTO dynamics.integration_templates(id,connection_id,name)
+                VALUES (@id,@connection,'crear_oferta')
                 """,connection))
             {
                 template.Parameters.AddWithValue("id",templateId);
@@ -59,6 +59,17 @@ public sealed class TemplateActivationKeyCompatibilityTests
                 revision.Parameters.AddWithValue("version",version);
                 revision.Parameters.AddWithValue("hash",new string('A',64));
                 await revision.ExecuteNonQueryAsync();
+            }
+
+            // The template version FK is deferred per transaction; assign the
+            // active pointer only after both the parent and revisions exist.
+            await using(var active=new NpgsqlCommand("""
+                UPDATE dynamics.integration_templates SET active_version=2
+                WHERE id=@id
+                """,connection))
+            {
+                active.Parameters.AddWithValue("id",templateId);
+                await active.ExecuteNonQueryAsync();
             }
 
             async Task<(Guid KeyId,string Secret)> AddKeyAsync(

@@ -135,6 +135,16 @@ public static class WriteValueCompiler
                 throw new ReadRejected(400, "invalid_field_name");
             var column = policy.Table.Columns.FirstOrDefault(c => c.LogicalName == key)
                 ?? throw new ReadRejected(403, "unknown_write_field");
+            // Reserved identity for Dhole's quote UPSERT. Never accept an
+            // incident IDTRA, CSV list, random text, or an empty GUID here,
+            // regardless of which approved CRUD operation writes the Quote.
+            if (policy.Table.LogicalName == "quote" &&
+                key == "new_idtraasignado" &&
+                (value.ValueKind != JsonValueKind.String ||
+                 !Guid.TryParse(value.GetString(), out var dholeRateId) ||
+                 dholeRateId == Guid.Empty ||
+                 value.GetString()!.Length != 36))
+                throw new ReadRejected(400, "quote_rate_guid_required");
             if (column.IsCalculated || column.Type is "Virtual" or "PartyList" or "ManagedProperty")
                 throw new ReadRejected(403, "unsupported_write_field");
             if (column.Type is "Lookup" or "Customer" or "Owner")

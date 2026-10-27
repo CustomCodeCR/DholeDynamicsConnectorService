@@ -20,6 +20,8 @@ public static class MetadataEndpoints
         group.MapPost("/refresh", Refresh);
         group.MapPost("/entities/{entity}/choices", ReadChoices)
             .RequireAuthorization("SecurityAdmin");
+        group.MapPost("/entities/{entity}/alternate-keys/refresh", RefreshAlternateKeys)
+            .RequireAuthorization("SecurityAdmin");
         group.MapPut("/entities/{entity}/enabled", SetEntity);
         group.MapPut("/entities/{entity}/fields/{field}/policy", SetField);
         group.MapPut("/entities/{entity}/fields/bulk-enable", BulkEnableFields)
@@ -116,6 +118,32 @@ public static class MetadataEndpoints
         {
             return ApiProblems.Create(http, 502, "choice_metadata_unavailable",
                 "Dataverse choice metadata is temporarily unavailable.");
+        }
+    }
+
+    private static async Task<IResult> RefreshAlternateKeys(
+        string code, string entity, MetadataRefreshService service,
+        System.Security.Claims.ClaimsPrincipal actor,
+        HttpContext http, CancellationToken ct)
+    {
+        try
+        {
+            var keys = await service.RefreshAlternateKeysAsync(
+                code, entity, ScopeSecurity.ActorId(actor), ct);
+            return Results.Ok(new { alternateKeys=keys, count=keys.Count,
+                message="Claves activas de Dataverse actualizadas. Ningún campo ni relación fue modificado." });
+        }
+        catch(ReadRejected ex)
+        {
+            return ApiProblems.Create(http,ex.Status,ex.Code,
+                "No se pudieron actualizar las claves alternativas.");
+        }
+        catch(Exception ex) when (ex is HttpRequestException or TaskCanceledException
+                or InvalidOperationException or System.Text.Json.JsonException
+                or Microsoft.Identity.Client.MsalException)
+        {
+            return ApiProblems.Create(http,502,"alternate_key_refresh_failed",
+                "No se pudo consultar la metadata de claves en Dataverse; configuración anterior conservada.");
         }
     }
 

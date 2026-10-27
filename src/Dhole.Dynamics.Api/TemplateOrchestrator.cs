@@ -250,6 +250,19 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             "DE", "DEL", "LA", "LAS", "EL", "LOS", "Y", "THE", "OF", "AND"
         };
 
+    // Some registered Dynamics customers include their country after the
+    // commercial name, e.g. "GRUPO SPORT PANAMÁ SA" while Pricing uses
+    // "GRUPO SPORT". Accept ONLY a recognized standalone geographical suffix,
+    // never arbitrary added business words. Resolution still checks *all*
+    // candidate records and rejects ambiguous customer IDs.
+    private static readonly HashSet<string> CustomerAccountCountrySuffixes =
+        new(StringComparer.Ordinal)
+        {
+            "PANAMA", "COSTA RICA", "EL SALVADOR", "GUATEMALA",
+            "HONDURAS", "NICARAGUA", "BELICE", "MEXICO",
+            "COLOMBIA", "ESTADOS UNIDOS", "REPUBLICA DOMINICANA"
+        };
+
     public static string CustomerAccountIdentityKey(string name)
     {
         var words = CustomerAccountNameKey(name)
@@ -302,8 +315,18 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             static bool ArticlesOnly(string surrounding) =>
                 surrounding.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .All(CustomerNameParticles.Contains);
-            if (ArticlesOnly(actual[..at]) &&
-                ArticlesOnly(actual[(at + requested.Length)..]))
+            var before = actual[..at];
+            var after = actual[(at + requested.Length)..].Trim();
+            if (ArticlesOnly(before) && ArticlesOnly(after))
+                return true;
+
+            // A country qualifier on the existing account is part of its
+            // registered name, not another business identity. A request must
+            // contain at least two substantive tokens, and no unapproved
+            // extra business terms may appear before or after the name.
+            if (ArticlesOnly(before) &&
+                CustomerAccountIdentityKey(requested).Length > 0 &&
+                CustomerAccountCountrySuffixes.Contains(after))
                 return true;
         }
 

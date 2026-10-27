@@ -6,6 +6,12 @@ using Npgsql;
 
 namespace Dhole.Dynamics.Api;
 
+// Only previously authorized CREATE fields can be reused on a new revision.
+// This is not a request to add fields, renew expiration or reactivate a key.
+public sealed record TemplateActivationKeyCompatibility(
+    string EntityName,
+    string[] RequiredFields);
+
 /// <summary>Immutable revisions + atomic active pointer. No caches, so activation takes effect immediately.</summary>
 public sealed class TemplateRepository(NpgsqlDataSource database)
 {
@@ -105,23 +111,84 @@ public sealed class TemplateRepository(NpgsqlDataSource database)
     }
 
     public async Task<bool> SetActiveAsync(Guid connection,string name,int? version,
-        string actor,CancellationToken ct)
+        string actor,CancellationToken ct,
+        TemplateActivationKeyCompatibility? compatibleKeys = null)
     {
         await using var db=await database.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
-        await using var cmd=new NpgsqlCommand("""
+
+        // Serialize template activations with key-version synchronization. A key
+        // cannot observe the new active pointer with the previous pin when this
+        // transaction commits. Do not revive keys from older, inactive revisions.
+        Guid templateId;
+        int? previousVersion;
+        await using(var previous=new NpgsqlCommand("""
+            SELECT id,active_version FROM dynamics.integration_templates
+            WHERE connection_id=@connection AND name=@name
+            FOR UPDATE
+            """,db,tx))
+        {
+            previous.Parameters.AddWithValue("connection",connection);
+            previous.Parameters.AddWithValue("name",name);
+            await using var reader=await previous.ExecuteReaderAsync(ct);
+            if(!await reader.ReadAsync(ct))return false;
+            templateId=reader.GetGuid(0);
+            previousVersion=reader.IsDBNull(1)?null:reader.GetInt32(1);
+        }
+
+        await using(var cmd=new NpgsqlCommand("""
             UPDATE dynamics.integration_templates t
             SET active_version=@version,updated_at=now()
-            WHERE connection_id=@connection AND name=@name
+            WHERE id=@id AND connection_id=@connection
               AND (CAST(@version AS integer) IS NULL OR EXISTS(
                 SELECT 1 FROM dynamics.template_versions v
                 WHERE v.template_id=t.id AND v.version=@version))
             RETURNING id
-            """,db,tx);
-        cmd.Parameters.AddWithValue("connection",connection);
-        cmd.Parameters.AddWithValue("name",name);
-        cmd.Parameters.AddWithValue("version",(object?)version??DBNull.Value);
-        if(await cmd.ExecuteScalarAsync(ct) is null)return false;
+            """,db,tx))
+        {
+            cmd.Parameters.AddWithValue("id",templateId);
+            cmd.Parameters.AddWithValue("connection",connection);
+            cmd.Parameters.AddWithValue("version",(object?)version??DBNull.Value);
+            if(await cmd.ExecuteScalarAsync(ct) is null)return false;
+        }
+
+        if(version is int nextVersion && previousVersion is int oldVersion
+            && nextVersion!=oldVersion && compatibleKeys is not null
+            && compatibleKeys.RequiredFields.Length>0)
+        {
+            // Fail closed: a still-enabled, unexpired key may follow its CURRENT
+            // active CREATE template only if both its pinned field allowlist and
+            // its active client write grant already contain every new field.
+            // Do not touch disabled/revoked clients, keys, quota or expiry.
+            // If operation, entity or fields change incompatibly, the key stays
+            // pinned to the old version until an explicit SecurityAdmin rebind.
+            await using var rebind=new NpgsqlCommand("""
+                UPDATE dynamics.template_api_keys k
+                   SET template_version=@next
+                  FROM dynamics.api_clients a, dynamics.api_grants g
+                 WHERE k.template_id=@template AND k.connection_id=@connection
+                   AND k.template_version=@previous
+                   AND k.operation='create' AND k.entity_name=@entity
+                   AND k.enabled=true AND k.expires_at>now()
+                   AND a.id=k.client_id AND a.enabled=true
+                   AND g.api_client_id=k.client_id
+                   AND g.connection_id=k.connection_id
+                   AND g.entity_set=k.entity_name AND g.operation='create'
+                   AND g.enabled=true
+                   AND k.allowed_fields @> @required
+                   AND g.allowed_fields @> @required
+                """,db,tx);
+            rebind.Parameters.AddWithValue("template",templateId);
+            rebind.Parameters.AddWithValue("connection",connection);
+            rebind.Parameters.AddWithValue("previous",oldVersion);
+            rebind.Parameters.AddWithValue("next",nextVersion);
+            rebind.Parameters.AddWithValue("entity",compatibleKeys.EntityName);
+            rebind.Parameters.AddWithValue("required",compatibleKeys.RequiredFields);
+            if(await rebind.ExecuteNonQueryAsync(ct)>0)
+                await AuditAsync(db,tx,connection,actor,
+                    "template_key.compatible_version_rebound",ct);
+        }
+
         await AuditAsync(db,tx,connection,actor,
             version is null?"template.deactivated":"template.activated",ct);
         await tx.CommitAsync(ct);

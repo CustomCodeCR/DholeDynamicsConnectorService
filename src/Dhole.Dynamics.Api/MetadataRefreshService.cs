@@ -25,6 +25,28 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
             preserveDetails: true);
     }
 
+    // Lightweight refresh for the UPSERT wizard. Keep all existing column
+    // selections, lookup relationships and field-grant fingerprints unchanged.
+    public async Task<IReadOnlyList<MetadataAlternateKey>> RefreshAlternateKeysAsync(
+        string code, string entity, string actor, CancellationToken ct)
+    {
+        if (!DataverseMetadataDiscovery.SafeName(entity))
+            throw new ArgumentException("Invalid Dataverse table.");
+        var connection = await connections.FindAsync(code, ct)
+            ?? throw new ReadRejected(404,"connection_not_found");
+        var current = await catalog.LatestAsync(connection.Id, ct)
+            ?? throw new ReadRejected(409,"metadata_missing");
+        var table = current.Catalog.Tables.FirstOrDefault(t => t.LogicalName == entity)
+            ?? throw new ReadRejected(404,"metadata_entity_missing");
+        if (table.Columns.Count == 0)
+            throw new ReadRejected(409,"metadata_fields_not_discovered");
+        var keys = await detailDiscovery.DiscoverAlternateKeysAsync(
+            connection, entity, table.Columns, ct);
+        await catalog.SaveTableAsync(connection.Id,
+            table with { AlternateKeys = keys }, actor, ct);
+        return keys;
+    }
+
     public async Task<MetadataRefreshResult?> RefreshTableAsync(string code, string entity,
         string actor, CancellationToken ct)
     {

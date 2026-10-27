@@ -394,6 +394,39 @@ public sealed class TemplateNameResolutionTests
     }
 
     [Fact]
+    public void VerifiedGerardoGazelAliasFindsOnlyTheRegisteredAccountWithContains()
+    {
+        const string shortName = "GERARDO GAZEL";
+        const string registered = "Gerardo Gazel Piedra";
+        Assert.Equal(registered, TemplateOrchestrator.CanonicalPricingCustomerName(shortName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(shortName, registered));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "Gerardo Gazel", "GERARDO GAZEL PIEDRA"));
+
+        // A surname omitted in Dhole is not permission to attach any other
+        // account returned by the same broad contains filter.
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            shortName, "Gerardo Gazel López"));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            shortName, "Gerardo Gazel Piedra Transportes S.A."));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            shortName, "Gerardo Gazel Piedra Sucursal Norte"));
+
+        var filters = TemplateOrchestrator.CustomerNameFallbackFilters("name", shortName);
+        Assert.Contains(filters, filter => filter.Op == "contains" &&
+            filter.Value?.GetString() == registered);
+        Assert.Contains(filters, filter => filter.Op == "contains" &&
+            filter.Value?.GetString() == shortName);
+        Assert.All(filters, filter =>
+        {
+            if (filter.Children is { Count: > 0 } children)
+                Assert.All(children, child => Assert.Equal("contains", child.Op));
+            else
+                Assert.Equal("contains", filter.Op);
+        });
+    }
+
+    [Fact]
     public void VerifiedCicadexAliasFindsUniqueLegalAccountUsingContains()
     {
         const string legal = "Consorcio Interamericano Caribe de Exportación S.A.";

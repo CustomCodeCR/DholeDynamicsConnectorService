@@ -95,6 +95,12 @@ jobs:
             total="$(docker logs --since 2026-10-27T04:42:30Z --until 2026-10-27T04:43:10Z "$name" 2>&1 | grep -Ec 'HTTP/|Gateway forwarding' || true)"
             echo "$name incident_exact_request_count=$access other_access_count=$total"
           done
+          echo '---- Sanitized Traefik access statuses at incident UTC ----'
+          if docker inspect traefik >/dev/null 2>&1; then
+            docker logs --since 2026-10-27T04:42:30Z --until 2026-10-27T04:43:10Z traefik 2>&1 |
+              grep -F 'POST /api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys' |
+              awk -F '"' '{print "request=POST alternate-keys (redacted) status_and_duration=" substr($3,1,160)}' || true
+          fi
           echo '---- Local reverse proxy direct request, no credentials or business action ----'
           for host in traefik api-gateway; do
             result="$(docker run --rm --network dhole curlimages/curl:8.15.0 \
@@ -129,6 +135,14 @@ jobs:
             WHERE route_pattern LIKE '%/connections/%/test%'
             AND observed_at>now()-interval '72 hours'
             ORDER BY observed_at DESC LIMIT 16"
+          echo "---- Actual alternate-key POST request outcomes, sanitized database observations ----"
+          docker run --rm --network "$network" -e PGPASSWORD="$password" postgres:16-alpine \
+            psql -h "$pg_host" -p "$pg_port" -U "$pg_user" -d "$db" -v ON_ERROR_STOP=1 -Atqc \
+            "SELECT to_char(observed_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'),method,status_code,elapsed_ms
+             FROM dynamics.http_observations
+             WHERE route_pattern LIKE '%alternate-keys'
+             AND observed_at BETWEEN '2026-10-27 04:40:00+00' AND '2026-10-27 04:46:00+00'
+             ORDER BY observed_at ASC LIMIT 30"
           unset password
           echo "---- Gateway preflight status and allowed-method headers ----"
           docker run --rm --network "$network" curlimages/curl:8.15.0 -sS --max-time 10 \

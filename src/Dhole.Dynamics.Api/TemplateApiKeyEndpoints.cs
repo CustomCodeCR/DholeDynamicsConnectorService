@@ -19,6 +19,7 @@ public static class TemplateApiKeyEndpoints
             .RequireRateLimiting("AdminRate").RequireCsrfForWrites();
         admin.MapGet("",List);
         admin.MapPost("",Issue);
+        admin.MapPut("/{id:guid}/rebind",Rebind);
         admin.MapDelete("/{id:guid}",Revoke);
         app.MapPost("/api/v1/keyed/templates/{name}/execute",Execute)
             .WithGroupName("v1").AllowAnonymous().RequireRateLimiting("AdminRate");
@@ -58,6 +59,12 @@ public static class TemplateApiKeyEndpoints
             }
             return Results.Ok(issued);
         });
+
+    private static Task<IResult> Rebind(string code,Guid id,
+        CrudIntegrationKeyRebindRequest request,TemplateApiKeyRepository keys,
+        ClaimsPrincipal actor,HttpContext context,CancellationToken ct) =>
+        Guard(context,async()=>Results.Ok(await keys.RebindAsync(
+            code,id,request,ScopeSecurity.ActorId(actor),ct)));
 
     private static Task<IResult> Revoke(string code,Guid id,
         TemplateApiKeyRepository keys,ClaimsPrincipal actor,HttpContext context,CancellationToken ct) =>

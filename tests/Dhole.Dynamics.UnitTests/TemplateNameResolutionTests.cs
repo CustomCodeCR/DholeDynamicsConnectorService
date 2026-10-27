@@ -394,6 +394,38 @@ public sealed class TemplateNameResolutionTests
     }
 
     [Fact]
+    public void FedericoSerranoMatchesOnlyTheVerifiedFullDynamicsAccount()
+    {
+        const string dholeName = "FEDERICO SERRANO";
+        const string fullName = "TOMAS FEDERICO SERRANO CASTRO";
+        Assert.Equal(fullName,
+            TemplateOrchestrator.CanonicalPricingCustomerName(dholeName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            dholeName,fullName));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "Federico Serrano","Tomás Federico Serrano Castro"));
+
+        // Contains alone is not sufficient to authorize a customer binding:
+        // full-name verification and ambiguity detection protect other people.
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            dholeName,"JUAN FEDERICO SERRANO CASTRO"));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            dholeName,"TOMAS FEDERICO SERRANO MORA"));
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            dholeName,"TOMAS FEDERICO SERRANO CASTRO IMPORTACIONES S.A."));
+
+        var filters=TemplateOrchestrator.CustomerNameFallbackFilters("name",dholeName);
+        Assert.Contains(filters,f=>f.Op=="contains" && f.Value?.GetString()==fullName);
+        Assert.Contains(filters,f=>f.Op=="contains" && f.Value?.GetString()==dholeName);
+        Assert.All(filters,f=>
+        {
+            if(f.Children is { Count: > 0 } children)
+                Assert.All(children,item=>Assert.Equal("contains",item.Op));
+            else Assert.Equal("contains",f.Op);
+        });
+    }
+
+    [Fact]
     public void VerifiedGerardoGazelAliasFindsOnlyTheRegisteredAccountWithContains()
     {
         const string shortName = "GERARDO GAZEL";

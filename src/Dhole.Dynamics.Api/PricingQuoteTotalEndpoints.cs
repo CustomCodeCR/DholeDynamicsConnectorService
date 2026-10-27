@@ -661,7 +661,8 @@ public static class PricingQuoteTotalEndpoints
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
-                trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true);
+                trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true,
+                trustedPricingTotalSale: request.TotalSaleAmount);
             if (header is WriteResult { State: "rejected" } rejectedHeader)
             {
                 // Dataverse explicitly returned a non-success HTTP status for

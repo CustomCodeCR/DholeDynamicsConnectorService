@@ -5,6 +5,10 @@ using Dhole.Dynamics.Infrastructure;
 namespace Dhole.Dynamics.Api;
 
 /// <summary>Refreshes a complete catalog or leaves last known good snapshot intact.</summary>
+public sealed record AlternateKeyRefreshReport(
+    IReadOnlyList<MetadataAlternateKey> AlternateKeys,
+    IReadOnlyList<DataverseAlternateKeyState> KeyStatuses);
+
 public sealed class MetadataRefreshService(IConnectionRepository connections,
     IMetadataDiscoveryClient discovery, MetadataRepository catalog,
     DataverseMetadataDiscovery detailDiscovery)
@@ -27,7 +31,7 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
 
     // Lightweight refresh for the UPSERT wizard. Keep all existing column
     // selections, lookup relationships and field-grant fingerprints unchanged.
-    public async Task<IReadOnlyList<MetadataAlternateKey>> RefreshAlternateKeysAsync(
+    public async Task<AlternateKeyRefreshReport> RefreshAlternateKeysAsync(
         string code, string entity, string actor, CancellationToken ct)
     {
         if (!DataverseMetadataDiscovery.SafeName(entity))
@@ -40,11 +44,12 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
             ?? throw new ReadRejected(404,"metadata_entity_missing");
         if (table.Columns.Count == 0)
             throw new ReadRejected(409,"metadata_fields_not_discovered");
-        var keys = await detailDiscovery.DiscoverAlternateKeysAsync(
-            connection, entity, table.Columns, ct);
+        var states = await detailDiscovery.DiscoverAlternateKeyStatesAsync(
+            connection, entity, ct);
+        var keys = DataverseMetadataDiscovery.ActiveAlternateKeys(states, table.Columns);
         await catalog.SaveTableAsync(connection.Id,
             table with { AlternateKeys = keys }, actor, ct);
-        return keys;
+        return new AlternateKeyRefreshReport(keys, states);
     }
 
     public async Task<MetadataRefreshResult?> RefreshTableAsync(string code, string entity,

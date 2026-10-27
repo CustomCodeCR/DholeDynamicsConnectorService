@@ -34,6 +34,21 @@ public sealed class Phase16CrudOptionSchemaTests
     }
 
     [Fact]
+    public void ExistingQuoteStringColumnCanBeUsedForUniqueKeyButNotCalculatedFields()
+    {
+        var original=Column("new_idtraasignado","String");
+        var quote=new MetadataTable("quote","quotes","quoteid","name",false,
+            new Dictionary<int,string>(),[original],[]);
+        Assert.True(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"new_idtraasignado"));
+        Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"nonexistent"));
+        Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"name"));
+        var nonQuote=quote with { LogicalName="account" };
+        Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(nonQuote,"new_idtraasignado"));
+        var calculated=quote with { Columns=[original with { IsCalculated=true }] };
+        Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(calculated,"new_idtraasignado"));
+    }
+
+    [Fact]
     public void ActiveDataverseAlternateKeysAreExposedAndPendingKeysAreIgnored()
     {
         var cols = new[] {

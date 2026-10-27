@@ -296,6 +296,49 @@ public sealed class TemplateNameResolutionTests
         });
     }
 
+    [Fact]
+    public void GrupoSportAccountUsesContainsAndAcceptsRegisteredPanamaCountrySuffix()
+    {
+        const string dholeCustomer = "GRUPO SPORT";
+        const string dataverseName = "GRUPO SPORT PANAMÁ SA";
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            dholeCustomer,dataverseName));
+        var predicates = TemplateOrchestrator.CustomerNameFallbackFilters(
+            "name",dholeCustomer);
+        Assert.NotEmpty(predicates);
+        Assert.Contains(predicates,p => p.Op == "contains" &&
+            p.Value?.GetString() == dholeCustomer);
+        Assert.All(predicates, predicate =>
+        {
+            if (predicate.Children is { Count: > 0 } parts)
+                Assert.All(parts,p => Assert.Equal("contains",p.Op));
+            else
+                Assert.Equal("contains",predicate.Op);
+        });
+    }
+
+    [Theory]
+    [InlineData("GRUPO SPORT PANAMA IMPORTACIONES SA")]
+    [InlineData("GRUPO SPORT PANAMA SUCURSAL NORTE")]
+    [InlineData("GRUPO SPORT SERVICES PANAMÁ S.A.")]
+    [InlineData("GRUPO SPORTS PANAMÁ S.A.")]
+    [InlineData("EL GRUPO SPORT TRADING SA")]
+    [InlineData("GRUPO SPORT PANAMÁ COSTA RICA")]
+    public void GrupoSportDoesNotAssociateUnrelatedBusinessNames(string recordName)
+    {
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "GRUPO SPORT",recordName));
+    }
+
+    [Fact]
+    public void CountrySuffixDoesNotAllowSingleGenericWordMatches()
+    {
+        Assert.False(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "SPORT","SPORT PANAMÁ S.A."));
+        Assert.True(TemplateOrchestrator.CustomerAccountNamesMatch(
+            "GRUPO SPORT COSTA RICA","GRUPO SPORT COSTA RICA SA"));
+    }
+
     [Theory]
     [InlineData("REINADO DE LAS LLANTAS", "EL REINADO DE LAS LLANTAS IMPORTACIONES")]
     [InlineData("REINADO DE LAS LLANTAS", "COMERCIAL EL REINADO DE LAS LLANTAS")]

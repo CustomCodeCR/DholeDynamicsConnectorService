@@ -34,6 +34,47 @@ public sealed class Phase16CrudOptionSchemaTests
     }
 
     [Fact]
+    public void QuoteGuidAlternateKeyMetadataIncludesDataverseLocalizedDisplayName()
+    {
+        var metadata=DataverseMetadataDiscovery.BuildDholeQuoteKeyMetadata(
+            "new_idtraasignado");
+        var json=System.Text.Json.JsonSerializer.SerializeToElement(metadata);
+        Assert.Equal("Microsoft.Dynamics.CRM.EntityKeyMetadata",
+            json.GetProperty("@odata.type").GetString());
+        Assert.Equal("new_DholeKey_new_idtraasignado",
+            json.GetProperty("SchemaName").GetString());
+        Assert.Equal("new_idtraasignado",
+            Assert.Single(json.GetProperty("KeyAttributes").EnumerateArray()).GetString());
+        var label=json.GetProperty("DisplayName");
+        Assert.Equal("Microsoft.Dynamics.CRM.Label",
+            label.GetProperty("@odata.type").GetString());
+        var localized=Assert.Single(label.GetProperty("LocalizedLabels").EnumerateArray());
+        Assert.Equal("Dhole Rate GUID", localized.GetProperty("Label").GetString());
+        Assert.Equal(1033, localized.GetProperty("LanguageCode").GetInt32());
+        Assert.Throws<ArgumentException>(()=>
+            DataverseMetadataDiscovery.BuildDholeQuoteKeyMetadata("new_idtra1"));
+    }
+
+    [Theory]
+    [InlineData("DisplayName is required", "display_name")]
+    [InlineData("Field level security is applied to column", "secured_field")]
+    [InlineData("Alternate key index exceeds 900 bytes", "key_size")]
+    [InlineData("SchemaName is not a valid publisher prefix", "schema_name")]
+    [InlineData("An attribute is not eligible", "attribute")]
+    public void DataverseKeyErrorClassificationReturnsOnlyAllowlistedReasons(
+        string detail, string expected)
+    {
+        var json=System.Text.Json.JsonSerializer.Serialize(new
+        {
+            error=new { code="0x80040216",message=detail }
+        });
+        Assert.Equal(expected,DataverseMetadataDiscovery.ClassifyKeyCreationError(json));
+        Assert.Equal("unknown",
+            DataverseMetadataDiscovery.ClassifyKeyCreationError(
+                "{\"error\":{\"message\":\"tenant secret\"}}"));
+    }
+
+    [Fact]
     public void ExistingQuoteStringColumnCanBeUsedForUniqueKeyButNotCalculatedFields()
     {
         var original=Column("new_idtraasignado","String");

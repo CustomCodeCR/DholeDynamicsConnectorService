@@ -99,4 +99,59 @@ public sealed class PricingQuoteTotalTests
         Assert.Null(DataverseWriteTransport.ExtractSafeErrorCode(missing));
     }
 
+    [Fact]
+    public void ItemizedQuoteLineBindsRealQuoteAndPreservesConceptQuantityAndPrice()
+    {
+        var id = Guid.NewGuid();
+        var fields = PricingQuoteTotalEndpoints.BuildItemizedLine(
+            new PricingQuoteTotalEndpoints.PricingQuoteLine(
+                "  Transporte local  ", "  Entrega hasta bodega  ", 2m, 145.50m),
+            id, "custom_quote_navigation");
+        Assert.Equal(7, fields.Count);
+        Assert.Equal(id.ToString("D"), fields["custom_quote_navigation@odata.bind"].GetString());
+        Assert.Equal("Transporte local", fields["quotedetailname"].GetString());
+        Assert.Equal("Entrega hasta bodega", fields["productdescription"].GetString());
+        Assert.Equal(2m, fields["quantity"].GetDecimal());
+        Assert.Equal(145.50m, fields["priceperunit"].GetDecimal());
+        Assert.True(fields["ispriceoverridden"].GetBoolean());
+        Assert.True(fields["isproductoverridden"].GetBoolean());
+        Assert.DoesNotContain("totalamount", fields.Keys);
+        Assert.DoesNotContain("msdyn_invoicesetuptotals", fields.Keys);
+    }
+
+    [Fact]
+    public void ItemizedQuoteLineUsesNameWhenDescriptionIsEmpty()
+    {
+        var fields = PricingQuoteTotalEndpoints.BuildItemizedLine(
+            new PricingQuoteTotalEndpoints.PricingQuoteLine("Manejos", "", 1m, 175m),
+            Guid.NewGuid());
+        Assert.Equal("Manejos", fields["productdescription"].GetString());
+    }
+
+    [Fact]
+    public void ItemizedQuoteLineRejectsInvalidQuantityPriceNameOrQuote()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            PricingQuoteTotalEndpoints.BuildItemizedLine(
+                new PricingQuoteTotalEndpoints.PricingQuoteLine("", "", 1m, 10m),
+                Guid.NewGuid()));
+        Assert.Throws<ArgumentException>(() =>
+            PricingQuoteTotalEndpoints.BuildItemizedLine(
+                new PricingQuoteTotalEndpoints.PricingQuoteLine("Cargo", "", 0m, 10m),
+                Guid.NewGuid()));
+        Assert.Throws<ArgumentException>(() =>
+            PricingQuoteTotalEndpoints.BuildItemizedLine(
+                new PricingQuoteTotalEndpoints.PricingQuoteLine("Cargo", "", 1m, -1m),
+                Guid.NewGuid()));
+        Assert.Throws<ArgumentException>(() =>
+            PricingQuoteTotalEndpoints.BuildItemizedLine(
+                new PricingQuoteTotalEndpoints.PricingQuoteLine("Cargo", "", 1m, 10m),
+                Guid.Empty));
+        Assert.Throws<ArgumentException>(() =>
+            PricingQuoteTotalEndpoints.BuildItemizedLine(
+                new PricingQuoteTotalEndpoints.PricingQuoteLine("Cargo", "", 1m, 10m),
+                Guid.NewGuid(), "bad@navigation"));
+    }
+
+
 }

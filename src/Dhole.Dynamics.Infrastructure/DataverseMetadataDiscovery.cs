@@ -181,26 +181,72 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                         Str(rel, "ReferencedEntityNavigationPropertyName")));
                 }
             }
-            var keys = new List<MetadataAlternateKey>();
-            if (includeExtended)
-            foreach (var key in await CollectionAsync(host, token, basePath + "/Keys?$select=LogicalName,KeyAttributes", ct))
-            {
-                var keyName = Str(key, "LogicalName");
-                if (keyName is null || !SafeName(keyName) ||
-                    !TryGet(key, "KeyAttributes", out var keyFields) ||
-                    keyFields.ValueKind != JsonValueKind.Array) continue;
-                var attrs = keyFields.EnumerateArray()
-                    .Where(f => f.ValueKind == JsonValueKind.String)
-                    .Select(f => f.GetString()!).ToArray();
-                if (attrs.Length > 0 && attrs.Length <= 3 &&
-                    attrs.All(f => SafeName(f) && columns.Any(c => c.LogicalName == f)))
-                    keys.Add(new MetadataAlternateKey(keyName, attrs));
-            }
-            keys.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
+            // Keys are cheap metadata and are required even in a non-extended
+            // refresh. Previously includeExtended=false always returned [],
+            // making the UPSERT selector empty despite existing Dataverse keys.
+            var keys = await DiscoverAlternateKeysWithTokenAsync(
+                host, token, name!, columns, ct);
             columns.Sort((a, b) => StringComparer.Ordinal.Compare(a.LogicalName, b.LogicalName));
             relations.Sort((a, b) => StringComparer.Ordinal.Compare(a.SchemaName, b.SchemaName));
             return new MetadataTable(name!, set!, primary!, Str(table, "PrimaryNameAttribute"),
                 Flag(table, "IsCustomEntity"), Labels(table, "DisplayName"), columns, relations, keys);
+    }
+
+    /// <summary>
+    /// Refresh only existing Dataverse alternate keys without re-reading all
+    /// fields or replacing user-approved lookup mappings. Returns active indexes
+    /// only: pending/failed keys must never be offered for UPSERT.
+    /// </summary>
+    public async Task<IReadOnlyList<MetadataAlternateKey>> DiscoverAlternateKeysAsync(
+        DynamicsConnection connection, string entity,
+        IReadOnlyList<MetadataColumn> columns, CancellationToken ct)
+    {
+        if (!SafeName(entity))
+            throw new ArgumentException("Invalid Dataverse table name.", nameof(entity));
+        if (!DataverseUrlValidator.TryNormalize(connection.DataverseUrl, out var host))
+            throw new InvalidOperationException("Untrusted Dataverse host.");
+        var token = await tokens.AcquireAsync(connection, ct);
+        return await DiscoverAlternateKeysWithTokenAsync(host, token, entity, columns, ct);
+    }
+
+    private async Task<IReadOnlyList<MetadataAlternateKey>> DiscoverAlternateKeysWithTokenAsync(
+        string host, string token, string entity,
+        IReadOnlyList<MetadataColumn> columns, CancellationToken ct)
+    {
+        var path = ApiPath + "(LogicalName='" + entity + "')" +
+            "/Keys?$select=LogicalName,KeyAttributes,EntityKeyIndexStatus";
+        var rows = await CollectionAsync(host, token, path, ct);
+        return ParseActiveAlternateKeys(rows, columns);
+    }
+
+    public static IReadOnlyList<MetadataAlternateKey> ParseActiveAlternateKeys(
+        IReadOnlyList<JsonElement> rows, IReadOnlyList<MetadataColumn> columns)
+    {
+        var keys = new List<MetadataAlternateKey>();
+        foreach (var key in rows)
+        {
+            // The unique index is built asynchronously. Never present a
+            // pending or failed index as an operational UPSERT identity.
+            var status = Str(key, "EntityKeyIndexStatus");
+            var numericStatus = Int(key, "EntityKeyIndexStatus");
+            if (status != "Active" && numericStatus != 2)
+                continue;
+            var name = Str(key, "LogicalName");
+            if (!SafeName(name) ||
+                !TryGet(key, "KeyAttributes", out var fields) ||
+                fields.ValueKind != JsonValueKind.Array)
+                continue;
+            var attributes = fields.EnumerateArray()
+                .Where(value => value.ValueKind == JsonValueKind.String)
+                .Select(value => value.GetString()!).ToArray();
+            if (attributes.Length is < 1 or > 3 ||
+                attributes.Distinct(StringComparer.Ordinal).Count() != attributes.Length ||
+                attributes.Any(field => !SafeName(field) ||
+                    columns.All(column => column.LogicalName != field)))
+                continue;
+            keys.Add(new MetadataAlternateKey(name!, attributes));
+        }
+        return keys.OrderBy(key => key.LogicalName, StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>

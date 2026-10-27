@@ -42,6 +42,8 @@ public sealed class Phase16CrudOptionSchemaTests
         Assert.True(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"new_idtraasignado"));
         Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"nonexistent"));
         Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(quote,"name"));
+        var otherCustom=quote with { Columns=[original,Column("new_other_id","String")] };
+        Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(otherCustom,"new_other_id"));
         var nonQuote=quote with { LogicalName="account" };
         Assert.False(MetadataEndpoints.CanCreateQuoteAlternateKey(nonQuote,"new_idtraasignado"));
         var calculated=quote with { Columns=[original with { IsCalculated=true }] };
@@ -76,6 +78,39 @@ public sealed class Phase16CrudOptionSchemaTests
         var single=Assert.Single(result);
         Assert.Equal("new_dhole_quote_key",single.LogicalName);
         Assert.Equal(["new_idtraasignado"],single.Attributes);
+    }
+
+    [Fact]
+    public void KeyRefreshShowsPendingInProgressAndFailedWithoutEnablingPrematureUpsert()
+    {
+        var fields=new[]{Column("new_idtraasignado","String")};
+        var rows=new[]{
+            System.Text.Json.JsonSerializer.SerializeToElement(new{
+                LogicalName="new_dhole_pending",KeyAttributes=new[]{"new_idtraasignado"},
+                EntityKeyIndexStatus=0
+            }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new{
+                LogicalName="new_dhole_building",KeyAttributes=new[]{"new_idtraasignado"},
+                EntityKeyIndexStatus=1
+            }),
+            System.Text.Json.JsonSerializer.SerializeToElement(new{
+                LogicalName="new_dhole_failed",KeyAttributes=new[]{"new_idtraasignado"},
+                EntityKeyIndexStatus=3
+            })
+        };
+        var states=DataverseMetadataDiscovery.ParseAlternateKeyStates(rows);
+        Assert.Equal(3,states.Count);
+        Assert.Contains(states,k=>k.Status=="Pending");
+        Assert.Contains(states,k=>k.Status=="InProgress");
+        Assert.Contains(states,k=>k.Status=="Failed");
+        Assert.Empty(DataverseMetadataDiscovery.ActiveAlternateKeys(states,fields));
+        var active=DataverseMetadataDiscovery.ParseAlternateKeyStates([
+            System.Text.Json.JsonSerializer.SerializeToElement(new{
+                LogicalName="new_dhole_active",KeyAttributes=new[]{"new_idtraasignado"},
+                EntityKeyIndexStatus=2
+            })]);
+        Assert.Equal("new_dhole_active",
+            Assert.Single(DataverseMetadataDiscovery.ActiveAlternateKeys(active,fields)).LogicalName);
     }
 
     [Fact]

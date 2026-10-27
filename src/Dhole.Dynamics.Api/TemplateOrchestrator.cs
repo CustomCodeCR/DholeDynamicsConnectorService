@@ -286,6 +286,10 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             // display name omits the second surname; never allow arbitrary
             // extra surname matches or reuse a hard-coded Dataverse account ID.
             "GERARDO GAZEL" => "Gerardo Gazel Piedra",
+            // Dhole omits the first given name and second surname in this
+            // verified Dynamics account. Search by contains, then require
+            // the complete registered name before accepting its account ID.
+            "FEDERICO SERRANO" => "TOMAS FEDERICO SERRANO CASTRO",
             _ => name
         };
 

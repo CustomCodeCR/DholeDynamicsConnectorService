@@ -235,6 +235,27 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             if (sameColumn.Length == 1)
                 return sameColumn[0]; // Active / Pending / InProgress / Failed, never duplicate
 
+            // Live metadata preflight: a writable String field may still be too
+            // large for Dataverse's unique-key index (900 UTF-16 bytes).
+            var fieldPath = ApiPath + "(LogicalName='quote')" +
+                "/Attributes(LogicalName='" + field + "')" +
+                "/Microsoft.Dynamics.CRM.StringAttributeMetadata" +
+                "?$select=LogicalName,MaxLength,IsSecured,DisplayName";
+            JsonElement fieldMetadata;
+            try
+            {
+                using var details = await GetAsync(host, token, fieldPath, bounded.Token);
+                fieldMetadata = details.RootElement.Clone();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                throw new DataverseKeyCreationRejected(400, "attribute");
+            }
+            var incompatibility = QuoteKeyTextCompatibility(fieldMetadata);
+            if (incompatibility is not null)
+                throw new DataverseKeyCreationRejected(400, incompatibility);
+            var preferredLcid = PreferredKeyLabelLanguage(fieldMetadata);
+
             // Key metadata has its own SchemaName; it is not a new field.
             var endpoint = new Uri(new Uri(host),
                 ApiPath + "(LogicalName='quote')/Keys");
@@ -245,7 +266,7 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             // Dataverse requires a user-facing DisplayName for key metadata.
             // A key is an index on this existing column, never a new column.
-            var metadata = BuildDholeQuoteKeyMetadata(field);
+            var metadata = BuildDholeQuoteKeyMetadata(field, preferredLcid);
             request.Content = new StringContent(JsonSerializer.Serialize(metadata),
                 System.Text.Encoding.UTF8, "application/json");
             using var response = await http.SendAsync(request,
@@ -281,11 +302,43 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
     }
 
     /// <summary>Fixed Dataverse metadata payload. No user-controlled schema names.</summary>
-    public static Dictionary<string, object> BuildDholeQuoteKeyMetadata(string field)
+    /// <summary>Validate live String metadata before attempting a unique index.</summary>
+    public static string? QuoteKeyTextCompatibility(JsonElement metadata)
+    {
+        if (Str(metadata, "LogicalName") != "new_idtraasignado")
+            return "attribute";
+        if (Flag(metadata, "IsSecured"))
+            return "secured_field";
+        var maxLength = Int(metadata, "MaxLength");
+        if (maxLength is null or <= 0)
+            return "attribute";
+        // Dataverse supports at most 900 key bytes, and Strings are Unicode.
+        return maxLength > 450 ? "key_size" : null;
+    }
+
+    private static int PreferredKeyLabelLanguage(JsonElement metadata)
+    {
+        if (TryGet(metadata, "DisplayName", out var label) &&
+            TryGet(label, "LocalizedLabels", out var locales) &&
+            locales.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var locale in locales.EnumerateArray())
+            {
+                if (Int(locale, "LanguageCode") is int lcid and > 0)
+                    return lcid;
+            }
+        }
+        return 1033;
+    }
+
+    public static Dictionary<string, object> BuildDholeQuoteKeyMetadata(string field,
+        int languageCode = 1033)
     {
         if (field != "new_idtraasignado")
             throw new ArgumentException("Only the permanent Dhole RateId column is allowed.",
                 nameof(field));
+        if (languageCode <= 0)
+            throw new ArgumentOutOfRangeException(nameof(languageCode));
         return new Dictionary<string, object>
         {
             ["@odata.type"] = "Microsoft.Dynamics.CRM.EntityKeyMetadata",
@@ -295,7 +348,12 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 ["@odata.type"] = "Microsoft.Dynamics.CRM.Label",
                 ["LocalizedLabels"] = new[]
                 {
-                    new { Label = "Dhole Rate GUID", LanguageCode = 1033 }
+                    new Dictionary<string, object>
+                    {
+                        ["@odata.type"] = "Microsoft.Dynamics.CRM.LocalizedLabel",
+                        ["Label"] = "Dhole Rate GUID",
+                        ["LanguageCode"] = languageCode
+                    }
                 }
             },
             ["KeyAttributes"] = new[] { field }
@@ -317,7 +375,9 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 return "unknown";
             var message = msg.GetString() ?? "";
             if (message.Contains("DisplayName", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("LocalizedLabel", StringComparison.OrdinalIgnoreCase))
+                message.Contains("LocalizedLabel", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("LanguageCode", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("language is not enabled", StringComparison.OrdinalIgnoreCase))
                 return "display_name";
             if (message.Contains("privilege", StringComparison.OrdinalIgnoreCase) ||
                 message.Contains("permission", StringComparison.OrdinalIgnoreCase) ||
@@ -328,7 +388,10 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
                 return "secured_field";
             if (message.Contains("MaxLength", StringComparison.OrdinalIgnoreCase) ||
                 message.Contains("900 bytes", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("key size", StringComparison.OrdinalIgnoreCase))
+                message.Contains("key size", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("maximum key length", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("maximum length for a key", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("too long", StringComparison.OrdinalIgnoreCase))
                 return "key_size";
             if (message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
                 message.Contains("already exists", StringComparison.OrdinalIgnoreCase))

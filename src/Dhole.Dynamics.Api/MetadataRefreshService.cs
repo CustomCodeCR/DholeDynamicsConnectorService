@@ -46,10 +46,46 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
             throw new ReadRejected(409,"metadata_fields_not_discovered");
         var states = await detailDiscovery.DiscoverAlternateKeyStatesAsync(
             connection, entity, ct);
+
+        // A key can be Active in Dataverse while its newly created column is
+        // absent from our persisted metadata snapshot. Refreshing just the
+        // keys previously discarded these valid keys forever. Discover the
+        // current table only when an Active key references an unknown column,
+        // and merge ONLY those columns: never reset existing approvals,
+        // relationships, choices or field metadata fingerprints.
+        var activeFields = states.Where(s => s.Status == "Active")
+            .SelectMany(s => s.Attributes)
+            .ToHashSet(StringComparer.Ordinal);
+        var missing = activeFields.Where(name =>
+            table.Columns.All(c => c.LogicalName != name)).ToHashSet(StringComparer.Ordinal);
+        if (missing.Count > 0)
+        {
+            var discovered = await detailDiscovery.DiscoverTableAsync(connection, entity, ct);
+            table = MergeNewActiveKeyColumns(table, discovered, missing);
+        }
+
         var keys = DataverseMetadataDiscovery.ActiveAlternateKeys(states, table.Columns);
         await catalog.SaveTableAsync(connection.Id,
             table with { AlternateKeys = keys }, actor, ct);
         return new AlternateKeyRefreshReport(keys, states);
+    }
+
+    /// <summary>
+    /// Include metadata for fields backing Active Dataverse keys without
+    /// silently granting permissions or changing existing field definitions.
+    /// </summary>
+    public static MetadataTable MergeNewActiveKeyColumns(MetadataTable current,
+        MetadataTable discovered, IReadOnlySet<string> missing)
+    {
+        if (current.LogicalName != discovered.LogicalName ||
+            current.EntitySetName != discovered.EntitySetName ||
+            current.PrimaryIdAttribute != discovered.PrimaryIdAttribute)
+            throw new InvalidOperationException("Dataverse entity identity changed.");
+        var added = discovered.Columns.Where(c => missing.Contains(c.LogicalName) &&
+            current.Columns.All(existing => existing.LogicalName != c.LogicalName)).ToArray();
+        if (added.Length != missing.Count)
+            throw new InvalidOperationException("Active key columns are missing from live Dataverse metadata.");
+        return current with { Columns = current.Columns.Concat(added).ToArray() };
     }
 
     public async Task<MetadataRefreshResult?> RefreshTableAsync(string code, string entity,

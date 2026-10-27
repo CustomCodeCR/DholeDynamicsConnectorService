@@ -187,4 +187,38 @@ public sealed class Phase04DiscoveryTests
     [InlineData("Account", false)]
     public void RejectsUnsafeIdentifiers(string input, bool expected) =>
         Assert.Equal(expected, DataverseMetadataDiscovery.SafeName(input));
+
+    [Fact]
+    public void NewActiveKeyFieldIsMergedWithoutOverwritingExistingMetadata()
+    {
+        var originalField = new MetadataColumn("name", "String", true, true, true,
+            false, null, null, null, [], new Dictionary<int, string> { [3082] = "Nombre" }, []);
+        var rateField = new MetadataColumn("cr933_dholerateid", "String", true, true, true,
+            false, null, null, null, [], new Dictionary<int, string> { [1033] = "Dhole Rate ID" }, []);
+        var current = new MetadataTable("quote", "quotes", "quoteid", "name", false,
+            new Dictionary<int, string>(), [originalField], []);
+        var fresh = current with { Columns = [
+            originalField with { Labels = new Dictionary<int,string> { [1033] = "Name" } },
+            rateField
+        ] };
+        var merged = MetadataRefreshService.MergeNewActiveKeyColumns(current, fresh,
+            new HashSet<string>(StringComparer.Ordinal) { "cr933_dholerateid" });
+        Assert.Same(originalField, merged.Columns[0]);
+        Assert.Same(rateField, merged.Columns[1]);
+        Assert.Equal("Nombre", merged.Columns[0].Labels[3082]);
+        Assert.Empty(current.Columns.Where(c => c.LogicalName == "cr933_dholerateid"));
+    }
+
+    [Fact]
+    public void MissingKeyFieldAndDifferentTableIdentityAreRejected()
+    {
+        var original = new MetadataTable("quote", "quotes", "quoteid", "name", false,
+            new Dictionary<int, string>(), [], []);
+        var required = new HashSet<string>(StringComparer.Ordinal) { "cr933_dholerateid" };
+        Assert.Throws<InvalidOperationException>(() =>
+            MetadataRefreshService.MergeNewActiveKeyColumns(original, original, required));
+        Assert.Throws<InvalidOperationException>(() =>
+            MetadataRefreshService.MergeNewActiveKeyColumns(original,
+                original with { EntitySetName = "otherquotes" }, required));
+    }
 }

@@ -95,7 +95,8 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         string? idempotencyKey,CancellationToken ct,
         bool omitMissingQuoteCustomer = false,
         decimal? trustedPricingSupplierCost = null,
-        bool omitPricingQuoteTerms = false)
+        bool omitPricingQuoteTerms = false,
+        decimal? trustedPricingTotalSale = null)
     {
         var conn=await readerAccess.ConnectionAsync(request.ConnectionCode,ct);
         var template=await templates.FindAsync(conn.Id,name,ct);
@@ -122,18 +123,17 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 omitMissingQuoteCustomer);
         if (trustedPricingSupplierCost is decimal supplierCost)
         {
-            // Only the dedicated Pricing QUO route supplies this trusted value,
-            // never an arbitrary template caller. Populate all the source
-            // fields of the legacy Dynamics utility calculation exactly once.
+            // Values are supplied ONLY by the dedicated Pricing acceptance
+            // endpoint. Never let template inputs redefine source costs or
+            // the sale. Reusable in CREATE and UPSERT (when synchronization of
+            // both Quote and quotedetail revisions is enabled).
             if (name != "crear_oferta" || definition.EntityName != "quote" ||
-                definition.Operation != "create" || supplierCost < 0)
+                definition.Operation is not ("create" or "upsert") ||
+                trustedPricingTotalSale is not decimal sale ||
+                supplierCost < 0 || sale < 0)
                 throw new ReadRejected(400, "invalid_pricing_cost_fields");
-            var completed = values.ToDictionary(x => x.Key, x => x.Value,
-                StringComparer.Ordinal);
-            for (var index = 1; index <= 9; index++)
-                completed["new_monto" + index] = JsonSerializer.SerializeToElement(
-                    index == 1 ? supplierCost : 0m);
-            values = completed;
+            values = PricingQuoteTotalEndpoints.WithExactQuoteAmounts(
+                values, supplierCost, sale);
         }
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))

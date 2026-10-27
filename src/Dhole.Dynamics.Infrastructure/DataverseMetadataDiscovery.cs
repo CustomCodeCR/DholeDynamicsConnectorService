@@ -9,6 +9,12 @@ namespace Dhole.Dynamics.Infrastructure;
 
 // Keep all index states visible to administrators. Only Active is usable for
 // record UPSERT. Dataverse creates the unique index asynchronously.
+public sealed class DataverseKeyCreationRejected(int remoteStatus) : Exception(
+    "Dataverse rejected alternate key metadata; upstream status " + remoteStatus)
+{
+    public int RemoteStatus { get; } = remoteStatus;
+}
+
 public sealed record DataverseAlternateKeyState(
     string LogicalName, IReadOnlyList<string> Attributes, string Status);
 
@@ -245,9 +251,11 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             using var response = await http.SendAsync(request,
                 HttpCompletionOption.ResponseHeadersRead, bounded.Token);
             if (!response.IsSuccessStatusCode)
-                throw new InvalidOperationException(
-                    "Dataverse refused to create the unique key (HTTP " +
-                    (int)response.StatusCode + ").");
+                // Do not expose Dataverse response bodies: they can include
+                // tenant-specific metadata or the caller's configuration.
+                // Preserve the remote HTTP status so the API does not turn
+                // a 400/403 from Dataverse into an opaque Cloudflare 502.
+                throw new DataverseKeyCreationRejected((int)response.StatusCode);
             return new DataverseAlternateKeyState("new_DholeKey_" + field,
                 [field], "Pending");
         }

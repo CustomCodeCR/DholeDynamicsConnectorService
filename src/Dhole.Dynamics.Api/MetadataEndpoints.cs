@@ -128,8 +128,9 @@ public static class MetadataEndpoints
     {
         var column = table.Columns.FirstOrDefault(c => c.LogicalName == field);
         return table.LogicalName == "quote" &&
-            field.StartsWith("new_", StringComparison.Ordinal) &&
-            field.Length <= 64 &&
+            // One approved permanent identity only. Do not make other Quote
+            // business fields unique through this administrative shortcut.
+            field == "new_idtraasignado" &&
             DataverseMetadataDiscovery.SafeName(field) &&
             column is { Type: "String", CanRead: true, CanCreate: true,
                 CanUpdate: true, IsCalculated: false };
@@ -155,20 +156,33 @@ public static class MetadataEndpoints
                 k.Attributes.Count==1 && k.Attributes[0]==request.Field);
             if (alreadyActive)
                 throw new ReadRejected(409,"alternate_key_already_active");
-            await discovery.CreateQuoteAlternateKeyAsync(
+            var result = await discovery.CreateQuoteAlternateKeyAsync(
                 policy.Connection, request.Field, ct);
             return Results.Ok(new
             {
-                status="pending",
+                status=result.Status.ToLowerInvariant(),
                 field=request.Field,
-                message="La clave se solicitó en Dataverse sobre un campo existente, sin modificar ofertas. " +
-                        "Cuando el índice quede Activo, usá Actualizar claves desde Dataverse."
+                keyName=result.LogicalName,
+                message=result.Status switch
+                {
+                    "Active"=>"La clave ya está activa. Actualizá claves para seleccionarla.",
+                    "Failed"=>"La clave existe pero su índice falló. Revisá duplicados en Dataverse y reactivala; no se generó otra.",
+                    "InProgress"=>"Dataverse todavía está construyendo el índice único. No se creó una segunda clave.",
+                    _=>"Creación solicitada. Dataverse construye la clave sin modificar ninguna oferta; consultá su estado."
+                }
             });
         }
         catch (ReadRejected ex)
         {
             return ApiProblems.Create(http,ex.Status,ex.Code,
                 "No se pudo crear la clave alternativa en la columna seleccionada.");
+        }
+        catch (TimeoutException)
+        {
+            // Dataverse may still complete the index request after the HTTP
+            // timeout. Never tell the caller that the key definitely failed.
+            return ApiProblems.Create(http,504,"alternate_key_confirmation_timeout",
+                "Dataverse tardó demasiado en confirmar la solicitud. Verificá el estado de la clave antes de reintentar; no se eliminó ninguna columna.");
         }
         catch (Exception ex) when (ex is HttpRequestException or
             TaskCanceledException or InvalidOperationException or
@@ -187,10 +201,18 @@ public static class MetadataEndpoints
     {
         try
         {
-            var keys = await service.RefreshAlternateKeysAsync(
+            var report = await service.RefreshAlternateKeysAsync(
                 code, entity, ScopeSecurity.ActorId(actor), ct);
-            return Results.Ok(new { alternateKeys=keys, count=keys.Count,
-                message="Claves activas de Dataverse actualizadas. Ningún campo ni relación fue modificado." });
+            return Results.Ok(new {
+                alternateKeys=report.AlternateKeys,
+                count=report.AlternateKeys.Count,
+                keyStatuses=report.KeyStatuses,
+                message=report.AlternateKeys.Count>0
+                  ? "Claves activas encontradas. No se cambió ningún campo ni relación."
+                  : report.KeyStatuses.Count>0
+                    ? "Hay claves registradas en Dataverse, pero ninguna está activa. Consultá keyStatuses."
+                    : "Dataverse no tiene todavía claves alternativas para esta tabla."
+            });
         }
         catch(ReadRejected ex)
         {

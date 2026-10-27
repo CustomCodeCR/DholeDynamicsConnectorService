@@ -584,6 +584,13 @@ public static class PricingQuoteTotalEndpoints
                     throw new ReadRejected(409, "recovery_not_safe");
             }
 
+            // A single rate revision must never mix the old summary line
+            // with the new itemized lines, or change item count on replay.
+            await EnsureQuoteLineModeAsync(
+                http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                key.ConnectionId, key.ClientId, rawKey,
+                itemized ? request.Lines!.Count : 0, ct);
+
             var claims = new[]
             {
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
@@ -671,8 +678,8 @@ public static class PricingQuoteTotalEndpoints
             var validationLines = itemized
                 ? request.Lines!.Select(line => BuildItemizedLine(line,
                     validationQuoteId, relation.ReferencingNavigation!)).ToArray()
-                : [BuildLine(request.DholeRateId, request.TotalSaleAmount,
-                    validationQuoteId, relation.ReferencingNavigation!)];
+                : new[] { BuildLine(request.DholeRateId, request.TotalSaleAmount,
+                    validationQuoteId, relation.ReferencingNavigation!) };
             foreach (var validationLine in validationLines)
             {
                 var compiled = await WriteValueCompiler.CompileAsync(detail, validationLine,
@@ -719,7 +726,9 @@ public static class PricingQuoteTotalEndpoints
                         relation.ReferencingNavigation!);
                 var suffix = itemized
                     ? "-line-" + (index + 1).ToString("D3",
-                        System.Globalization.CultureInfo.InvariantCulture)
+                        System.Globalization.CultureInfo.InvariantCulture) +
+                        "-of-" + validationLines.Length.ToString("D3",
+                            System.Globalization.CultureInfo.InvariantCulture)
                     : "-total";
                 var result = await writer.CreateWithResolvedMetadataAsync(actor, detail,
                     new GenericCreateRequest(request.ConnectionCode, values),
@@ -727,7 +736,8 @@ public static class PricingQuoteTotalEndpoints
                 if (result.State != "succeeded" || result.RecordId is not Guid lineId ||
                     lineId == Guid.Empty)
                     return Results.Json(new PricingQuoteTotalResponse(
-                        "requires_reconciliation", quoteId, lineIds.FirstOrDefault(),
+                        "requires_reconciliation", quoteId,
+                        lineIds.Count == 0 ? null : lineIds[0],
                         itemized ? "line-" + (index + 1) : "total", created.Replay, lineIds),
                         statusCode: 409);
                 lineIds.Add(lineId);
@@ -735,7 +745,8 @@ public static class PricingQuoteTotalEndpoints
             }
 
             return Results.Ok(new PricingQuoteTotalResponse("succeeded",
-                quoteId, lineIds.FirstOrDefault(), "completed", allReplay, lineIds));
+                quoteId, lineIds.Count == 0 ? null : lineIds[0],
+                "completed", allReplay, lineIds));
         }
         catch (ReadRejected ex)
         {
@@ -1080,6 +1091,43 @@ public static class PricingQuoteTotalEndpoints
     // Read the durable ledger across all past Pricing integration keys, not
     // only the currently configured key. This prevents a key rotation from
     // bypassing a prior ambiguous/succeeded header or duplicating a QUO.
+    // If a previous request already reserved any line, its shape is immutable.
+    // This protects against silently adding lines on a replay with the same
+    // header key or mixing an itemized payload with Pricing's summary line.
+    private static async Task EnsureQuoteLineModeAsync(
+        NpgsqlDataSource source, Guid connection, string client,
+        string baseKey, int lineCount, CancellationToken ct)
+    {
+        var expected = Enumerable.Range(1, lineCount)
+            .Select(index => baseKey + "-line-" +
+                index.ToString("D3", System.Globalization.CultureInfo.InvariantCulture) +
+                "-of-" + lineCount.ToString("D3",
+                    System.Globalization.CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.Ordinal);
+        await using var db = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT idempotency_key
+            FROM dynamics.write_operations
+            WHERE connection_id=@connection AND issuer=@issuer
+              AND oauth_client_id=@client
+              AND (idempotency_key=@summary OR
+                   left(idempotency_key,length(@linePrefix))=@linePrefix)
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connection);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("client", client);
+        cmd.Parameters.AddWithValue("summary", baseKey + "-total");
+        cmd.Parameters.AddWithValue("linePrefix", baseKey + "-line-");
+        await using var rows = await cmd.ExecuteReaderAsync(ct);
+        while (await rows.ReadAsync(ct))
+        {
+            var existing = rows.GetString(0);
+            if (lineCount == 0 && existing != baseKey + "-total" ||
+                lineCount > 0 && !expected.Contains(existing))
+                throw new ReadRejected(409, "quote_line_mode_changed_requires_reconciliation");
+        }
+    }
+
     private static async Task<bool> PricingKeyUsedByAnotherClientAsync(
         NpgsqlDataSource database, Guid connectionId, string clientId,
         string prefix, CancellationToken ct)

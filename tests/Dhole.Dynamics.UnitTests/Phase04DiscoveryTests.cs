@@ -145,7 +145,8 @@ public sealed class Phase04DiscoveryTests
         Assert.Contains(table.Columns, c => c.LogicalName == "new_name");
         Assert.Empty(table.Relationships);
         Assert.Empty(table.AlternateKeys ?? []);
-        Assert.Equal(2, handler.Requests.Count); // one entity, one Attributes collection
+        Assert.Equal(3, handler.Requests.Count); // entity, Attributes, and registered alternate Keys
+        Assert.Contains(handler.Requests, u => u.AbsolutePath.EndsWith("/Keys",StringComparison.Ordinal));
         Assert.DoesNotContain(handler.Requests, u => u.AbsolutePath.Contains("Attributes(LogicalName=", StringComparison.Ordinal));
     }
 

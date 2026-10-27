@@ -30,14 +30,27 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var conn=await readerAccess.ConnectionAsync(code,ct);
         var template=await templates.FindAsync(conn.Id,name,ct)
             ?? throw new ReadRejected(404,"template_missing");
+        TemplateActivationKeyCompatibility? compatibleKeys = null;
         if(version is int requested)
         {
             var revision=template.History.SingleOrDefault(r=>r.Version==requested)
                 ?? throw new ReadRejected(404,"template_version_missing");
             var context=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
             await ValidateDefinitionAsync(context,revision.Definition,ct);
+
+            // An authorized CREATE key may follow a new template version only when
+            // every field remains inside its *existing* key and write grants.
+            // No new secret, entitlement, operation or expiration is issued.
+            // Incompatible changes still require an explicit SecurityAdmin rebind.
+            if (revision.Definition.Operation == "create")
+            {
+                var requiredFields=TemplateApiKeyRepository.ApprovedFields(
+                    revision.Definition,context).ToArray();
+                if (requiredFields.Length>0)
+                    compatibleKeys=new(revision.Definition.EntityName,requiredFields);
+            }
         }
-        if(!await templates.SetActiveAsync(conn.Id,name,version,actor,ct))
+        if(!await templates.SetActiveAsync(conn.Id,name,version,actor,ct,compatibleKeys))
             throw new ReadRejected(409,"template_version_missing");
         return (await templates.FindAsync(conn.Id,name,ct))!;
     }

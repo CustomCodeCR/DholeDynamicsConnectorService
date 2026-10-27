@@ -47,6 +47,39 @@ jobs:
     runs-on: [self-hosted, linux, x64, dhole]
     timeout-minutes: 10
     steps:
+      - name: Diagnose 502 path without any write credentials or quote mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '---- Runtime container health (non-secret status only) ----'
+          for name in dhole-dynamics-production-dynamics-api-1 dhole-api-gateway-1; do
+            if docker inspect "$name" >/dev/null 2>&1; then
+              docker inspect -f '{{.Name}} state={{.State.Status}} restarts={{.RestartCount}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name"
+            else
+              echo "$name: missing"
+            fi
+          done
+          echo '---- POST authentication preflight: no credentials, no body, no writes ----'
+          urls=(
+            'http://dynamics-api:8080/api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys'
+            'http://api-gateway:8080/api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys'
+            'https://api.logisticacastrofallas.com/api/dynamics-admin/connections/principal/metadata/entities/quote/alternate-keys'
+          )
+          for i in "${!urls[@]}"; do
+            status="$(docker run --rm --network dhole curlimages/curl:8.15.0 \
+              --max-time 12 -sS -o /dev/null -w '%{http_code}|%{time_total}|%{content_type}' \
+              -X POST -H 'Content-Type: application/json' \
+              -H 'Origin: https://sistema.logisticacastrofallas.com' \
+              --data '{"field":"new_idtraasignado","confirm":true}' \
+              "${urls[$i]}")" || status='unreachable'
+            echo "path=$i result=$status"
+          done
+          echo '---- Errors from existing API process (counts only; never raw logs) ----'
+          for name in dhole-dynamics-production-dynamics-api-1 dhole-api-gateway-1; do
+            if ! docker inspect "$name" >/dev/null 2>&1; then continue; fi
+            lines="$(docker logs --since 2026-10-27T04:40:00Z --until 2026-10-27T04:46:00Z "$name" 2>&1 | grep -Eic 'error|exception|unhandled|disconnected|shutdown|failed' || true)"
+            echo "$name diagnostic_error_line_count=$lines"
+          done
       - name: Check production Dynamics route observations and outbound DNS without exposing credentials
         shell: bash
         run: |

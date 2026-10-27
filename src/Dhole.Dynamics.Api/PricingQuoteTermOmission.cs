@@ -4,10 +4,12 @@ using Dhole.Dynamics.Contracts;
 namespace Dhole.Dynamics.Api;
 
 /// <summary>
-/// The dedicated Pricing -> Dynamics QUO integration intentionally leaves
-/// three informational commercial-terms fields BLANK in Dataverse. Only this
-/// route opts into filtering; administrators' ordinary CRUD templates remain
-/// unchanged. Pricing retains the full original text and PDF.
+/// The dedicated Pricing -> Dynamics QUO integration omits the Potential
+/// Customer lookup and three informational commercial terms. The real customer
+/// name remains in the description from Pricing. Only this route opts into
+/// filtering; generic CRUD templates and manual Quotes remain unchanged.
+/// Dataverse can accept ApplicationRequired fields omitted by API, although
+/// tenant-specific synchronous rules or plugins may still reject the creation.
 /// </summary>
 public static class PricingQuoteTermOmission
 {
@@ -17,7 +19,13 @@ public static class PricingQuoteTermOmission
     };
 
     public static bool IsExcludedTarget(string target) =>
-        ExcludedTargets.Contains(target);
+        ExcludedTargets.Contains(target) ||
+        target.Equals("customerid", StringComparison.OrdinalIgnoreCase) ||
+        target.Equals("customeridtype", StringComparison.OrdinalIgnoreCase) ||
+        (target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) &&
+         target.EndsWith("@odata.bind", StringComparison.Ordinal)) ||
+        (target.StartsWith("msdyn_account", StringComparison.OrdinalIgnoreCase) &&
+         target.EndsWith("@odata.bind", StringComparison.Ordinal));
 
     public static IntegrationTemplate FilterDefinition(IntegrationTemplate original)
     {

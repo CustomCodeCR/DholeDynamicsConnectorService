@@ -283,11 +283,6 @@ public static class PricingQuoteTotalEndpoints
         });
     }
 
-    private static bool IsCustomerBind(string target) =>
-        (target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) ||
-         target.StartsWith("msdyn_account", StringComparison.OrdinalIgnoreCase)) &&
-        target.EndsWith("@odata.bind", StringComparison.Ordinal);
-
     internal static bool ProductionQuoteRouteAllowed(ProductionWritePolicy gate)
     {
         var context = new DefaultHttpContext();
@@ -405,19 +400,17 @@ public static class PricingQuoteTotalEndpoints
 
         if (definition is not null && quote is not null)
         {
-            if (!definition.Mappings.Any(m => m.Target.StartsWith(
+            // Pricing intentionally does not bind a Potential Customer or
+            // supplementary account; neither relationship requires a grant.
+            var effectiveDefinition = PricingQuoteTermOmission.FilterDefinition(definition);
+            if (!effectiveDefinition.Mappings.Any(m => m.Target.StartsWith(
                     "transactioncurrencyid", StringComparison.OrdinalIgnoreCase) &&
                     m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
                 missing.Add("crear_oferta.currency_relationship");
             // The resolver explicitly reads both ISO code and its Dataverse ID.
             Check("transactioncurrency", "read",
                 ["transactioncurrencyid", "isocurrencycode"]);
-            if (!definition.Mappings.Any(m => m.Target.StartsWith(
-                "customerid_", StringComparison.OrdinalIgnoreCase) &&
-                m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
-                missing.Add("crear_oferta.customerid_relationship");
-
-            foreach (var mapping in definition.Mappings.Where(m =>
+            foreach (var mapping in effectiveDefinition.Mappings.Where(m =>
                 m.Target.EndsWith("@odata.bind", StringComparison.Ordinal)))
             {
                 var navigation = mapping.Target[..^"@odata.bind".Length];
@@ -494,8 +487,6 @@ public static class PricingQuoteTotalEndpoints
             var customerOmitted = !preview.Payload.Keys.Any(target =>
                 target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) &&
                 target.EndsWith("@odata.bind", StringComparison.Ordinal));
-            if (customerOmitted)
-                throw new ReadRejected(422, "quote_customer_required", "customerid", "name");
             // Preview must enforce the same header write grant as the real
             // execution. A successful name lookup alone is not sufficient.
             var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
@@ -505,9 +496,9 @@ public static class PricingQuoteTotalEndpoints
                 valid = true,
                 code = "DYNAMICS_LOOKUPS_VALID",
                 schemaVersion = version,
-                customerOmitted = false,
+                customerOmitted,
                 noPostExecuted = true,
-                message = "Cliente obligatorio, campos y relaciones validados sin crear ofertas."
+                message = "Se validaron campos y referencias restantes; no se requiere cliente potencial en el envío automático. No se creó ninguna QUO."
             });
         }
         catch (ReadRejected ex)
@@ -618,13 +609,10 @@ public static class PricingQuoteTotalEndpoints
                     throw new ReadRejected(409, "quote_cost_fields_not_authorized", name);
             }
             await access.PermitAsync(actor, quote, "create", costFields, ct);
-            // customerid is ApplicationRequired in Dataverse quote. Suppressing
-            // an unknown customer only hides the lookup failure and produces a
-            // Dataverse 400. Fail BEFORE any POST with an actionable error.
-            if (!preview.Payload.Keys.Any(k => k.StartsWith(
-                    "customerid_", StringComparison.OrdinalIgnoreCase) &&
-                    k.EndsWith("@odata.bind", StringComparison.Ordinal)))
-                throw new ReadRejected(422, "quote_customer_required");
+            // Pricing Quotes omit Potential Customer even when the published
+            // CRUD template still requires it. Dataverse API does not enforce
+            // ApplicationRequired by itself. Any tenant-specific server-side
+            // validation rejection is propagated and never silently bypassed.
 
             // Check quotedetail metadata, field grants and quote lookup read
             // permission *before* creating a quote. A dummy nonempty GUID is
@@ -890,9 +878,10 @@ public static class PricingQuoteTotalEndpoints
                 definition.Operation != "create")
                 throw new ReadRejected(409, "crud_template_inactive");
 
-            // Only navigation properties explicitly selected by the published
-            // template qualify for a narrow, read-only related-table grant.
-            var targets = definition.Mappings
+            // Only relationships actually sent by this Pricing route need
+            // grants; customerid and msdyn_account are deliberately omitted.
+            var effectiveDefinition = PricingQuoteTermOmission.FilterDefinition(definition);
+            var targets = effectiveDefinition.Mappings
                 .Where(m => m.Target.EndsWith("@odata.bind", StringComparison.Ordinal))
                 .Select(m => quote.Table.Relationships.FirstOrDefault(r =>
                     r.Kind == "ManyToOneRelationships" &&
@@ -924,7 +913,7 @@ public static class PricingQuoteTotalEndpoints
                 // template receive a read grant. A caller still needs
                 // metadata approval and M2M read scope at execution time.
                 var fields = new List<string> { primary };
-                foreach (var mapping in definition.Mappings.Where(m =>
+                foreach (var mapping in effectiveDefinition.Mappings.Where(m =>
                 m.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
                 m.Steps is { Count: > 0 } &&
                 quote.Table.Relationships.Any(r =>

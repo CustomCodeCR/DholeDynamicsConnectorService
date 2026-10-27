@@ -177,6 +177,27 @@ public static class MetadataEndpoints
             return ApiProblems.Create(http,ex.Status,ex.Code,
                 "No se pudo crear la clave alternativa en la columna seleccionada.");
         }
+        catch (DataverseKeyCreationRejected ex)
+        {
+            // A rejected Dataverse write is not an origin-gateway outage.
+            // Give a stable sanitized code with the upstream status and
+            // preserve the existing quote data, field mappings and key grants.
+            var (httpStatus, failureCode, reason) = ex.RemoteStatus switch
+            {
+                400 => (422, "dataverse_key_metadata_invalid",
+                    "Dataverse rechazó la definición de clave (400). Verificá tipo de columna, nombre del índice y valores existentes."),
+                401 or 403 => (403, "dataverse_key_metadata_permission_denied",
+                    "Dataverse rechazó los permisos para administrar claves de Oferta."),
+                409 or 412 => (409, "dataverse_key_metadata_conflict",
+                    "Dataverse detectó una clave existente o conflicto. Actualizá el estado antes de reintentar."),
+                429 => (503, "dataverse_key_metadata_throttled",
+                    "Dataverse está limitando solicitudes. Consultá el estado antes de enviar otra."),
+                _ => (424, "dataverse_key_metadata_rejected",
+                    "Dataverse no aceptó la definición de clave. Consultá el estado antes de reintentar.")
+            };
+            return ApiProblems.Create(http,httpStatus,failureCode,
+                reason + " Estado HTTP de Dataverse: " + ex.RemoteStatus + ".");
+        }
         catch (TimeoutException)
         {
             // Dataverse may still complete the index request after the HTTP

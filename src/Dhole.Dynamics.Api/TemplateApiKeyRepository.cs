@@ -12,12 +12,14 @@ public sealed record CrudIntegrationKeyInfo(Guid Id,string TemplateName,string O
     string EntityName,string Label,bool Enabled,DateTimeOffset ExpiresAt,
     int MaxRequestsPerMinute,DateTimeOffset CreatedAt,DateTimeOffset? LastUsedAt,
     int TemplateVersion);
+public sealed record CrudIntegrationKeyRebindRequest(string TemplateName,
+    IReadOnlyList<string>? KeyFields=null);
 public sealed record CrudIntegrationKeyIssued(CrudIntegrationKeyInfo Key,string ApiKey);
 public sealed record CrudIntegrationKeyIdentity(Guid Id,Guid ConnectionId,string ClientId,
     string TemplateName,string Operation,string EntityName,IReadOnlyList<string> KeyFields);
 
 /// <summary>
-/// One-key/one-version/one-operation CRUD API access. Each key gets its own
+/// Versioned, explicitly rebindable CRUD API access. Each key gets its own
 /// dedicated DB-backed api_client + narrowly scoped per-field grant. The
 /// existing WriteAccessService and WriteLedger remain the source of authority.
 /// </summary>
@@ -96,6 +98,180 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         return fields;
     }
 
+
+    // A SecurityAdmin may rebind a saved secret to a new active revision of the
+    // SAME template and entity. The plaintext API key, client ID and quota
+    // history are not recreated. Operation changes require fresh field policy
+    // validation and a matching approved Dataverse alternate key for UPSERT.
+    public async Task<CrudIntegrationKeyInfo> RebindAsync(string code,Guid keyId,
+        CrudIntegrationKeyRebindRequest request,string actor,CancellationToken ct)
+    {
+        if(keyId==Guid.Empty || string.IsNullOrWhiteSpace(request.TemplateName))
+            throw new ReadRejected(400,"invalid_crud_key_rebind");
+        var (summary,revision,policy)=await ResolveActiveAsync(code,request.TemplateName,ct);
+        var definition=revision.Definition;
+        if(definition.Operation is not ("create" or "update" or "upsert" or "delete"))
+            throw new ReadRejected(400,"crud_template_required");
+        var (fields,keyFields)=AuthorizeFields(definition,policy,request.KeyFields);
+        await using var db=await database.OpenConnectionAsync(ct);
+        await using var tx=await db.BeginTransactionAsync(ct);
+        Guid clientId;string oldOperation;int maxRequestsPerMinute;
+        await using(var cmd=new NpgsqlCommand("""
+            SELECT k.client_id,k.operation,k.max_requests_per_minute
+            FROM dynamics.template_api_keys k
+            JOIN dynamics.integration_templates t ON t.id=k.template_id
+            JOIN dynamics.api_clients a ON a.id=k.client_id
+            WHERE k.id=@id AND k.connection_id=@connection
+              AND k.template_id=@template
+              AND k.entity_name=@entity
+              AND k.enabled AND k.expires_at>now() AND a.enabled
+              AND t.active_version=@version
+            FOR UPDATE OF k,t
+            """,db,tx))
+        {
+            cmd.Parameters.AddWithValue("id",keyId);
+            cmd.Parameters.AddWithValue("connection",policy.Connection.Id);
+            cmd.Parameters.AddWithValue("template",summary.Id);
+            cmd.Parameters.AddWithValue("entity",definition.EntityName);
+            cmd.Parameters.AddWithValue("version",revision.Version);
+            await using var row=await cmd.ExecuteReaderAsync(ct);
+            if(!await row.ReadAsync(ct))
+                throw new ReadRejected(409,"crud_key_rebind_not_allowed");
+            clientId=row.GetGuid(0);
+            oldOperation=row.GetString(1);
+            maxRequestsPerMinute=row.GetInt32(2);
+        }
+        // Keep the special Pricing supplier-cost write grant on CREATE when
+        // reusing a previously authorized crear_oferta key. It is separate
+        // from the configurable template mappings and is required by
+        // execute-with-total. Never retain arbitrary removed fields.
+        if(code=="principal" && request.TemplateName=="crear_oferta" &&
+           definition.EntityName=="quote" && definition.Operation=="create")
+        {
+            await using var oldGrant=new NpgsqlCommand("""
+                SELECT allowed_fields FROM dynamics.api_grants
+                WHERE api_client_id=@client AND connection_id=@connection
+                  AND entity_set='quote' AND operation='create' AND enabled=true
+                """,db,tx);
+            oldGrant.Parameters.AddWithValue("client",clientId);
+            oldGrant.Parameters.AddWithValue("connection",policy.Connection.Id);
+            var previous=await oldGrant.ExecuteScalarAsync(ct) as string[] ?? [];
+            var preserved=new List<string>(fields);
+            for(var index=1;index<=9;index++)
+            {
+                var name="new_monto"+index;
+                if(!previous.Contains(name,StringComparer.Ordinal) || preserved.Contains(name))
+                    continue;
+                var col=policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==name);
+                var permit=policy.Permissions.Fields.FirstOrDefault(p=>
+                    p.EntityName=="quote" && p.FieldName==name);
+                if(col is null || !col.CanCreate || col.IsCalculated ||
+                   permit is null || !permit.Enabled || !permit.CanCreate ||
+                   permit.MetadataFingerprint!=MetadataRepository.Fingerprint(col))
+                    throw new ReadRejected(403,"quote_cost_fields_not_authorized",name);
+                preserved.Add(name);
+            }
+            if(preserved.Count>60)
+                throw new ReadRejected(400,"invalid_crud_key_fields");
+            fields=preserved.ToArray();
+        }
+        // Retire only the previous operation for this one key/client/entity.
+        // Read grants and grants on related tables (customer, IDTRA, line)
+        // retain their independent authorization.
+        await using(var disable=new NpgsqlCommand("""
+            UPDATE dynamics.api_grants
+               SET enabled=false
+             WHERE api_client_id=@client AND connection_id=@connection
+               AND entity_set=@entity AND operation=@old
+               AND operation<>@operation
+            """,db,tx))
+        {
+            disable.Parameters.AddWithValue("client",clientId);
+            disable.Parameters.AddWithValue("connection",policy.Connection.Id);
+            disable.Parameters.AddWithValue("entity",definition.EntityName);
+            disable.Parameters.AddWithValue("old",oldOperation);
+            disable.Parameters.AddWithValue("operation",definition.Operation);
+            await disable.ExecuteNonQueryAsync(ct);
+        }
+        await using(var grant=new NpgsqlCommand("""
+            INSERT INTO dynamics.api_grants
+                (id,api_client_id,connection_id,entity_set,operation,allowed_fields,
+                 max_requests_per_minute,enabled)
+            VALUES (@id,@client,@connection,@entity,@operation,@fields,@quota,true)
+            ON CONFLICT(api_client_id,connection_id,entity_set,operation)
+            DO UPDATE SET allowed_fields=EXCLUDED.allowed_fields,
+                          enabled=true
+            """,db,tx))
+        {
+            grant.Parameters.AddWithValue("id",Guid.NewGuid());
+            grant.Parameters.AddWithValue("client",clientId);
+            grant.Parameters.AddWithValue("connection",policy.Connection.Id);
+            grant.Parameters.AddWithValue("entity",definition.EntityName);
+            grant.Parameters.AddWithValue("operation",definition.Operation);
+            grant.Parameters.AddWithValue("fields",fields);
+            // Keep the old quota configuration; never extend expiration.
+            grant.Parameters.AddWithValue("quota",maxRequestsPerMinute);
+            await grant.ExecuteNonQueryAsync(ct);
+        }
+        CrudIntegrationKeyInfo rebound;
+        await using(var update=new NpgsqlCommand("""
+            UPDATE dynamics.template_api_keys
+               SET template_version=@version,operation=@operation,
+                   allowed_fields=@fields,key_fields=@keys
+             WHERE id=@id AND connection_id=@connection
+            RETURNING id,@name,operation,entity_name,label,enabled,expires_at,
+                      max_requests_per_minute,created_at,last_used_at,template_version
+            """,db,tx))
+        {
+            update.Parameters.AddWithValue("id",keyId);
+            update.Parameters.AddWithValue("connection",policy.Connection.Id);
+            update.Parameters.AddWithValue("version",revision.Version);
+            update.Parameters.AddWithValue("operation",definition.Operation);
+            update.Parameters.AddWithValue("fields",fields);
+            update.Parameters.AddWithValue("keys",keyFields);
+            update.Parameters.AddWithValue("name",request.TemplateName);
+            await using var row=await update.ExecuteReaderAsync(ct);
+            if(!await row.ReadAsync(ct))throw new ReadRejected(409,"crud_key_rebind_race");
+            rebound=Read(row);
+        }
+        await AuditAsync(db,tx,policy.Connection.Id,actor,"template_key.rebound",ct);
+        await tx.CommitAsync(ct);
+        return rebound;
+    }
+
+    public static (string[] Fields,string[] Keys) AuthorizeFields(
+        IntegrationTemplate definition,WritePolicy policy,IReadOnlyList<string>? requestedKeys)
+    {
+        var fields=ApprovedFields(definition,policy).ToList();
+        var keys=(requestedKeys??[]).Distinct(StringComparer.Ordinal).ToArray();
+        if(definition.Operation=="upsert")
+        {
+            if(keys.Length==0 || !(policy.Table.AlternateKeys??[]).Any(k=>
+                k.Attributes.Count==keys.Length && k.Attributes.All(keys.Contains)))
+                throw new ReadRejected(400,"approved_alternate_key_required");
+            fields.AddRange(keys.Where(x=>!fields.Contains(x,StringComparer.Ordinal)));
+        }
+        else if(keys.Length!=0)
+            throw new ReadRejected(400,"unexpected_alternate_key");
+        if(definition.Operation=="delete")fields.Add(policy.Table.PrimaryIdAttribute);
+        if(fields.Count is < 1 or > 60)throw new ReadRejected(400,"invalid_crud_key_fields");
+        var needsCreate=definition.Operation is "create" or "upsert";
+        var needsUpdate=definition.Operation is "update" or "upsert";
+        if(definition.Operation!="delete")
+            foreach(var name in fields)
+            {
+                var col=policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==name);
+                var allowed=policy.Permissions.Fields.FirstOrDefault(p=>
+                    p.EntityName==definition.EntityName && p.FieldName==name);
+                if(col is null || allowed is null || !allowed.Enabled || col.IsCalculated ||
+                   allowed.MetadataFingerprint!=MetadataRepository.Fingerprint(col) ||
+                   needsCreate && (!col.CanCreate || !allowed.CanCreate) ||
+                   needsUpdate && (!col.CanUpdate || !allowed.CanUpdate))
+                    throw new ReadRejected(403,"crud_field_denied");
+            }
+        return (fields.ToArray(),keys);
+    }
+
     public async Task<CrudIntegrationKeyIssued> IssueAsync(string code,
         CrudIntegrationKeyRequest request,string actor,CancellationToken ct)
     {
@@ -110,36 +286,7 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         if(definition.Operation is not ("create" or "update" or "upsert" or "delete"))
             throw new ReadRejected(400,"crud_template_required");
 
-        // Only attributes approved in Dataverse metadata enter the M2M grant.
-        // Navigation property mappings (e.g. customerid_account@odata.bind)
-        // are resolved back to their source lookup field (customerid), never
-        // authorized as untrusted arbitrary @odata.bind property names.
-        var fields=ApprovedFields(definition,policy).ToList();
-        var keys=(request.KeyFields??[]).Distinct(StringComparer.Ordinal).ToArray();
-        if(definition.Operation=="upsert")
-        {
-            if(keys.Length==0 || !(policy.Table.AlternateKeys??[]).Any(k=>
-                k.Attributes.Count==keys.Length && k.Attributes.All(keys.Contains)))
-                throw new ReadRejected(400,"approved_alternate_key_required");
-            fields.AddRange(keys.Where(x=>!fields.Contains(x,StringComparer.Ordinal)));
-        }
-        else if(keys.Length!=0)throw new ReadRejected(400,"unexpected_alternate_key");
-        if(definition.Operation=="delete")fields.Add(policy.Table.PrimaryIdAttribute);
-        if(fields.Count is < 1 or > 64)throw new ReadRejected(400,"invalid_crud_key_fields");
-        var needsCreate=definition.Operation is "create" or "upsert";
-        var needsUpdate=definition.Operation is "update" or "upsert";
-        if(definition.Operation!="delete")
-        foreach(var name in fields)
-        {
-            var col=policy.Table.Columns.FirstOrDefault(c=>c.LogicalName==name);
-            var allowed=policy.Permissions.Fields.FirstOrDefault(p=>
-                p.EntityName==definition.EntityName && p.FieldName==name);
-            if(col is null || allowed is null || !allowed.Enabled || col.IsCalculated ||
-               allowed.MetadataFingerprint!=MetadataRepository.Fingerprint(col) ||
-               needsCreate && (!col.CanCreate || !allowed.CanCreate) ||
-               needsUpdate && (!col.CanUpdate || !allowed.CanUpdate))
-                throw new ReadRejected(403,"crud_field_denied");
-        }
+        var (fields,keys)=AuthorizeFields(definition,policy,request.KeyFields);
 
         var keyId=Guid.NewGuid();
         var clientId=Guid.NewGuid();

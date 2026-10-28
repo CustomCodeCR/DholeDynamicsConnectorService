@@ -917,9 +917,10 @@ public static class PricingQuoteTotalEndpoints
             // SecurityAdmin approves only the active CREATE/UPSERT key.
             // Determine its operation before modifying metadata permissions.
             string grantedOperation;
+            string[] grantedKeyFields;
             await using (var lookupDb = await dbSource.OpenConnectionAsync(ct))
             await using (var lookup = new NpgsqlCommand("""
-                SELECT k.operation FROM dynamics.template_api_keys k
+                SELECT k.operation,k.key_fields FROM dynamics.template_api_keys k
                 JOIN dynamics.integration_templates t ON t.id=k.template_id
                 WHERE k.id=@key AND k.connection_id=@connection AND k.enabled=true
                   AND k.expires_at>now() AND k.entity_name='quote'
@@ -929,10 +930,16 @@ public static class PricingQuoteTotalEndpoints
             {
                 lookup.Parameters.AddWithValue("key", keyId);
                 lookup.Parameters.AddWithValue("connection", connectionId);
-                grantedOperation = await lookup.ExecuteScalarAsync(ct) as string ??
+                await using var keyRow = await lookup.ExecuteReaderAsync(ct);
+                if (!await keyRow.ReadAsync(ct))
                     throw new ReadRejected(404, "active_quote_template_key_not_found");
+                grantedOperation = keyRow.GetString(0);
+                grantedKeyFields = keyRow.GetFieldValue<string[]>(1);
             }
             var isUpsert = grantedOperation == "upsert";
+            if (isUpsert && (grantedKeyFields.Length != 1 ||
+                grantedKeyFields[0] is not ("cr933_dholerateid" or "new_idtraasignado")))
+                throw new ReadRejected(409, "pricing_quote_rate_key_required");
             var snapshot = await catalog.LatestAsync(connectionId, ct)
                 ?? throw new ReadRejected(409, "metadata_missing");
             if (!snapshot.Catalog.Tables.Any(t => t.LogicalName == "transactioncurrency"))
@@ -966,6 +973,8 @@ public static class PricingQuoteTotalEndpoints
             {
                 ("quote", Enumerable.Range(1, 9)
                     .Select(index => "new_monto" + index).ToArray(), true, isUpsert),
+                ("quote", [quoteBeforeApproval.Table.PrimaryIdAttribute], false, false),
+                ("quote", isUpsert ? grantedKeyFields : [], false, false),
                 ("transactioncurrency",
                     ["transactioncurrencyid", "isocurrencycode"], false, false),
                 // Read and update only the one automatic total line on UPSERT.
@@ -1106,9 +1115,9 @@ public static class PricingQuoteTotalEndpoints
             var grants = new List<(string Entity, string Operation, string[] Fields)>
             {
                 ("quotedetail", "create", writable),
-                ("quote", "read", isUpsert ?
-                    [quote.Table.PrimaryIdAttribute, "cr933_dholerateid"] :
-                    [quote.Table.PrimaryIdAttribute]),
+                ("quote", "read", isUpsert
+                    ? [quote.Table.PrimaryIdAttribute, ..grantedKeyFields]
+                    : [quote.Table.PrimaryIdAttribute]),
                 ("quote", grantedOperation, amountNames),
                 ("transactioncurrency", "read",
                     ["transactioncurrencyid", "isocurrencycode"])

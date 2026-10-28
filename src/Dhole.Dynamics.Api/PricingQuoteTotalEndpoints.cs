@@ -1169,11 +1169,30 @@ public static class PricingQuoteTotalEndpoints
                 snapshot = await catalog.LatestAsync(connectionId, ct)
                     ?? throw new ReadRejected(409, "metadata_missing");
             }
-            // Only authorize the response-notification field when the actual
-            // tenant metadata exposes its exact approved numeric option.
+            // Refresh the single published option live if the existing snapshot
+            // is missing it. Lightweight table refreshes omit option details;
+            // their cached Choices collection can be empty even when the
+            // correct value exists in Dataverse. This admin operation never
+            // creates a new option, Quote or quote line.
             var notificationMetadata = snapshot.Catalog.Tables
                 .FirstOrDefault(table => table.LogicalName == "quote")?.Columns
                 .FirstOrDefault(column => column.LogicalName == QuoteResponseNotificationField);
+            if (notificationMetadata is { Type: "Picklist" or "Status" or "State" } &&
+                !notificationMetadata.Choices.Any(choice =>
+                    choice.Value == QuoteResponseNotificationValue))
+            {
+                var choiceAvailable = await metadataRefresh.RefreshRequiredSingleChoiceAsync(
+                    code, "quote", QuoteResponseNotificationField,
+                    QuoteResponseNotificationValue, ScopeSecurity.ActorId(admin), ct);
+                if (!choiceAvailable)
+                    throw new ReadRejected(409, "pricing_quote_notification_option_missing_live",
+                        QuoteResponseNotificationField + ":100000000");
+                snapshot = await catalog.LatestAsync(connectionId, ct)
+                    ?? throw new ReadRejected(409, "metadata_missing");
+                notificationMetadata = snapshot.Catalog.Tables
+                    .FirstOrDefault(table => table.LogicalName == "quote")?.Columns
+                    .FirstOrDefault(column => column.LogicalName == QuoteResponseNotificationField);
+            }
             if (notificationMetadata is null ||
                 notificationMetadata.Type is not ("Picklist" or "Status" or "State") ||
                 !notificationMetadata.Choices.Any(choice =>

@@ -522,8 +522,9 @@ public static class PricingQuoteTotalEndpoints
     private static async Task<IResult> Execute(PricingQuoteTotalRequest request,
         TemplateApiKeyRepository keys, TemplateRepository templates,
         WriteAccessService access, TemplateOrchestrator templatesWriter,
-        GenericWriteService writer, DataverseMetadataDiscovery discovery,
-        ProductionWritePolicy gate,
+        GenericWriteService writer, ReadSearchService reader,
+        ReadAccessRepository readAccess, DataverseWriteTransport transport,
+        DataverseMetadataDiscovery discovery, ProductionWritePolicy gate,
         HttpContext http, CancellationToken ct)
     {
         var quoteConfirmedCreated = false;
@@ -564,9 +565,15 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 request.ConnectionCode, "crear_oferta", ct);
-            if (key.EntityName != "quote" || key.Operation != "create")
-                throw new ReadRejected(403, "quote_creation_key_required");
-            gate.Demand("create");
+            if (key.EntityName != "quote" || key.Operation is not ("create" or "upsert"))
+                throw new ReadRejected(403, "quote_write_key_required");
+            if (itemized && key.Operation != "create")
+                throw new ReadRejected(403, "itemized_quote_requires_create");
+            var isUpsert = key.Operation == "upsert";
+            if (isUpsert && (key.KeyFields.Count != 1 ||
+                key.KeyFields[0] is not ("cr933_dholerateid" or "new_idtraasignado")))
+                throw new ReadRejected(409, "pricing_quote_rate_key_required");
+            gate.Demand(key.Operation);
             // The underlying WriteLedger is scoped by API client. When an
             // administrator rotates a key, the SAME Pricing idempotency key
             // must never be silently treated as a brand new Quote request.
@@ -595,7 +602,9 @@ public static class PricingQuoteTotalEndpoints
             {
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
                 new Claim("client_id", key.ClientId),
-                new Claim("scope", "dynamics.records.create dynamics.records.read"),
+                new Claim("scope", isUpsert
+                    ? "dynamics.records.upsert dynamics.records.create dynamics.records.update dynamics.records.read"
+                    : "dynamics.records.create dynamics.records.read"),
                 new Claim("sub", key.Id.ToString("D"))
             };
             var actor = new ClaimsPrincipal(new ClaimsIdentity(claims, "DholePricingKey"));
@@ -607,8 +616,22 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(409, "crud_template_inactive");
             var definition = template.History.FirstOrDefault(h => h.Version == version)?.Definition;
             if (definition is null || definition.EntityName != "quote" ||
-                definition.Operation != "create")
+                definition.Operation != key.Operation)
                 throw new ReadRejected(409, "crud_template_scope_denied");
+            var alternateKeys = isUpsert
+                ? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                    { [key.KeyFields[0]] = JsonSerializer.SerializeToElement(
+                        request.DholeRateId.ToString("D")) }
+                : null;
+            if (isUpsert && !(quote.Table.AlternateKeys ?? []).Any(candidate =>
+                candidate.Attributes.Count == 1 &&
+                candidate.Attributes[0] == key.KeyFields[0]))
+                throw new ReadRejected(409, "pricing_quote_alternate_key_inactive");
+            // Never permit a provided IDTRA to become the Quote identity.
+            var trustedInputs = new Dictionary<string, JsonElement>(request.Inputs,
+                StringComparer.Ordinal);
+            if (isUpsert)
+                trustedInputs[key.KeyFields[0]] = alternateKeys![key.KeyFields[0]];
 
             // Check the real tenant's MaxLength before any Quote POST. The
             // prior Dataverse 0x80044331 was StringLengthTooLong, and the
@@ -619,16 +642,16 @@ public static class PricingQuoteTotalEndpoints
             var tenantTextLimits = await discovery.DiscoverTextMaxLengthsAsync(
                 quote.Connection, "quote", ct);
             var preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
-                "crear_oferta", version, request.Inputs, ct, actor,
+                "crear_oferta", version, trustedInputs, ct, actor,
                 omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             var safeInputs = PricingQuoteTextLimits.Prepare(
-                definition, request.Inputs, preview.Payload, tenantTextLimits);
-            if (!ReferenceEquals(safeInputs, request.Inputs))
+                definition, trustedInputs, preview.Payload, tenantTextLimits);
+            if (!ReferenceEquals(safeInputs, trustedInputs))
                 preview = await templatesWriter.PreviewAsync(request.ConnectionCode,
                     "crear_oferta", version, safeInputs, ct, actor,
                     omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             PricingQuoteTextLimits.Check(preview.Payload, tenantTextLimits);
-            await access.PermitAsync(actor, quote, "create", preview.Fields, ct);
+            await access.PermitAsync(actor, quote, key.Operation, preview.Fields, ct);
             // All nine inputs feed Dynamics' legacy utility calculation.
             // Validate metadata AND API key grants before sending the header.
             var costFields = Enumerable.Range(1, 9)
@@ -639,12 +662,15 @@ public static class PricingQuoteTotalEndpoints
                     c.LogicalName == name);
                 var permission = quote.Permissions.Fields.FirstOrDefault(p =>
                     p.EntityName == "quote" && p.FieldName == name);
-                if (column is null || !column.CanCreate || column.IsCalculated ||
+                if (column is null || !column.CanCreate ||
+                    isUpsert && !column.CanUpdate || column.IsCalculated ||
                     permission is null || !permission.Enabled || !permission.CanCreate ||
+                    isUpsert && !permission.CanUpdate ||
                     permission.MetadataFingerprint != MetadataRepository.Fingerprint(column))
                     throw new ReadRejected(409, "quote_cost_fields_not_authorized", name);
             }
-            await access.PermitAsync(actor, quote, "create", costFields, ct);
+            await access.PermitAsync(actor, quote, key.Operation,
+                isUpsert ? costFields.Concat(key.KeyFields).ToArray() : costFields, ct);
             // Pricing Quotes omit Potential Customer even when the published
             // CRUD template still requires it. Dataverse API does not enforce
             // ApplicationRequired by itself. Any tenant-specific server-side

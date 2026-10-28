@@ -535,23 +535,21 @@ public static class PricingQuoteTotalEndpoints
                     "crear_oferta", version, safeInputs, ct, actor,
                     omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
             PricingQuoteTextLimits.Check(preview.Payload, limits);
-            // Recovery must never approve a fresh Quote without a real
-            // Account/Contact GUID. A matching name in a text field is not
-            // enough, and Dataverse may reject an unbound quote with HTTP 400.
-            if (!HasResolvedCustomer(preview.Payload))
-                throw new ReadRejected(422, "quote_customer_required",
-                    "customerid", "name");
-            // Preview must enforce the same header write grant as the real
-            // execution. A successful name lookup alone is not sufficient.
+            // Pricing's dedicated crear_oferta route deliberately excludes
+            // customerid and msdyn_account. Validate ONLY mapped business
+            // references (IDTRA, currency, equipment) and text bounds.
+            // Generic/manual CRUD customer mappings remain untouched.
+            // Preview must enforce the same header write grant as execution.
             await access.PermitAsync(actor, quotePolicy, key.Operation, preview.Fields, ct);
             return Results.Ok(new
             {
                 valid = true,
                 code = "DYNAMICS_LOOKUPS_VALID",
                 schemaVersion = version,
-                customerOmitted = false,
+                customerOmitted = true,
+                customerRequired = false,
                 noPostExecuted = true,
-                message = "Se validaron los vínculos, incluido el cliente real de la QUO. No se creó ninguna QUO."
+                message = "IDTRA, divisa, mapeo y límites de texto validados. El cliente no se envía a Dynamics. No se creó ninguna QUO."
             });
         }
         catch (ReadRejected ex)
@@ -715,10 +713,9 @@ public static class PricingQuoteTotalEndpoints
             }
             await access.PermitAsync(actor, quote, key.Operation,
                 isUpsert ? costFields.Concat(key.KeyFields).ToArray() : costFields, ct);
-            // Quote customer relationships are validated just before the
-            // header write, after checking whether UPSERT already has a Quote.
-            // A fresh Quote without customerid_account/contact is rejected
-            // locally instead of reaching Dataverse with an incomplete header.
+            // No customer relation is required by the dedicated Pricing route.
+            // The published CRUD template can retain a customer mapping, but
+            // PricingQuoteTermOmission strips it for create and upsert.
 
             // Check quotedetail metadata, field grants and quote lookup read
             // permission *before* creating a quote. A dummy nonempty GUID is
@@ -816,14 +813,9 @@ public static class PricingQuoteTotalEndpoints
                     key.ConnectionId, request.DholeRateId, ct))
                     throw new ReadRejected(409, "legacy_quote_requires_rate_key_linking");
             }
-            // For a new Quote, always require a resolved Account or Contact.
-            // A confirmed existing UPSERT may preserve its current customer
-            // when the incoming template intentionally omits that optional link.
-            // This is before the header POST, so a bad customer setup cannot
-            // consume the idempotency key or produce another rejected 400.
-            if (!foundByKey && !HasResolvedCustomer(preview.Payload))
-                throw new ReadRejected(422, "quote_customer_required",
-                    "customerid", "name");
+            // Pricing intentionally leaves customerid_account/contact and
+            // msdyn_account unset. The preceding preview already validates
+            // the actual payload, without client-name lookups.
 
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs, Keys: alternateKeys),

@@ -31,6 +31,14 @@ public static class PricingQuoteTotalEndpoints
             ? name : null;
     }
 
+    internal static Dictionary<string, JsonElement> WithExactResponseNotification(
+        string inputName, IReadOnlyDictionary<string, JsonElement> supplied)
+    {
+        var trusted = new Dictionary<string, JsonElement>(supplied, StringComparer.Ordinal);
+        trusted[inputName] = JsonSerializer.SerializeToElement(QuoteResponseNotificationValue);
+        return trusted;
+    }
+
     // Explicit sales lines for the opt-in multi-line route. No arbitrary
     // Dataverse field names or navigation properties are accepted.
     public sealed record PricingQuoteLine(
@@ -716,12 +724,9 @@ public static class PricingQuoteTotalEndpoints
                 candidate.Attributes[0] == key.KeyFields[0]))
                 throw new ReadRejected(409, "pricing_quote_alternate_key_inactive");
             // Never permit a provided IDTRA to become the Quote identity.
-            var trustedInputs = new Dictionary<string, JsonElement>(request.Inputs,
-                StringComparer.Ordinal);
             // Server-owned value: callers cannot submit false, another choice,
             // or omit the notification field on a successful Pricing QUO.
-            trustedInputs[notificationInput] =
-                JsonSerializer.SerializeToElement(QuoteResponseNotificationValue);
+            var trustedInputs = WithExactResponseNotification(notificationInput, request.Inputs);
             if (isUpsert && definition.Inputs.Any(input =>
                 input.Name == key.KeyFields[0]))
                 trustedInputs[key.KeyFields[0]] = alternateKeys![key.KeyFields[0]];

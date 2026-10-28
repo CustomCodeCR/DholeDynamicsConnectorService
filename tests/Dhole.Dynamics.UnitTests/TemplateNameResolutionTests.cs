@@ -273,6 +273,34 @@ public sealed class TemplateNameResolutionTests
 
 
 
+    [Theory]
+    [InlineData("create")]
+    [InlineData("upsert")]
+    public async Task PricingKeepsResolvedCurrencyGuidForCreateAndUpsert(string operation)
+    {
+        var currencyId = Guid.NewGuid();
+        var template = new IntegrationTemplate("quote", operation,
+            [new TemplateInput("transactioncurrencyid", "string")],
+            [new TemplateMapping("transactioncurrencyid@odata.bind",
+                "transactioncurrencyid",
+                [new TemplateStep("lookup_name", "isocurrencycode")])]);
+        var lookupCalls = 0;
+        var result = await TemplateMapper.BuildAsync(
+            template,
+            new Dictionary<string, JsonElement>
+            { ["transactioncurrencyid"] = String(currencyId.ToString("D")) },
+            Guid.NewGuid(), (_, _, _, _) => Task.FromResult<Guid?>(null),
+            CancellationToken.None, (_, _, _, _) =>
+            {
+                lookupCalls++;
+                return Task.FromResult<Guid?>(null);
+            },
+            omitMissingQuoteCustomer: true);
+        Assert.Equal(0, lookupCalls);
+        Assert.Equal(currencyId.ToString("D"),
+            result["transactioncurrencyid@odata.bind"].GetString());
+    }
+
     [Fact]
     public void PricingCustomerLookupUsesContainsForReinadoDeLasLlantas()
     {

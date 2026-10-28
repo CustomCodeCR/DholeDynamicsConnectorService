@@ -154,4 +154,20 @@ public sealed class PricingQuoteTotalTests
     }
 
 
+    [Fact]
+    public void ExistingQuoteLineUpdateKeepsOneTotalAndNeverRebindsParent()
+    {
+        const decimal newSale = 2750.25m;
+        var fields = PricingQuoteTotalEndpoints.BuildLineUpdate(newSale);
+        Assert.Equal(4, fields.Count);
+        Assert.Equal(newSale, fields["priceperunit"].GetDecimal());
+        Assert.Equal(1m, fields["quantity"].GetDecimal());
+        Assert.Equal("Total venta de tarifa Dhole", fields["quotedetailname"].GetString());
+        Assert.DoesNotContain("quoteid@odata.bind", fields.Keys);
+        Assert.DoesNotContain("totalamount", fields.Keys);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            PricingQuoteTotalEndpoints.BuildLineUpdate(-1m));
+    }
+
+
 }

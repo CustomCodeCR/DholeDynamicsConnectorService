@@ -517,9 +517,12 @@ public static class PricingQuoteTotalEndpoints
             var preview = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
                 version, request.Inputs, ct, actor,
                 omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
-            var customerOmitted = !preview.Payload.Keys.Any(target =>
-                target.StartsWith("customerid_", StringComparison.OrdinalIgnoreCase) &&
-                target.EndsWith("@odata.bind", StringComparison.Ordinal));
+            // Recovery must never approve a fresh Quote without a real
+            // Account/Contact GUID. A matching name in a text field is not
+            // enough, and Dataverse may reject an unbound quote with HTTP 400.
+            if (!HasResolvedCustomer(preview.Payload))
+                throw new ReadRejected(422, "quote_customer_required",
+                    "customerid", "name");
             // Preview must enforce the same header write grant as the real
             // execution. A successful name lookup alone is not sufficient.
             var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
@@ -529,9 +532,9 @@ public static class PricingQuoteTotalEndpoints
                 valid = true,
                 code = "DYNAMICS_LOOKUPS_VALID",
                 schemaVersion = version,
-                customerOmitted,
+                customerOmitted = false,
                 noPostExecuted = true,
-                message = "Se validaron campos y referencias restantes; no se requiere cliente potencial en el envío automático. No se creó ninguna QUO."
+                message = "Se validaron los vínculos, incluido el cliente real de la QUO. No se creó ninguna QUO."
             });
         }
         catch (ReadRejected ex)
@@ -695,10 +698,10 @@ public static class PricingQuoteTotalEndpoints
             }
             await access.PermitAsync(actor, quote, key.Operation,
                 isUpsert ? costFields.Concat(key.KeyFields).ToArray() : costFields, ct);
-            // Pricing Quotes omit Potential Customer even when the published
-            // CRUD template still requires it. Dataverse API does not enforce
-            // ApplicationRequired by itself. Any tenant-specific server-side
-            // validation rejection is propagated and never silently bypassed.
+            // Quote customer relationships are validated just before the
+            // header write, after checking whether UPSERT already has a Quote.
+            // A fresh Quote without customerid_account/contact is rejected
+            // locally instead of reaching Dataverse with an incomplete header.
 
             // Check quotedetail metadata, field grants and quote lookup read
             // permission *before* creating a quote. A dummy nonempty GUID is
@@ -773,12 +776,12 @@ public static class PricingQuoteTotalEndpoints
                 await readAccess.PermitAsync(actor, quoteRead,
                     [quote.Table.PrimaryIdAttribute, key.KeyFields[0]], ct);
             }
+            var foundByKey = false;
             if (isUpsert)
             {
                 // A historical CREATE quote may not have the RateId alternate
                 // key populated. If it exists in the ledger but is not found
                 // by the registered key, creating another would duplicate it.
-                var foundByKey = false;
                 try
                 {
                     var existingQuote = await reader.ByKeyAsync(actor,
@@ -796,6 +799,14 @@ public static class PricingQuoteTotalEndpoints
                     key.ConnectionId, request.DholeRateId, ct))
                     throw new ReadRejected(409, "legacy_quote_requires_rate_key_linking");
             }
+            // For a new Quote, always require a resolved Account or Contact.
+            // A confirmed existing UPSERT may preserve its current customer
+            // when the incoming template intentionally omits that optional link.
+            // This is before the header POST, so a bad customer setup cannot
+            // consume the idempotency key or produce another rejected 400.
+            if (!foundByKey && !HasResolvedCustomer(preview.Payload))
+                throw new ReadRejected(422, "quote_customer_required",
+                    "customerid", "name");
 
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs, Keys: alternateKeys),
@@ -1473,6 +1484,19 @@ public static class PricingQuoteTotalEndpoints
     /// These trusted values override any caller/template-supplied amounts.
     /// Standard totalamount remains calculated from the quotedetail line.
     /// </summary>
+    // A Quote customer is a polymorphic Account/Contact relationship.
+    // Display names, supplemental msdyn_account and customeridtype are not
+    // substitutes for a bound, resolved customerid navigation property.
+    public static bool HasResolvedCustomer(
+        IReadOnlyDictionary<string, JsonElement> payload) =>
+        payload.Any(entry =>
+            (entry.Key.Equals("customerid_account@odata.bind",
+                StringComparison.OrdinalIgnoreCase) ||
+             entry.Key.Equals("customerid_contact@odata.bind",
+                StringComparison.OrdinalIgnoreCase)) &&
+            entry.Value.ValueKind == JsonValueKind.String &&
+            Guid.TryParse(entry.Value.GetString(), out var id) && id != Guid.Empty);
+
     public static IReadOnlyDictionary<string, JsonElement> WithExactQuoteAmounts(
         IReadOnlyDictionary<string, JsonElement> source,
         decimal totalSupplierCost, decimal totalSale)

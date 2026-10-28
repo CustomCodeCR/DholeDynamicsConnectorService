@@ -905,6 +905,25 @@ public static class PricingQuoteTotalEndpoints
             // Later key rotations reuse these durable metadata approvals.
             var quoteBeforeApproval = await access.ResolveAsync(code, "quote", ct);
             var connectionId = quoteBeforeApproval.Connection.Id;
+            // SecurityAdmin approves only the active CREATE/UPSERT key.
+            // Determine its operation before modifying metadata permissions.
+            string grantedOperation;
+            await using (var lookupDb = await dbSource.OpenConnectionAsync(ct))
+            await using (var lookup = new NpgsqlCommand("""
+                SELECT k.operation FROM dynamics.template_api_keys k
+                JOIN dynamics.integration_templates t ON t.id=k.template_id
+                WHERE k.id=@key AND k.connection_id=@connection AND k.enabled=true
+                  AND k.expires_at>now() AND k.entity_name='quote'
+                  AND k.operation IN ('create','upsert') AND t.name='crear_oferta'
+                  AND t.active_version=k.template_version
+                """, lookupDb))
+            {
+                lookup.Parameters.AddWithValue("key", keyId);
+                lookup.Parameters.AddWithValue("connection", connectionId);
+                grantedOperation = await lookup.ExecuteScalarAsync(ct) as string ??
+                    throw new ReadRejected(404, "active_quote_template_key_not_found");
+            }
+            var isUpsert = grantedOperation == "upsert";
             var snapshot = await catalog.LatestAsync(connectionId, ct)
                 ?? throw new ReadRejected(409, "metadata_missing");
             if (!snapshot.Catalog.Tables.Any(t => t.LogicalName == "transactioncurrency"))
@@ -933,12 +952,19 @@ public static class PricingQuoteTotalEndpoints
                 !await catalog.SetEntityAsync(connectionId, "transactioncurrency",
                     true, actorId, ct))
                 throw new ReadRejected(409, "quote_currency_table_approval_failed");
-            var approval = new (string Entity, string[] Fields, bool Create)[]
+            var approval = new (string Entity, string[] Fields,
+                bool Create, bool Update)[]
             {
                 ("quote", Enumerable.Range(1, 9)
-                    .Select(index => "new_monto" + index).ToArray(), true),
+                    .Select(index => "new_monto" + index).ToArray(), true, isUpsert),
                 ("transactioncurrency",
-                    ["transactioncurrencyid", "isocurrencycode"], false)
+                    ["transactioncurrencyid", "isocurrencycode"], false, false),
+                // Read and update only the one automatic total line on UPSERT.
+                ("quotedetail", ["quotedetailid", "quoteid", "quotedetailname"],
+                    false, false),
+                ("quotedetail", ["productdescription", "quantity", "priceperunit"],
+                    true, isUpsert),
+                ("quotedetail", ["quotedetailname"], true, isUpsert)
             };
             foreach (var group in approval)
             {
@@ -950,6 +976,7 @@ public static class PricingQuoteTotalEndpoints
                     var column = table.Columns.FirstOrDefault(c => c.LogicalName == name);
                     if (column is null || column.IsCalculated ||
                         group.Create && !column.CanCreate ||
+                        group.Update && !column.CanUpdate ||
                         !group.Create && !column.CanRead)
                         throw new ReadRejected(409, "quote_metadata_field_not_supported",
                             group.Entity, name);
@@ -957,11 +984,14 @@ public static class PricingQuoteTotalEndpoints
                         p.EntityName == group.Entity && p.FieldName == name);
                     if (existing is { Enabled: true } &&
                         existing.MetadataFingerprint == MetadataRepository.Fingerprint(column) &&
-                        (group.Create ? existing.CanCreate : existing.CanRead))
+                        (group.Create ? existing.CanCreate : existing.CanRead) &&
+                        (!group.Update || existing.CanUpdate))
                         continue;
                     if (!await catalog.SetFieldAsync(connectionId, group.Entity,
                         name, new MetadataFieldToggle(
-                            true, column.CanRead, group.Create && column.CanCreate, false),
+                            true, column.CanRead,
+                            column.CanCreate && (group.Create || existing?.CanCreate == true),
+                            column.CanUpdate && (group.Update || existing?.CanUpdate == true)),
                         actorId, ct))
                         throw new ReadRejected(409, "quote_metadata_field_approval_failed",
                             group.Entity, name);
@@ -981,6 +1011,9 @@ public static class PricingQuoteTotalEndpoints
                     p.EntityName == "quotedetail" && p.FieldName == name);
                 if (field is null || permission is null || !permission.Enabled ||
                     !field.CanCreate || !permission.CanCreate || field.IsCalculated ||
+                    isUpsert && (new[] { "productdescription", "quotedetailname",
+                        "quantity", "priceperunit" }.Contains(name) &&
+                        (!field.CanUpdate || !permission.CanUpdate)) ||
                     permission.MetadataFingerprint != MetadataRepository.Fingerprint(field))
                     throw new ReadRejected(409, "quote_total_field_not_authorized");
             }
@@ -999,8 +1032,10 @@ public static class PricingQuoteTotalEndpoints
                 var field = quote.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
                 var permission = quote.Permissions.Fields.FirstOrDefault(p =>
                     p.EntityName == "quote" && p.FieldName == name);
-                if (field is null || !field.CanCreate || field.IsCalculated ||
+                if (field is null || !field.CanCreate ||
+                    isUpsert && !field.CanUpdate || field.IsCalculated ||
                     permission is null || !permission.Enabled || !permission.CanCreate ||
+                    isUpsert && !permission.CanUpdate ||
                     permission.MetadataFingerprint != MetadataRepository.Fingerprint(field))
                     throw new ReadRejected(409, "quote_cost_fields_not_authorized", name);
             }
@@ -1026,12 +1061,13 @@ public static class PricingQuoteTotalEndpoints
                   JOIN dynamics.integration_templates t ON t.id=k.template_id
                  WHERE k.id=@key AND k.connection_id=@connection AND k.enabled=true
                    AND k.expires_at>now() AND k.entity_name='quote'
-                   AND k.operation='create' AND t.name='crear_oferta'
+                   AND k.operation=@operation AND t.name='crear_oferta'
                    AND t.active_version=k.template_version
                  FOR UPDATE OF k
                 """, db, tx))
             {
                 cmd.Parameters.AddWithValue("key", keyId);
+                cmd.Parameters.AddWithValue("operation", grantedOperation);
                 cmd.Parameters.AddWithValue("connection", quote.Connection.Id);
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
                 if (!await reader.ReadAsync(ct))
@@ -1043,7 +1079,7 @@ public static class PricingQuoteTotalEndpoints
             var definition = template?.History.FirstOrDefault(v =>
                 v.Version == template.ActiveVersion)?.Definition;
             if (definition is null || definition.EntityName != "quote" ||
-                definition.Operation != "create")
+                definition.Operation != grantedOperation)
                 throw new ReadRejected(409, "crud_template_inactive");
 
             // Only relationships actually sent by this Pricing route need
@@ -1061,11 +1097,20 @@ public static class PricingQuoteTotalEndpoints
             var grants = new List<(string Entity, string Operation, string[] Fields)>
             {
                 ("quotedetail", "create", writable),
-                ("quote", "read", [quote.Table.PrimaryIdAttribute]),
-                ("quote", "create", amountNames),
+                ("quote", "read", isUpsert ?
+                    [quote.Table.PrimaryIdAttribute, "cr933_dholerateid"] :
+                    [quote.Table.PrimaryIdAttribute]),
+                ("quote", grantedOperation, amountNames),
                 ("transactioncurrency", "read",
                     ["transactioncurrencyid", "isocurrencycode"])
             };
+            if (isUpsert)
+            {
+                grants.Add(("quotedetail", "read",
+                    ["quotedetailid", "quoteid", "quotedetailname"]));
+                grants.Add(("quotedetail", "update",
+                    ["productdescription", "quotedetailname", "quantity", "priceperunit"]));
+            }
             foreach (var target in targets)
             {
                 var targetPolicy = await access.ResolveAsync(code, target, ct);

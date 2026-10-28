@@ -439,6 +439,17 @@ public static class PricingQuoteTotalEndpoints
 
     private sealed record QuoteGrantStatus(bool Ready, string[] Missing);
 
+    // The fixed fields are required by the trusted Pricing payload. Keep
+    // readiness and the one-time administrator grant in sync.
+    internal static string[] RequiredQuoteWriteFields() =>
+        ["name", "description", "new_flete", QuoteResponseNotificationField,
+         .. Enumerable.Range(1, 9).Select(n => "new_monto" + n)];
+
+    internal static string[] RequiredQuoteDetailCreateFields() =>
+        ["quoteid", "isproductoverridden", "ispriceoverridden",
+         "productdescription", "quotedetailname", "quantity", "priceperunit"];
+
+
     /// <summary>
     /// Inspect precisely which grants the ACTIVE Pricing key is missing.
     /// Read-only, never writes to Dataverse or alters the grant configuration.
@@ -494,9 +505,7 @@ public static class PricingQuoteTotalEndpoints
                 if (approved is null || !approved.Contains(field))
                     missing.Add(entity + "." + operation + ":" + field);
         }
-        Check("quote", operation,
-            ["name", QuoteResponseNotificationField,
-             ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
+        Check("quote", operation, RequiredQuoteWriteFields());
         if (definition is not null && ResponseNotificationInput(definition) is null)
             missing.Add("crear_oferta." + QuoteResponseNotificationField + ":integer_mapping");
         if (quote is not null)
@@ -518,9 +527,7 @@ public static class PricingQuoteTotalEndpoints
             (rateKeyFields.Count != 1 ||
              rateKeyFields[0] is not ("cr933_dholerateid" or "new_idtraasignado")))
             missing.Add("crear_oferta.rate_alternate_key");
-        Check("quotedetail", "create",
-            ["quoteid", "isproductoverridden", "ispriceoverridden",
-             "productdescription", "quotedetailname", "quantity", "priceperunit"]);
+        Check("quotedetail", "create", RequiredQuoteDetailCreateFields());
         if (operation == "upsert")
         {
             Check("quotedetail", "read", ["quotedetailid", "quoteid", "quotedetailname"]);
@@ -1186,16 +1193,18 @@ public static class PricingQuoteTotalEndpoints
             var approval = new (string Entity, string[] Fields,
                 bool Create, bool Update)[]
             {
-                ("quote", Enumerable.Range(1, 9)
-                    .Select(index => "new_monto" + index)
-                    .Append(QuoteResponseNotificationField).ToArray(), true, isUpsert),
+                ("quote", RequiredQuoteWriteFields(), true, isUpsert),
                 ("quote", [quoteBeforeApproval.Table.PrimaryIdAttribute], false, false),
                 ("quote", isUpsert ? grantedKeyFields : [], false, isUpsert),
                 ("transactioncurrency",
                     ["transactioncurrencyid", "isocurrencycode"], false, false),
                 // Read and update only the one automatic total line on UPSERT.
-                ("quotedetail", ["quotedetailid", "quoteid", "quotedetailname"],
+                ("quotedetail", ["quotedetailid", "quotedetailname"],
                     false, false),
+                // These fields are actually written by the automatic quote line.
+                // The previous grant flow required them but never approved them.
+                ("quotedetail", ["quoteid", "isproductoverridden",
+                    "ispriceoverridden"], true, false),
                 ("quotedetail", ["productdescription", "quantity", "priceperunit"],
                     true, isUpsert),
                 ("quotedetail", ["quotedetailname"], true, isUpsert)
@@ -1233,11 +1242,7 @@ public static class PricingQuoteTotalEndpoints
             }
             var detail = await access.ResolveAsync(code, "quotedetail", ct);
             var quote = await access.ResolveAsync(code, "quote", ct);
-            var writable = new[]
-            {
-                "quoteid", "isproductoverridden", "ispriceoverridden",
-                "productdescription", "quotedetailname", "quantity", "priceperunit"
-            };
+            var writable = RequiredQuoteDetailCreateFields();
             foreach (var name in writable)
             {
                 var field = detail.Table.Columns.FirstOrDefault(c => c.LogicalName == name);
@@ -1337,8 +1342,7 @@ public static class PricingQuoteTotalEndpoints
                 ("quote", "read", isUpsert
                     ? [quote.Table.PrimaryIdAttribute, ..grantedKeyFields]
                     : [quote.Table.PrimaryIdAttribute]),
-                ("quote", grantedOperation, 
-                    [..amountNames, QuoteResponseNotificationField]),
+                ("quote", grantedOperation, RequiredQuoteWriteFields()),
                 ("transactioncurrency", "read",
                     ["transactioncurrencyid", "isocurrencycode"])
             };

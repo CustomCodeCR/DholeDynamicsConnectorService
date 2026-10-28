@@ -153,8 +153,8 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 connectionCode, "crear_oferta", ct, chargeQuota: false);
-            if (key.EntityName != "quote" || key.Operation != "create")
-                throw new ReadRejected(403, "quote_creation_key_required");
+            if (key.EntityName != "quote" || key.Operation is not ("create" or "upsert"))
+                throw new ReadRejected(403, "quote_write_key_required");
             var actor = new ClaimsPrincipal(new ClaimsIdentity([
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
                 new Claim("client_id", key.ClientId),

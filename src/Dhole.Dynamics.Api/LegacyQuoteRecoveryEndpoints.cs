@@ -75,6 +75,27 @@ public static class LegacyQuoteRecoveryEndpoints
         }
         if (!hasCreate || candidates.Count != 1)
             throw new ReadRejected(409, "legacy_quote_not_unique");
+
+        // A previous total-line write or recovery-generation reservation for
+        // THIS revision also makes it unsafe to replay. The header-only scan
+        // above intentionally cannot prove this condition by itself.
+        await using (var checkDb = await data.OpenConnectionAsync(ct))
+        await using (var check = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM dynamics.write_operations
+                WHERE connection_id=@connection AND issuer=@issuer
+                  AND idempotency_key LIKE @revisionPrefix
+            )
+            """, checkDb))
+        {
+            check.Parameters.AddWithValue("connection", connectionId);
+            check.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+            check.Parameters.AddWithValue("revisionPrefix",
+                "dhole-pricing-quote-" + rateId.ToString("N") + "-v" +
+                revision.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-%");
+            if (await check.ExecuteScalarAsync(ct) is true)
+                currentRevisionUnsent = false;
+        }
         return new(candidates.Single(), currentRevisionUnsent);
     }
 

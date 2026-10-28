@@ -1102,6 +1102,20 @@ public static class PricingQuoteTotalEndpoints
                 snapshot = await catalog.LatestAsync(connectionId, ct)
                     ?? throw new ReadRejected(409, "metadata_missing");
             }
+            // Only authorize the response-notification field when the actual
+            // tenant metadata exposes its exact approved numeric option.
+            var notificationMetadata = snapshot.Catalog.Tables
+                .FirstOrDefault(table => table.LogicalName == "quote")?.Columns
+                .FirstOrDefault(column => column.LogicalName == QuoteResponseNotificationField);
+            if (notificationMetadata is null ||
+                notificationMetadata.Type is not ("Picklist" or "Status" or "State") ||
+                !notificationMetadata.Choices.Any(choice =>
+                    choice.Value == QuoteResponseNotificationValue) ||
+                !notificationMetadata.CanCreate ||
+                isUpsert && !notificationMetadata.CanUpdate ||
+                notificationMetadata.IsCalculated)
+                throw new ReadRejected(409, "pricing_quote_notification_choice_unavailable",
+                    QuoteResponseNotificationField + ":100000000");
             var actorId = ScopeSecurity.ActorId(admin);
             var policies = await catalog.PoliciesAsync(connectionId, ct);
             if (!policies.Entities.Any(e =>
@@ -1113,7 +1127,8 @@ public static class PricingQuoteTotalEndpoints
                 bool Create, bool Update)[]
             {
                 ("quote", Enumerable.Range(1, 9)
-                    .Select(index => "new_monto" + index).ToArray(), true, isUpsert),
+                    .Select(index => "new_monto" + index)
+                    .Append(QuoteResponseNotificationField).ToArray(), true, isUpsert),
                 ("quote", [quoteBeforeApproval.Table.PrimaryIdAttribute], false, false),
                 ("quote", isUpsert ? grantedKeyFields : [], false, false),
                 ("transactioncurrency",
@@ -1240,6 +1255,9 @@ public static class PricingQuoteTotalEndpoints
             if (definition is null || definition.EntityName != "quote" ||
                 definition.Operation != grantedOperation)
                 throw new ReadRejected(409, "crud_template_inactive");
+            if (ResponseNotificationInput(definition) is null)
+                throw new ReadRejected(409, "pricing_quote_notification_template_missing",
+                    QuoteResponseNotificationField + ":integer_mapping");
 
             // Only relationships actually sent by this Pricing route need
             // grants; customerid and msdyn_account are deliberately omitted.
@@ -1259,7 +1277,8 @@ public static class PricingQuoteTotalEndpoints
                 ("quote", "read", isUpsert
                     ? [quote.Table.PrimaryIdAttribute, ..grantedKeyFields]
                     : [quote.Table.PrimaryIdAttribute]),
-                ("quote", grantedOperation, amountNames),
+                ("quote", grantedOperation, 
+                    [..amountNames, QuoteResponseNotificationField]),
                 ("transactioncurrency", "read",
                     ["transactioncurrencyid", "isocurrencycode"])
             };

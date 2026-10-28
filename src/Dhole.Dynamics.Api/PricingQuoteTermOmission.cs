@@ -5,8 +5,8 @@ namespace Dhole.Dynamics.Api;
 
 /// <summary>
 /// The dedicated Pricing -> Dynamics QUO integration omits the Potential
-/// Customer lookup and three informational commercial terms. The real customer
-/// name remains in the description from Pricing. Only this route opts into
+/// Customer lookup and three informational commercial terms. Pricing also
+/// omits the customer name from the name/description input values. Only this route opts into
 /// filtering; generic CRUD templates and manual Quotes remain unchanged.
 /// Dataverse can accept ApplicationRequired fields omitted by API, although
 /// tenant-specific synchronous rules or plugins may still reject the creation.

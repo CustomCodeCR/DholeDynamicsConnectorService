@@ -112,7 +112,9 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         var definition=revision.Definition;
         if(definition.Operation is not ("create" or "update" or "upsert" or "delete"))
             throw new ReadRejected(400,"crud_template_required");
-        var (fields,keyFields)=AuthorizeFields(definition,policy,request.KeyFields);
+        var resolvedKeys=ResolvePricingQuoteUpsertKeys(
+            code,request.TemplateName,definition,policy,request.KeyFields);
+        var (fields,keyFields)=AuthorizeFields(definition,policy,resolvedKeys);
         await using var db=await database.OpenConnectionAsync(ct);
         await using var tx=await db.BeginTransactionAsync(ct);
         Guid clientId;string oldOperation;int maxRequestsPerMinute;
@@ -239,6 +241,39 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         return rebound;
     }
 
+    /// <summary>
+    /// The CRUD UI can reopen a published quote UPSERT directly at step 4
+    /// without retaining the previous key selector. Recover ONLY the known
+    /// immutable Dhole RateId identity from ACTIVE Dataverse alternate keys.
+    /// No implicit key inference is permitted for other CRUD templates,
+    /// and no arbitrary customer/IDTRA fields may become a Pricing identity.
+    /// The ordinary AuthorizeFields permission checks still apply.
+    /// </summary>
+    public static IReadOnlyList<string>? ResolvePricingQuoteUpsertKeys(
+        string connectionCode, string templateName, IntegrationTemplate definition,
+        WritePolicy policy, IReadOnlyList<string>? requested)
+    {
+        if (definition.Operation != "upsert" || requested is { Count: > 0 } ||
+            connectionCode != "principal" || templateName != "crear_oferta" ||
+            definition.EntityName != "quote")
+            return requested;
+        foreach (var name in new[] { "cr933_dholerateid", "new_idtraasignado" })
+        {
+            var active = (policy.Table.AlternateKeys ?? []).Any(key =>
+                key.Attributes.Count == 1 && key.Attributes[0] == name);
+            var field = policy.Table.Columns.FirstOrDefault(column =>
+                column.LogicalName == name);
+            var grant = policy.Permissions.Fields.FirstOrDefault(permission =>
+                permission.EntityName == "quote" && permission.FieldName == name);
+            if (active && field is { CanRead: true, CanCreate: true, CanUpdate: true,
+                    IsCalculated: false } && grant is { Enabled: true,
+                    CanRead: true, CanCreate: true, CanUpdate: true } &&
+                grant.MetadataFingerprint == MetadataRepository.Fingerprint(field))
+                return [name];
+        }
+        throw new ReadRejected(409, "pricing_quote_rate_alternate_key_unavailable");
+    }
+
     public static (string[] Fields,string[] Keys) AuthorizeFields(
         IntegrationTemplate definition,WritePolicy policy,IReadOnlyList<string>? requestedKeys)
     {
@@ -286,7 +321,9 @@ public sealed class TemplateApiKeyRepository(NpgsqlDataSource database,
         if(definition.Operation is not ("create" or "update" or "upsert" or "delete"))
             throw new ReadRejected(400,"crud_template_required");
 
-        var (fields,keys)=AuthorizeFields(definition,policy,request.KeyFields);
+        var resolvedKeys=ResolvePricingQuoteUpsertKeys(
+            code,request.TemplateName,definition,policy,request.KeyFields);
+        var (fields,keys)=AuthorizeFields(definition,policy,resolvedKeys);
 
         var keyId=Guid.NewGuid();
         var clientId=Guid.NewGuid();

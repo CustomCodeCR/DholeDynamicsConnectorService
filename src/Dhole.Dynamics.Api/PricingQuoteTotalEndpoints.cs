@@ -83,20 +83,21 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 connectionCode, "crear_oferta", ct, chargeQuota: false);
-            if (key.EntityName != "quote" || key.Operation != "create")
-                throw new ReadRejected(403, "quote_creation_key_required");
+            if (key.EntityName != "quote" || key.Operation is not ("create" or "upsert"))
+                throw new ReadRejected(403, "quote_write_key_required");
 
             var prefix = "dhole-pricing-quote-" + dholeRateId.ToString("N") +
                 "-v" + revisionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var suffixes = new[] { prefix + "-header", prefix + "-total" };
+            var suffixes = new[] { prefix + "-header", prefix + "-total",
+                prefix + "-total-update" };
             var status = new Dictionary<string, (string State, Guid? RecordId)>(
                 StringComparer.Ordinal);
             await using var db = await database.OpenConnectionAsync(ct);
             await using var cmd = new NpgsqlCommand("""
-                SELECT idempotency_key,entity_name,status,record_id
+                SELECT idempotency_key,entity_name,operation,status,record_id
                 FROM dynamics.write_operations
                 WHERE connection_id=@connection AND issuer=@issuer
-                  AND oauth_client_id=@client AND operation='create'
+                  AND oauth_client_id=@client
                   AND idempotency_key=ANY(@keys)
                 """, db);
             cmd.Parameters.AddWithValue("connection", key.ConnectionId);
@@ -108,21 +109,25 @@ public static class PricingQuoteTotalEndpoints
             {
                 var idem = rows.GetString(0);
                 var expectedEntity = idem == suffixes[0] ? "quote" : "quotedetail";
+                var expectedOperation = idem == suffixes[0]
+                    ? key.Operation : idem == suffixes[1] ? "create" : "update";
                 if (rows.GetString(1) != expectedEntity ||
-                    !status.TryAdd(idem, (rows.GetString(2),
-                        rows.IsDBNull(3) ? null : rows.GetGuid(3))))
+                    rows.GetString(2) != expectedOperation ||
+                    !status.TryAdd(idem, (rows.GetString(3),
+                        rows.IsDBNull(4) ? null : rows.GetGuid(4))))
                     throw new ReadRejected(409, "quote_result_ledger_ambiguous");
             }
             var headerOk = status.TryGetValue(suffixes[0], out var header) &&
                 header.State == "succeeded" && header.RecordId is Guid h && h != Guid.Empty;
-            var totalOk = status.TryGetValue(suffixes[1], out var total) &&
+            var detailKey = status.ContainsKey(suffixes[2]) ? suffixes[2] : suffixes[1];
+            var totalOk = status.TryGetValue(detailKey, out var total) &&
                 total.State == "succeeded" && total.RecordId is Guid t && t != Guid.Empty;
             return Results.Ok(new
             {
                 confirmed = headerOk && totalOk,
                 headerStatus = status.TryGetValue(suffixes[0], out var hs)
                     ? hs.State : "not_sent",
-                totalStatus = status.TryGetValue(suffixes[1], out var ts)
+                totalStatus = status.TryGetValue(detailKey, out var ts)
                     ? ts.State : "not_sent",
                 quoteId = headerOk ? header.RecordId : null,
                 lineId = totalOk ? total.RecordId : null,

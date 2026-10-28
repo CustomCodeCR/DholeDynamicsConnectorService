@@ -758,6 +758,30 @@ public static class PricingQuoteTotalEndpoints
                 await readAccess.PermitAsync(actor, quoteRead,
                     [quote.Table.PrimaryIdAttribute, key.KeyFields[0]], ct);
             }
+            if (isUpsert)
+            {
+                // A historical CREATE quote may not have the RateId alternate
+                // key populated. If it exists in the ledger but is not found
+                // by the registered key, creating another would duplicate it.
+                var foundByKey = false;
+                try
+                {
+                    var existingQuote = await reader.ByKeyAsync(actor,
+                        request.ConnectionCode, "quote", alternateKeys!,
+                        [quote.Table.PrimaryIdAttribute], ct);
+                    foundByKey = existingQuote.Item.TryGetProperty(
+                        quote.Table.PrimaryIdAttribute, out var known) &&
+                        known.ValueKind == JsonValueKind.String &&
+                        Guid.TryParse(known.GetString(), out var resolved) &&
+                        resolved != Guid.Empty;
+                }
+                catch (ReadRejected ex) when (ex.Status == 404) { }
+                if (!foundByKey && await HasLegacyCreatedQuoteAsync(
+                    http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                    key.ConnectionId, request.DholeRateId, ct))
+                    throw new ReadRejected(409, "legacy_quote_requires_rate_key_linking");
+            }
+
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
                 new TemplateInputs(request.ConnectionCode, safeInputs, Keys: alternateKeys),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
@@ -1259,6 +1283,26 @@ public static class PricingQuoteTotalEndpoints
     // Read the durable ledger across all past Pricing integration keys, not
     // only the currently configured key. This prevents a key rotation from
     // bypassing a prior ambiguous/succeeded header or duplicating a QUO.
+    private static async Task<bool> HasLegacyCreatedQuoteAsync(
+        NpgsqlDataSource source, Guid connectionId, Guid rateId, CancellationToken ct)
+    {
+        await using var db = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT EXISTS(
+                SELECT 1 FROM dynamics.write_operations
+                WHERE connection_id=@connection
+                  AND issuer=@issuer AND entity_name='quote'
+                  AND operation='create' AND status='succeeded'
+                  AND idempotency_key LIKE @prefix
+            )
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connectionId);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("prefix",
+            "dhole-pricing-quote-" + rateId.ToString("N") + "-v%-header");
+        return await cmd.ExecuteScalarAsync(ct) is true;
+    }
+
     // If a previous request already reserved any line, its shape is immutable.
     // This protects against silently adding lines on a replay with the same
     // header key or mixing an itemized payload with Pricing's summary line.

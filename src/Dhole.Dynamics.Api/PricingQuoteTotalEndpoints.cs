@@ -196,7 +196,8 @@ public static class PricingQuoteTotalEndpoints
 
         var prefix = "dhole-pricing-quote-" + rateId.ToString("N") + "-v" +
             revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var keys = new[] { prefix + "-header", prefix + "-total" };
+        var keys = new[] { prefix + "-header", prefix + "-total",
+            prefix + "-total-update" };
         var entries = new Dictionary<string, object?>(StringComparer.Ordinal);
         Guid? headerId = null;
         Guid? detailId = null;
@@ -209,7 +210,7 @@ public static class PricingQuoteTotalEndpoints
             INNER JOIN dynamics.connections c ON c.id = w.connection_id
             WHERE c.code = @code
               AND w.issuer = @issuer
-              AND w.operation = 'create'
+              AND w.operation IN ('create','upsert','update')
               AND w.idempotency_key = ANY(@keys)
             ORDER BY w.started_at DESC
             """, db);
@@ -221,7 +222,7 @@ public static class PricingQuoteTotalEndpoints
         {
             var key = rows.GetString(0);
             var isHeader = key == keys[0];
-            if (!isHeader && key != keys[1]) continue;
+            if (!isHeader && key != keys[1] && key != keys[2]) continue;
             if (rows.GetString(1) != (isHeader ? "quote" : "quotedetail")) continue;
             var status = rows.GetString(2);
             if (status is not ("reserved" or "succeeded" or "rejected" or
@@ -231,7 +232,9 @@ public static class PricingQuoteTotalEndpoints
             var reference = rows.IsDBNull(5) ? null : rows.GetString(5);
             var providerCode = SafeDataverseCode(reference);
             var item = new { status, httpStatus, recordId, providerCode };
-            entries[isHeader ? "header" : "total"] = item;
+            var slot = isHeader ? "header" : "total";
+            if (!entries.ContainsKey(slot) || key == keys[2])
+                entries[slot] = item;
             if (status == "succeeded" && recordId is Guid validId &&
                 validId != Guid.Empty)
             {

@@ -490,7 +490,8 @@ public static class PricingQuoteTotalEndpoints
     private static async Task<IResult> ValidateLookups(
         TemplateInputs request, TemplateApiKeyRepository keys,
         TemplateRepository templates, TemplateOrchestrator writer,
-        WriteAccessService access, HttpContext http, CancellationToken ct)
+        WriteAccessService access, DataverseMetadataDiscovery discovery,
+        HttpContext http, CancellationToken ct)
     {
         try
         {
@@ -505,6 +506,9 @@ public static class PricingQuoteTotalEndpoints
             var current = await templates.FindAsync(key.ConnectionId, "crear_oferta", ct);
             if (current?.ActiveVersion is not int version)
                 throw new ReadRejected(409, "crud_template_inactive");
+            var definition = current.History.SingleOrDefault(r =>
+                r.Version == version)?.Definition ??
+                throw new ReadRejected(409, "active_revision_missing");
             var actor = new ClaimsPrincipal(new ClaimsIdentity(
             [
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
@@ -517,6 +521,20 @@ public static class PricingQuoteTotalEndpoints
             var preview = await writer.PreviewAsync(request.ConnectionCode, "crear_oferta",
                 version, request.Inputs, ct, actor,
                 omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
+            // Recovery must use the SAME live Dataverse MaxLength
+            // validation as execute-with-total, without performing a write.
+            // Read-only validation may shorten presentation fields, never
+            // customer, IDTRA or commercial terms.
+            var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
+            var limits = await discovery.DiscoverTextMaxLengthsAsync(
+                quotePolicy.Connection, "quote", ct);
+            var safeInputs = PricingQuoteTextLimits.Prepare(
+                definition, request.Inputs, preview.Payload, limits);
+            if (!ReferenceEquals(safeInputs, request.Inputs))
+                preview = await writer.PreviewAsync(request.ConnectionCode,
+                    "crear_oferta", version, safeInputs, ct, actor,
+                    omitMissingQuoteCustomer: true, omitPricingQuoteTerms: true);
+            PricingQuoteTextLimits.Check(preview.Payload, limits);
             // Recovery must never approve a fresh Quote without a real
             // Account/Contact GUID. A matching name in a text field is not
             // enough, and Dataverse may reject an unbound quote with HTTP 400.
@@ -525,7 +543,6 @@ public static class PricingQuoteTotalEndpoints
                     "customerid", "name");
             // Preview must enforce the same header write grant as the real
             // execution. A successful name lookup alone is not sufficient.
-            var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
             await access.PermitAsync(actor, quotePolicy, key.Operation, preview.Fields, ct);
             return Results.Ok(new
             {

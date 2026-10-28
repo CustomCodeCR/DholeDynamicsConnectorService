@@ -127,6 +127,48 @@ public sealed class PricingQuoteTotalTests
     }
 
     [Fact]
+    public void TextLengthRejectionStoresOnlyFieldAndBoundWithoutCustomerText()
+    {
+        var body = System.Text.Encoding.UTF8.GetBytes(
+            """
+            {"error":{"code":"0x80044331","message":
+             "A validation error occurred. The length of the 'new_idtraasignado' attribute of the 'quote' entity exceeded the maximum allowed length of '30'. Sensitive customer AUTOMANIA and IDTRA999.12636"}}
+            """);
+        var reference = DataverseWriteTransport.ExtractSafeErrorReference(body);
+        Assert.Equal("dataverse_code:0x80044331;field:new_idtraasignado;max:30", reference);
+        Assert.DoesNotContain("AUTOMANIA", reference!);
+        Assert.DoesNotContain("12636", reference!);
+        Assert.Equal("0x80044331",
+            DataverseWriteTransport.ExtractSafeErrorCode(body));
+    }
+
+    [Fact]
+    public void UnknownOrMalformedDataverseTextMessageNeverPersistsRawText()
+    {
+        var body = System.Text.Encoding.UTF8.GetBytes(
+            """
+            {"error":{"code":"0x80044331","message":
+             "Sensitive client AUTOMANIA exceeded some field with an unknown max."}}
+            """);
+        Assert.Equal("dataverse_code:0x80044331",
+            DataverseWriteTransport.ExtractSafeErrorReference(body));
+        var malicious = System.Text.Encoding.UTF8.GetBytes(
+            """
+            {"error":{"code":"0x80044331","message":
+             "The length of the 'customerid;secret=AUTOMANIA' attribute of the 'quote' entity exceeded the maximum allowed length of '30'."}}
+            """);
+        Assert.Equal("dataverse_code:0x80044331",
+            DataverseWriteTransport.ExtractSafeErrorReference(malicious));
+        var wrongEntity = System.Text.Encoding.UTF8.GetBytes(
+            """
+            {"error":{"code":"0x80044331","message":
+             "The length of the 'name' attribute of the 'account' entity exceeded the maximum allowed length of '100'."}}
+            """);
+        Assert.Equal("dataverse_code:0x80044331",
+            DataverseWriteTransport.ExtractSafeErrorReference(wrongEntity));
+    }
+
+    [Fact]
     public void ItemizedQuoteLineBindsRealQuoteAndPreservesConceptQuantityAndPrice()
     {
         var id = Guid.NewGuid();

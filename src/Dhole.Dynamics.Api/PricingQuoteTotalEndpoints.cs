@@ -818,6 +818,10 @@ public static class PricingQuoteTotalEndpoints
             if (header is not WriteResult created || created.State != "succeeded")
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
                     null, null, "quote", false), statusCode: 409);
+            // Header has succeeded even when Dataverse omitted the returned
+            // quoteid. Any subsequent lookup/line failure is PARTIAL, never
+            // a safe pre-write error that Pricing may resend as a new write.
+            quoteConfirmedCreated = true;
             Guid quoteId;
             if (created.RecordId is Guid returned && returned != Guid.Empty)
                 quoteId = returned;

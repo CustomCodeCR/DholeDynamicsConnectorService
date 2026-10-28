@@ -120,7 +120,67 @@ public sealed class PricingQuoteTermOmissionTests
             [new TemplateInput("name", "string")],
             [new TemplateMapping("name", "name")]);
         var ex = Assert.Throws<ReadRejected>(() => PricingQuoteTermOmission.FilterDefinition(other));
-        Assert.Equal("pricing_quote_terms_only_for_quote_create", ex.Code);
+        Assert.Equal("pricing_quote_terms_only_for_quote_write", ex.Code);
+    }
+
+    [Theory]
+    [InlineData("create")]
+    [InlineData("upsert")]
+    public async Task PricingQuoteFilterAppliesIdenticallyToCreateAndUpsert(string operation)
+    {
+        var original = new IntegrationTemplate("quote", operation,
+            [
+                new TemplateInput("name", "string"),
+                new TemplateInput("customer", "string"),
+                new TemplateInput("includes", "string"),
+                new TemplateInput("dholeRateId", "string")
+            ],
+            [
+                new TemplateMapping("name", "name"),
+                new TemplateMapping("customerid_account@odata.bind", "customer",
+                    [new TemplateStep("lookup_name", "name")]),
+                new TemplateMapping("new_tarifaincluye", "includes"),
+                new TemplateMapping("cr933_dholerateid", "dholeRateId")
+            ]);
+        var effective = PricingQuoteTermOmission.FilterDefinition(original);
+        Assert.Equal(operation, effective.Operation);
+        Assert.Equal(2, effective.Mappings.Count);
+        Assert.Contains(effective.Mappings, m => m.Target == "cr933_dholerateid");
+        Assert.DoesNotContain(effective.Mappings, m => m.Target == "customerid_account@odata.bind");
+        Assert.DoesNotContain(effective.Mappings, m => m.Target == "new_tarifaincluye");
+        var rateId = Guid.NewGuid().ToString("D");
+        var filtered = PricingQuoteTermOmission.FilterInputs(original, effective,
+            new Dictionary<string, JsonElement>
+            {
+                ["name"] = J("QUO-00000-000420"),
+                ["customer"] = J("TEST CLIENT"),
+                ["includes"] = J("Excluded commercial terms"),
+                ["dholeRateId"] = J(rateId)
+            });
+        var validated = TemplateMapper.ValidateInputs(effective.Inputs, filtered);
+        var resolved = await TemplateMapper.BuildAsync(effective, validated, Guid.NewGuid(),
+            (_, _, _, _) => Task.FromResult<Guid?>(null),
+            CancellationToken.None,
+            (_, _, _, _) => throw new InvalidOperationException("Unexpected customer lookup"));
+        Assert.Equal("QUO-00000-000420", resolved["name"].GetString());
+        Assert.Equal(rateId, resolved["cr933_dholerateid"].GetString());
+        Assert.DoesNotContain(resolved.Keys, PricingQuoteTermOmission.IsExcludedTarget);
+        // Filtering never mutates the published, versioned user template.
+        Assert.Equal(4, original.Mappings.Count);
+        Assert.Equal(4, original.Inputs.Count);
+    }
+
+    [Theory]
+    [InlineData("update")]
+    [InlineData("delete")]
+    public void DedicatedPolicyRejectsOtherQuoteWriteOperations(string operation)
+    {
+        var template = new IntegrationTemplate("quote", operation,
+            [new TemplateInput("name", "string")],
+            [new TemplateMapping("name", "name")]);
+        var error = Assert.Throws<ReadRejected>(() =>
+            PricingQuoteTermOmission.FilterDefinition(template));
+        Assert.Equal("pricing_quote_terms_only_for_quote_write", error.Code);
     }
 
     [Fact]

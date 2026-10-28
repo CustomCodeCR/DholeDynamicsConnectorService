@@ -39,6 +39,7 @@ app.MapReadEndpoints();
 app.MapSavedQueryApiKeyEndpoints();
 app.MapTemplateApiKeyEndpoints();
 app.MapPricingQuoteTotalEndpoints();
+app.MapLegacyQuoteRecoveryEndpoints();
 app.MapWriteEndpoints();
 app.MapTemplateEndpoints();
 app.MapEventAutomationEndpoints();

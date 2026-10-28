@@ -16,6 +16,21 @@ namespace Dhole.Dynamics.Api;
 /// </summary>
 public static class PricingQuoteTotalEndpoints
 {
+    internal const string QuoteResponseNotificationField = "new_notifrespuestacotizacion";
+    internal const int QuoteResponseNotificationValue = 100000000;
+
+    // Only a real, published integer input mapped to the exact Dataverse
+    // attribute is suitable for the Pricing quote notification choice.
+    internal static string? ResponseNotificationInput(IntegrationTemplate definition)
+    {
+        var mappings = definition.Mappings
+            .Where(mapping => mapping.Target == QuoteResponseNotificationField).ToArray();
+        if (mappings.Length != 1 || mappings[0].Source is not string name)
+            return null;
+        return definition.Inputs.Any(input => input.Name == name && input.Type == "integer")
+            ? name : null;
+    }
+
     // Explicit sales lines for the opt-in multi-line route. No arbitrary
     // Dataverse field names or navigation properties are accepted.
     public sealed record PricingQuoteLine(
@@ -412,7 +427,21 @@ public static class PricingQuoteTotalEndpoints
                     missing.Add(entity + "." + operation + ":" + field);
         }
         Check("quote", operation,
-            ["name", ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
+            ["name", QuoteResponseNotificationField,
+             ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
+        if (definition is not null && ResponseNotificationInput(definition) is null)
+            missing.Add("crear_oferta." + QuoteResponseNotificationField + ":integer_mapping");
+        if (quote is not null)
+        {
+            var notification = quote.Table.Columns.FirstOrDefault(column =>
+                column.LogicalName == QuoteResponseNotificationField);
+            if (notification is null ||
+                notification.Type is not ("Picklist" or "Status" or "State") ||
+                !notification.Choices.Any(choice => choice.Value == QuoteResponseNotificationValue) ||
+                !notification.CanCreate || operation == "upsert" && !notification.CanUpdate ||
+                notification.IsCalculated)
+                missing.Add("quote." + QuoteResponseNotificationField + ":choice_100000000");
+        }
         if (quote is not null)
             Check("quote", "read", operation == "upsert"
                 ? [quote.Table.PrimaryIdAttribute, ..rateKeyFields]
@@ -659,6 +688,24 @@ public static class PricingQuoteTotalEndpoints
             if (definition is null || definition.EntityName != "quote" ||
                 definition.Operation != key.Operation)
                 throw new ReadRejected(409, "crud_template_scope_denied");
+            var notificationInput = ResponseNotificationInput(definition);
+            if (notificationInput is null)
+                throw new ReadRejected(409, "pricing_quote_notification_template_missing",
+                    QuoteResponseNotificationField + " must map to an integer input");
+            var notificationColumn = quote.Table.Columns.FirstOrDefault(column =>
+                column.LogicalName == QuoteResponseNotificationField);
+            if (notificationColumn is null ||
+                notificationColumn.Type is not ("Picklist" or "Status" or "State") ||
+                !notificationColumn.Choices.Any(choice =>
+                    choice.Value == QuoteResponseNotificationValue) ||
+                !notificationColumn.CanCreate || isUpsert && !notificationColumn.CanUpdate ||
+                notificationColumn.IsCalculated)
+                throw new ReadRejected(409, "pricing_quote_notification_choice_unavailable",
+                    QuoteResponseNotificationField + ":100000000");
+            // Require the active integration key to have this explicit field grant
+            // before attempting to create or update the header.
+            await access.PermitAsync(actor, quote, key.Operation,
+                [QuoteResponseNotificationField], ct);
             var alternateKeys = isUpsert
                 ? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
                     { [key.KeyFields[0]] = JsonSerializer.SerializeToElement(
@@ -671,6 +718,10 @@ public static class PricingQuoteTotalEndpoints
             // Never permit a provided IDTRA to become the Quote identity.
             var trustedInputs = new Dictionary<string, JsonElement>(request.Inputs,
                 StringComparer.Ordinal);
+            // Server-owned value: callers cannot submit false, another choice,
+            // or omit the notification field on a successful Pricing QUO.
+            trustedInputs[notificationInput] =
+                JsonSerializer.SerializeToElement(QuoteResponseNotificationValue);
             if (isUpsert && definition.Inputs.Any(input =>
                 input.Name == key.KeyFields[0]))
                 trustedInputs[key.KeyFields[0]] = alternateKeys![key.KeyFields[0]];

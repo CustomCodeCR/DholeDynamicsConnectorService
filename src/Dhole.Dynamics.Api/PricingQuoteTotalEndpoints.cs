@@ -21,7 +21,7 @@ public static class PricingQuoteTotalEndpoints
 
     // Only a real, published integer input mapped to the exact Dataverse
     // attribute is suitable for the Pricing quote notification choice.
-    internal static string? ResponseNotificationInput(IntegrationTemplate definition)
+    public static string? ResponseNotificationInput(IntegrationTemplate definition)
     {
         var mappings = definition.Mappings
             .Where(mapping => mapping.Target == QuoteResponseNotificationField).ToArray();
@@ -31,7 +31,7 @@ public static class PricingQuoteTotalEndpoints
             ? name : null;
     }
 
-    internal static Dictionary<string, JsonElement> WithExactResponseNotification(
+    public static Dictionary<string, JsonElement> WithExactResponseNotification(
         string inputName, IReadOnlyDictionary<string, JsonElement> supplied)
     {
         var trusted = new Dictionary<string, JsonElement>(supplied, StringComparer.Ordinal);

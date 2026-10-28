@@ -439,6 +439,7 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 var candidates=ResolveLookupNameFields(
                     target,rel.ReferencingAttribute??"",field);
                 var anyAuthorized=false;
+                var clientGrantDenied=false;
                 // Collect confirmed account IDs across every authorized
                 // fallback predicate. Choosing the first partial search match
                 // can silently select the wrong legal entity.
@@ -481,9 +482,24 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                             predicate, PageSize:suffixSearch || accountNameLookup ? 25 : 2);
                         // All search operations are metadata-validated and
                         // restricted to the account's approved readable fields.
-                        var result=await reader.SearchAsync(actor,target,
-                            new ReadSearchRequest(policy.Connection.Code,query),token,
-                            admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                        ReadSearchResponse result;
+                        try
+                        {
+                            result=await reader.SearchAsync(actor,target,
+                                new ReadSearchRequest(policy.Connection.Code,query),token,
+                                admin: ScopeSecurity.HasAdminRole(actor,"dynamics.security.admin"));
+                        }
+                        catch (ReadRejected ex) when (ex.Code is "client_denied" or "fields_denied")
+                        {
+                            // Tenant metadata approval is not proof of a
+                            // particular API key's read grant. Skip this
+                            // unauthorized optional name fallback and try the
+                            // next approved lookup column. Never grant access.
+                            // If none succeed, preserve the permission error
+                            // rather than falsely reporting IDTRA not found.
+                            clientGrantDenied=true;
+                            break;
+                        }
                         if (suffixSearch)
                         {
                             // Pricing removes '-QUO-...' from its IDTRA display
@@ -552,6 +568,9 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                     return matchingCustomerIds.Single();
                 if(!anyAuthorized)
                     throw new ReadRejected(403,"lookup_name_field_not_authorized");
+                if(clientGrantDenied)
+                    throw new ReadRejected(403,"client_denied",
+                        rel.ReferencingAttribute,candidates[0]);
                 throw new ReadRejected(404,"lookup_name_not_found",
                     rel.ReferencingAttribute,candidates[0]);
             },

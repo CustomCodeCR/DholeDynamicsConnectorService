@@ -29,8 +29,12 @@ public static class PricingQuoteTermOmission
 
     public static IntegrationTemplate FilterDefinition(IntegrationTemplate original)
     {
-        if (original.EntityName != "quote" || original.Operation != "create")
-            throw new ReadRejected(400, "pricing_quote_terms_only_for_quote_create");
+        // This scoped filter applies to both accepted-rate writes:
+        // CREATE the header, or UPSERT that same header by its Dhole RateId.
+        // Do not widen it to generic CRUD, UPDATE, or other entities.
+        if (original.EntityName != "quote" ||
+            original.Operation is not ("create" or "upsert"))
+            throw new ReadRejected(400, "pricing_quote_terms_only_for_quote_write");
         var remaining = original.Mappings
             .Where(mapping => !IsExcludedTarget(mapping.Target)).ToArray();
         var usedSources = remaining.Where(mapping => mapping.Source is not null)

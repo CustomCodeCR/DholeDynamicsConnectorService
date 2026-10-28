@@ -109,6 +109,64 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
             ? code : null;
     }
 
+    public sealed record QuoteDetailSnapshot(Guid RecordId, string Name, string ETag);
+
+    /// <summary>
+    /// Read-only, bounded lookup for Pricing's automatically managed total line.
+    /// Caller must have already passed the quotedetail read-field and API grants.
+    /// The query path is composed only from approved table metadata and a GUID.
+    /// No arbitrary OData request or rate-provided query is accepted.
+    /// </summary>
+    public async Task<IReadOnlyList<QuoteDetailSnapshot>> ReadQuoteDetailsAsync(
+        WritePolicy detail, Guid quoteId, CancellationToken ct)
+    {
+        if (detail.Table.LogicalName != "quotedetail" || quoteId == Guid.Empty ||
+            detail.Table.PrimaryIdAttribute != "quotedetailid" ||
+            !DataverseMetadataDiscovery.SafeName(detail.Table.EntitySetName))
+            throw new ReadRejected(403, "quote_detail_lookup_scope_denied");
+        if (!DataverseUrlValidator.TryNormalize(detail.Connection.DataverseUrl, out var normalized))
+            throw new ReadRejected(400, "invalid_dataverse_host");
+        var relative = "/api/data/v9.2/" + detail.Table.EntitySetName +
+            "?$select=quotedetailid,quotedetailname" +
+            "&$filter=_quoteid_value%20eq%20" + quoteId.ToString("D") + "&$top=3";
+        var uri = new Uri(new Uri(normalized), relative);
+        if (uri.Scheme != "https" || uri.Port != 443 ||
+            uri.Host != new Uri(normalized).Host || uri.UserInfo.Length != 0 ||
+            uri.Fragment.Length != 0)
+            throw new ReadRejected(400, "unsafe_quote_detail_lookup");
+        using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            await tokens.AcquireAsync(detail.Connection, ct));
+        req.Headers.TryAddWithoutValidation("OData-Version", "4.0");
+        using var response = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new ReadRejected((int)response.StatusCode == 429 ? 429 : 502,
+                "quote_detail_lookup_failed");
+        await response.Content.LoadIntoBufferAsync(128 * 1024, ct);
+        using var doc = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(ct));
+        if (!doc.RootElement.TryGetProperty("value", out var rows) ||
+            rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() > 2 ||
+            doc.RootElement.TryGetProperty("@odata.nextLink", out _))
+            throw new ReadRejected(409, "quote_detail_ambiguous");
+        var details = new List<QuoteDetailSnapshot>();
+        foreach (var item in rows.EnumerateArray())
+        {
+            if (!item.TryGetProperty("quotedetailid", out var id) ||
+                id.ValueKind != JsonValueKind.String ||
+                !Guid.TryParse(id.GetString(), out var detailId) || detailId == Guid.Empty ||
+                !item.TryGetProperty("quotedetailname", out var title) ||
+                title.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("@odata.etag", out var tag) ||
+                tag.ValueKind != JsonValueKind.String)
+                throw new ReadRejected(502, "quote_detail_incomplete");
+            var etag = tag.GetString()!;
+            GenericWriteService.RequireEtag(etag);
+            details.Add(new QuoteDetailSnapshot(detailId, title.GetString()!, etag));
+        }
+        return details;
+    }
+
     public async Task<DateTimeOffset?> CreatedAtAsync(WritePolicy policy, Guid id, CancellationToken ct)
     {
         var path = "/api/data/v9.2/" + policy.Table.EntitySetName +

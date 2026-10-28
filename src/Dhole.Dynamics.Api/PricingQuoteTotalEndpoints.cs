@@ -300,6 +300,51 @@ public static class PricingQuoteTotalEndpoints
         // requests. Reads are scoped to the two exact recorded identifiers.
         var liveHeader = await VerifyAsync("quote", headerId, "quoteid");
         var liveDetail = await VerifyAsync("quotedetail", detailId, "quotedetailid");
+
+        // The current revision can have NO write_operations while the same
+        // RateId already owns a historical CREATE header from an earlier
+        // revision/key. This is the exact reason UPSERT refuses to create a
+        // second QUO with legacy_quote_requires_rate_key_linking.
+        // Read every prior header across API key rotations; never POST/PATCH.
+        var legacyHeaders = new List<(int Revision, Guid? QuoteId)>();
+        await using (var historyDb = await data.OpenConnectionAsync(ct))
+        await using (var historyCmd = new NpgsqlCommand("""
+            SELECT w.idempotency_key, w.record_id
+            FROM dynamics.write_operations w
+            JOIN dynamics.connections c ON c.id = w.connection_id
+            WHERE c.code=@code AND w.issuer=@issuer
+              AND w.entity_name='quote' AND w.operation='create'
+              AND w.status='succeeded' AND w.idempotency_key LIKE @pattern
+            ORDER BY w.started_at DESC
+            LIMIT 100
+            """, historyDb))
+        {
+            historyCmd.Parameters.AddWithValue("code", code);
+            historyCmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+            historyCmd.Parameters.AddWithValue("pattern",
+                "dhole-pricing-quote-" + rateId.ToString("N") + "-v%-header");
+            await using var historyRows = await historyCmd.ExecuteReaderAsync(ct);
+            while (await historyRows.ReadAsync(ct))
+            {
+                var revisionOfHeader = TryParseLegacyHeaderRevision(
+                    historyRows.GetString(0), rateId, revision);
+                if (revisionOfHeader is null) continue;
+                legacyHeaders.Add((revisionOfHeader.Value,
+                    historyRows.IsDBNull(1) ? null : historyRows.GetGuid(1)));
+            }
+        }
+        // More than one GUID, an unidentified prior success or truncated
+        // history cannot be automatically reconciled with a specific Quote.
+        var distinctIds = legacyHeaders.Where(h => h.QuoteId is Guid id &&
+                id != Guid.Empty).Select(h => h.QuoteId!.Value)
+            .Distinct().ToArray();
+        var completeUnique = legacyHeaders.Count is > 0 and < 100 &&
+            legacyHeaders.All(h => h.QuoteId is Guid id && id != Guid.Empty) &&
+            distinctIds.Length == 1;
+        Guid? legacyQuoteId = completeUnique ? distinctIds[0] : null;
+        (bool? Exists, string State) legacyLive = legacyQuoteId is Guid id
+            ? await VerifyAsync("quote", id, "quoteid")
+            : (null, "no_unique_record_id");
         // NotFound/not_sent is NOT proof of no Dataverse side effect; it only
         // describes this connector's durable ledger at query time.
         return Results.Ok(new
@@ -311,6 +356,21 @@ public static class PricingQuoteTotalEndpoints
             total = entries.GetValueOrDefault("total") ??
                 (object)new { status = "not_sent", httpStatus = (int?)null,
                     recordId = (Guid?)null, providerCode = (string?)null },
+            legacy = new
+            {
+                hasPriorSuccessfulCreate = legacyHeaders.Count > 0,
+                historyTruncated = legacyHeaders.Count == 100,
+                priorHeaderCount = legacyHeaders.Count,
+                uniqueQuoteId = legacyQuoteId,
+                liveQuoteExists = legacyLive.Exists,
+                liveQuoteStatus = legacyLive.State,
+                requiresRateIdLink = legacyHeaders.Count > 0,
+                candidates = legacyHeaders.Take(20).Select(h => new
+                {
+                    revisionNumber = h.Revision,
+                    quoteId = h.QuoteId
+                }).ToArray()
+            },
             live = new
             {
                 headerExists = liveHeader.Exists,
@@ -1414,6 +1474,25 @@ public static class PricingQuoteTotalEndpoints
             ? int.Parse(match.Groups["attempt"].Value,
                 System.Globalization.CultureInfo.InvariantCulture) : 0;
         return (revision, attempt);
+    }
+
+    // Historical CREATE headers can belong to any previous acceptance
+    // revision and can carry a bounded recovery generation. Never include
+    // unrelated idempotency keys or newer revisions in the diagnostic.
+    public static int? TryParseLegacyHeaderRevision(
+        string? key, Guid rateId, int currentRevision)
+    {
+        if (string.IsNullOrEmpty(key) || rateId == Guid.Empty ||
+            currentRevision < 1) return null;
+        var prefix = "dhole-pricing-quote-" + rateId.ToString("N") + "-v";
+        if (!key.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var remainder = key[prefix.Length..];
+        var match = System.Text.RegularExpressions.Regex.Match(
+            remainder, @"^(?<revision>[1-9][0-9]{0,8})(?:-r[1-3])?-header$",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        return match.Success &&
+               int.TryParse(match.Groups["revision"].Value, out var rev) &&
+               rev <= currentRevision ? rev : null;
     }
 
     // Read the durable ledger across all past Pricing integration keys, not

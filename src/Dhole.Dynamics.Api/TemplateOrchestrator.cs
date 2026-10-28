@@ -66,10 +66,12 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
         var revision=template.History.SingleOrDefault(x=>x.Version==version)
             ?? throw new ReadRejected(404,"template_version_missing");
         var policy=await writerAccess.ResolveAsync(code,revision.Definition.EntityName,ct);
-        await ValidateDefinitionAsync(policy,revision.Definition,ct);
+        // Validate only the effective Pricing payload, not the omitted
+        // customer fields of the immutable generic CRUD definition.
         var definition = omitPricingQuoteTerms
             ? PricingQuoteTermOmission.FilterDefinition(revision.Definition)
             : revision.Definition;
+        await ValidateDefinitionAsync(policy,definition,ct);
         var effectiveInputs = omitPricingQuoteTerms
             ? PricingQuoteTermOmission.FilterInputs(revision.Definition, definition, inputs) : inputs;
         var bound=TemplateMapper.ValidateInputs(definition.Inputs,effectiveInputs);
@@ -119,12 +121,13 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
             ?? throw new ReadRejected(409,"active_revision_missing");
         var definition=revision.Definition;
         var policy=await writerAccess.ResolveAsync(request.ConnectionCode,definition.EntityName,ct);
-        await ValidateDefinitionAsync(policy,definition,ct);
         var originalDefinition = definition;
-        // The saved CRUD definition is immutable. Filter only the dedicated
-        // Pricing execution, including historical 'required' input specs.
+        // The dedicated Pricing route must validate the EFFECTIVE fields,
+        // never the customer fields that are intentionally not written.
+        // The saved CRUD definition remains immutable for other callers.
         if (omitPricingQuoteTerms)
             definition = PricingQuoteTermOmission.FilterDefinition(definition);
+        await ValidateDefinitionAsync(policy,definition,ct);
         var effectiveInputs = omitPricingQuoteTerms
             ? PricingQuoteTermOmission.FilterInputs(originalDefinition, definition, request.Inputs)
             : request.Inputs;

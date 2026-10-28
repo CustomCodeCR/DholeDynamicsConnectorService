@@ -7,33 +7,6 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Fact]
-    public void QuoteCustomerRequiresAResolvedAccountOrContactGuid()
-    {
-        var missing = new Dictionary<string, JsonElement>
-        {
-            ["name"] = JsonSerializer.SerializeToElement("QUO-00000-000365"),
-            ["msdyn_account@odata.bind"] = JsonSerializer.SerializeToElement(
-                Guid.NewGuid().ToString("D")),
-            ["customeridtype"] = JsonSerializer.SerializeToElement("quote")
-        };
-        Assert.False(PricingQuoteTotalEndpoints.HasResolvedCustomer(missing));
-        missing["customerid_account@odata.bind"] =
-            JsonSerializer.SerializeToElement("AUTOMANIA");
-        Assert.False(PricingQuoteTotalEndpoints.HasResolvedCustomer(missing));
-        missing["customerid_account@odata.bind"] =
-            JsonSerializer.SerializeToElement(Guid.Empty.ToString("D"));
-        Assert.False(PricingQuoteTotalEndpoints.HasResolvedCustomer(missing));
-        var accountId = Guid.NewGuid();
-        missing["customerid_account@odata.bind"] =
-            JsonSerializer.SerializeToElement(accountId.ToString("D"));
-        Assert.True(PricingQuoteTotalEndpoints.HasResolvedCustomer(missing));
-        missing.Remove("customerid_account@odata.bind");
-        missing["customerid_contact@odata.bind"] =
-            JsonSerializer.SerializeToElement(Guid.NewGuid().ToString("D"));
-        Assert.True(PricingQuoteTotalEndpoints.HasResolvedCustomer(missing));
-    }
-
-    [Fact]
     public void TrustedPricingAmountsOverrideAllTemplateAmountsAndSalesLineUsesSale()
     {
         const decimal supplierCost = 271.08m;

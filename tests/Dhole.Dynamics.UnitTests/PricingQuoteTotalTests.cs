@@ -50,6 +50,27 @@ public sealed class PricingQuoteTotalTests
         Assert.Equal(100000000, omitted["notificationChoice"].GetInt32());
     }
 
+    [Fact]
+    public void HistoricalCreateHeaderKeysResolveWithoutTreatingCurrentRevisionAsAbsent()
+    {
+        var rateId = Guid.Parse("a92de101-cbee-4741-9bed-082c58364616");
+        var prefix = "dhole-pricing-quote-" + rateId.ToString("N");
+        Assert.Equal(3, PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v3-header", rateId, 8));
+        Assert.Equal(7, PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v7-r1-header", rateId, 8));
+        Assert.Equal(8, PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v8-header", rateId, 8));
+        Assert.Null(PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v9-header", rateId, 8));
+        Assert.Null(PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v3-total", rateId, 8));
+        Assert.Null(PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            prefix + "-v3-header-extra", rateId, 8));
+        Assert.Null(PricingQuoteTotalEndpoints.TryParseLegacyHeaderRevision(
+            "dhole-pricing-quote-00000000000000000000000000000000-v3-header", rateId, 8));
+    }
+
     [Theory]
     [InlineData("quote", "create", true)]
     [InlineData("quote", "upsert", true)]

@@ -14,11 +14,13 @@ public static class PricingQuoteTextLimits
     private const string DescriptionSuffix = " … [Detalle completo en Dhole]";
     private const string ShortSuffix = "…";
 
-    // Only human-readable display summaries. NEVER customerid, IDTRA,
-    // financial values, conditions, binding GUIDs or custom business fields.
+    // Only human-readable supplementary summaries. The primary QUO name
+    // contains the full business title and must NEVER be silently shortened.
+    // If Dataverse's actual name MaxLength is insufficient, reject before
+    // POST so the tenant metadata can be fixed without writing a wrong title.
     private static readonly HashSet<string> DisplaySummaries = new(StringComparer.Ordinal)
     {
-        "name", "description",
+        "description",
         "new_pol", "new_poe", "new_pod", "new_tiempodetransitoaprox"
     };
 

@@ -147,6 +147,13 @@ public sealed class TemplateOrchestrator(TemplateRepository templates,ExternalRe
                 throw new ReadRejected(400, "invalid_pricing_cost_fields");
             values = PricingQuoteTotalEndpoints.WithExactQuoteAmounts(
                 values, supplierCost, sale);
+            if (definition.Operation == "upsert" && request.Keys is { Count: > 0 })
+            {
+                // The trusted RateId is the alternate key in the PATCH URL.
+                // Do not duplicate that key as a mutable Dataverse body field.
+                values = values.Where(pair => !request.Keys.ContainsKey(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            }
         }
         if(definition.Operation is "create" or "update" or "upsert" or "delete" or "action" &&
             !WriteLedger.ValidKey(idempotencyKey))

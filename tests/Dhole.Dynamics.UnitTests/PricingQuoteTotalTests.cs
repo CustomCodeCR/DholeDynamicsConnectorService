@@ -9,6 +9,34 @@ public sealed class PricingQuoteTotalTests
 {
 
     [Fact]
+    public void AdminQuoteGrantCoversEveryFieldRequiredByQuoteReadiness()
+    {
+        var fields = PricingQuoteTotalEndpoints.RequiredQuoteWriteFields();
+        Assert.Contains("name", fields);
+        Assert.Contains("description", fields);
+        Assert.Contains("new_flete", fields);
+        Assert.Contains("new_notifrespuestacotizacion", fields);
+        for (var i = 1; i <= 9; i++)
+            Assert.Contains("new_monto" + i, fields);
+        Assert.Equal(fields.Length, fields.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void AdminQuoteLineGrantCoversAllFieldsRequiredByQuoteReadiness()
+    {
+        var fields = PricingQuoteTotalEndpoints.RequiredQuoteDetailCreateFields();
+        Assert.Equal(7, fields.Length);
+        Assert.Contains("quoteid", fields);
+        Assert.Contains("isproductoverridden", fields);
+        Assert.Contains("ispriceoverridden", fields);
+        Assert.Contains("productdescription", fields);
+        Assert.Contains("quotedetailname", fields);
+        Assert.Contains("quantity", fields);
+        Assert.Contains("priceperunit", fields);
+        Assert.Equal(fields.Length, fields.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
     public void PublishedQuoteNotificationMustUseExactIntegerPicklistMapping()
     {
         var valid = new IntegrationTemplate("quote", "create",

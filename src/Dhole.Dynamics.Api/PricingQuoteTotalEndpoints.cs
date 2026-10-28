@@ -1190,7 +1190,7 @@ public static class PricingQuoteTotalEndpoints
                     .Select(index => "new_monto" + index)
                     .Append(QuoteResponseNotificationField).ToArray(), true, isUpsert),
                 ("quote", [quoteBeforeApproval.Table.PrimaryIdAttribute], false, false),
-                ("quote", isUpsert ? grantedKeyFields : [], false, false),
+                ("quote", isUpsert ? grantedKeyFields : [], false, isUpsert),
                 ("transactioncurrency",
                     ["transactioncurrencyid", "isocurrencycode"], false, false),
                 // Read and update only the one automatic total line on UPSERT.

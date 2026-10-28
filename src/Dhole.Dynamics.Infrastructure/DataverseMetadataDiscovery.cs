@@ -546,17 +546,19 @@ public sealed class DataverseMetadataDiscovery(HttpClient http, IDataverseAccess
             (type == "Picklist" ? "?$expand=OptionSet,GlobalOptionSet" : "?$expand=OptionSet");
         using var metadata = await GetAsync(host, token, relative, ct);
         var root = metadata.RootElement;
-        if (!TryGet(root, "OptionSet", out var set) ||
-            !TryGet(set, "Options", out var options) || options.ValueKind != JsonValueKind.Array)
-        {
-            if (!TryGet(root, "GlobalOptionSet", out set) ||
-                !TryGet(set, "Options", out options) || options.ValueKind != JsonValueKind.Array)
-                return [];
-        }
         var choices = new Dictionary<int, MetadataChoice>();
-        foreach (var item in options.EnumerateArray())
-            if (Int(item, "Value") is int value)
-                choices[value] = new MetadataChoice(value, Labels(item, "Label"));
+        // Read both local and global sets. Some tenants expose an empty local
+        // OptionSet alongside the populated GlobalOptionSet.
+        foreach (var setName in new[] { "OptionSet", "GlobalOptionSet" })
+        {
+            if (!TryGet(root, setName, out var set) ||
+                !TryGet(set, "Options", out var options) ||
+                options.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var item in options.EnumerateArray())
+                if (Int(item, "Value") is int value)
+                    choices[value] = new MetadataChoice(value, Labels(item, "Label"));
+        }
         return choices.Values.OrderBy(c => c.Value).ToArray();
     }
 

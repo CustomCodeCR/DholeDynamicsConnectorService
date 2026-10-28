@@ -88,6 +88,50 @@ public sealed class MetadataRefreshService(IConnectionRepository connections,
         return current with { Columns = current.Columns.Concat(added).ToArray() };
     }
 
+    /// <summary>
+    /// Read a single choice field live from Dataverse when the existing catalog
+    /// snapshot does not contain the required published choice. Never adds a
+    /// new Dataverse option or grants permissions by itself.
+    /// </summary>
+    public async Task<bool> RefreshRequiredSingleChoiceAsync(string code, string entity,
+        string field, int requiredValue, string actor, CancellationToken ct)
+    {
+        if (!DataverseMetadataDiscovery.SafeName(entity) ||
+            !DataverseMetadataDiscovery.SafeName(field))
+            throw new ArgumentException("Invalid Dataverse choice identifier.");
+        var connection = await connections.FindAsync(code, ct)
+            ?? throw new ReadRejected(404, "connection_not_found");
+        var current = await catalog.LatestAsync(connection.Id, ct)
+            ?? throw new ReadRejected(409, "metadata_missing");
+        var table = current.Catalog.Tables.SingleOrDefault(t => t.LogicalName == entity)
+            ?? throw new ReadRejected(409, "metadata_entity_missing");
+        var column = table.Columns.SingleOrDefault(c => c.LogicalName == field);
+        if (column is null || column.Type is not ("Picklist" or "Status" or "State"))
+            return false;
+        var choices = await detailDiscovery.DiscoverChoicesAsync(
+            connection, entity, field, column.Type, ct);
+        if (!choices.Any(choice => choice.Value == requiredValue))
+            return false;
+        // A one-field merge avoids deep-refreshing all quote attributes, which
+        // would invalidate unrelated approved field fingerprints.
+        var updated = MergeSingleChoiceField(table, field, choices);
+        await catalog.SaveTableAsync(connection.Id, updated, actor, ct);
+        return true;
+    }
+
+    public static MetadataTable MergeSingleChoiceField(MetadataTable table,
+        string field, IReadOnlyList<MetadataChoice> choices)
+    {
+        if (table.Columns.Count(column => column.LogicalName == field) != 1)
+            throw new InvalidOperationException("Choice metadata field was not found exactly once.");
+        return table with
+        {
+            Columns = table.Columns.Select(column => column.LogicalName == field
+                ? column with { Choices = choices }
+                : column).ToArray()
+        };
+    }
+
     public async Task<MetadataRefreshResult?> RefreshTableAsync(string code, string entity,
         string actor, CancellationToken ct)
     {

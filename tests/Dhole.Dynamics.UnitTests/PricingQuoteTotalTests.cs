@@ -1,11 +1,55 @@
 using System.Text.Json;
 using Dhole.Dynamics.Api;
+using Dhole.Dynamics.Contracts;
 using Xunit;
 
 namespace Dhole.Dynamics.UnitTests;
 
 public sealed class PricingQuoteTotalTests
 {
+
+    [Fact]
+    public void PublishedQuoteNotificationMustUseExactIntegerPicklistMapping()
+    {
+        var valid = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("notificationChoice", "integer")],
+            [new TemplateMapping("new_notifrespuestacotizacion", "notificationChoice")]);
+        Assert.Equal("notificationChoice",
+            PricingQuoteTotalEndpoints.ResponseNotificationInput(valid));
+
+        var missing = valid with { Mappings =
+            [new TemplateMapping("new_notif_iniciocotizacion", "notificationChoice")] };
+        Assert.Null(PricingQuoteTotalEndpoints.ResponseNotificationInput(missing));
+
+        var boolean = valid with { Inputs =
+            [new TemplateInput("notificationChoice", "boolean")] };
+        Assert.Null(PricingQuoteTotalEndpoints.ResponseNotificationInput(boolean));
+
+        var duplicate = valid with { Mappings =
+            [new TemplateMapping("new_notifrespuestacotizacion", "notificationChoice"),
+             new TemplateMapping("new_notifrespuestacotizacion", "notificationChoice")] };
+        Assert.Null(PricingQuoteTotalEndpoints.ResponseNotificationInput(duplicate));
+    }
+
+    [Fact]
+    public void TrustedQuoteNotificationOverridesSuppliedChoiceOrMissingInput()
+    {
+        var supplied = new Dictionary<string, JsonElement>
+        {
+            ["notificationChoice"] = JsonSerializer.SerializeToElement(100000001),
+            ["name"] = JsonSerializer.SerializeToElement("QUO-00000-000400")
+        };
+        var trusted = PricingQuoteTotalEndpoints.WithExactResponseNotification(
+            "notificationChoice", supplied);
+        Assert.Equal(100000000, trusted["notificationChoice"].GetInt32());
+        Assert.Equal(100000001, supplied["notificationChoice"].GetInt32());
+        Assert.Equal("QUO-00000-000400", trusted["name"].GetString());
+
+        var omitted = PricingQuoteTotalEndpoints.WithExactResponseNotification(
+            "notificationChoice", new Dictionary<string, JsonElement>());
+        Assert.Equal(100000000, omitted["notificationChoice"].GetInt32());
+    }
+
     [Theory]
     [InlineData("quote", "create", true)]
     [InlineData("quote", "upsert", true)]

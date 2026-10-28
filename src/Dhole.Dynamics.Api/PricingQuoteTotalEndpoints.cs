@@ -1464,6 +1464,11 @@ public static class PricingQuoteTotalEndpoints
             !rows.ContainsKey(k + "-total"));
     }
 
+    // Shared guard for both ways of writing the same Pricing quote.
+    // Generic UPDATE/DELETE templates never qualify for this route.
+    public static bool IsPricingRecoveryOperation(string? entity, string? operation) =>
+        entity == "quote" && operation is ("create" or "upsert");
+
     private static async Task<IResult> RecoveryEligibility(
         string connectionCode, Guid dholeRateId, int revisionNumber,
         int nextAttempt, TemplateApiKeyRepository keys, NpgsqlDataSource database,
@@ -1477,8 +1482,12 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 connectionCode, "crear_oferta", ct, chargeQuota: false);
-            if (key.EntityName != "quote" || key.Operation != "create")
-                throw new ReadRejected(403, "quote_creation_key_required");
+            // The active crear_oferta template may be CREATE or UPSERT.
+            // Recovery eligibility must authorize both write modes, just
+            // like execute-with-total; otherwise Pricing receives a 403
+            // and reports recovery_ledger_unavailable for valid UPSERT keys.
+            if (!IsPricingRecoveryOperation(key.EntityName, key.Operation))
+                throw new ReadRejected(403, "quote_write_key_required");
             var eligible = await IsRecoveryEligibleAsync(
                 database, key.ConnectionId, key.ClientId,
                 dholeRateId, revisionNumber, nextAttempt, ct);

@@ -33,11 +33,12 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         if (!response.IsSuccessStatusCode)
         {
             // An HTTP 400 is a rejection, not an ambiguous successful POST.
-            // Persist ONLY a validated Dataverse error code, never its message
-            // (which may contain customer data or other untrusted content).
-            var providerCode = await ReadSafeErrorCodeAsync(response, ct);
+            // Store only the vetted error code and, for StringLengthTooLong,
+            // the column identifier and numeric MaxLength. Never persist raw
+            // Dataverse messages, customer data, or request payloads.
+            var safeReference = await ReadSafeErrorReferenceAsync(response, ct);
             return new((int)response.StatusCode, null, null,
-                providerCode is null ? null : "dataverse_code:" + providerCode, retry);
+                safeReference, retry);
         }
         await response.Content.LoadIntoBufferAsync(128 * 1024, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
@@ -73,7 +74,7 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         return new((int)response.StatusCode, id, etag, id?.ToString("D"), retry, ambiguous);
     }
 
-    private static async Task<string?> ReadSafeErrorCodeAsync(
+    private static async Task<string?> ReadSafeErrorReferenceAsync(
         HttpResponseMessage response, CancellationToken ct)
     {
         try
@@ -84,7 +85,7 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
                 throwOnEndOfStream: false, cancellationToken: ct);
             // Don't parse truncated, oversized or empty error documents.
             if (count == 0 || count == bytes.Length) return null;
-            return ExtractSafeErrorCode(bytes.AsMemory(0, count));
+            return ExtractSafeErrorReference(bytes.AsMemory(0, count));
         }
         catch (Exception ex) when (ex is JsonException or IOException or HttpRequestException)
         {
@@ -107,6 +108,41 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         return code is { Length: > 0 and <= 64 } &&
             Regex.IsMatch(code, @"^(?:0x[0-9a-fA-F]{1,16}|[A-Za-z][A-Za-z0-9_.-]{0,63})$")
             ? code : null;
+    }
+
+    /// <summary>
+    /// Preserve only safe, bounded diagnostics from a Dataverse text-limit
+    /// rejection. The untrusted message is parsed but never retained.
+    /// Historical reference values containing just the code stay supported.
+    /// </summary>
+    public static string? ExtractSafeErrorReference(ReadOnlyMemory<byte> json)
+    {
+        var code = ExtractSafeErrorCode(json);
+        if (code is null) return null;
+        var reference = "dataverse_code:" + code;
+        if (!string.Equals(code, "0x80044331", StringComparison.OrdinalIgnoreCase))
+            return reference;
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("error", out var error) ||
+            !error.TryGetProperty("message", out var messageNode) ||
+            messageNode.ValueKind != JsonValueKind.String)
+            return reference;
+
+        // Dataverse's documented format identifies a safe logical column
+        // name and numeric bound. Do not store other message content.
+        var match = Regex.Match(messageNode.GetString() ?? "",
+            @"length of the '([a-z][a-z0-9_]{0,79})' attribute of the 'quote' entity exceeded the maximum allowed length of '([0-9]{1,7})'",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        if (!match.Success ||
+            !int.TryParse(match.Groups[2].Value,
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var max) ||
+            max is < 1 or > 1048576)
+            return reference;
+        var field = match.Groups[1].Value.ToLowerInvariant();
+        return reference + ";field:" + field + ";max:" +
+            max.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public sealed record QuoteDetailSnapshot(Guid RecordId, string Name, string ETag);

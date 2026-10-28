@@ -6,6 +6,19 @@ namespace Dhole.Dynamics.UnitTests;
 
 public sealed class PricingQuoteTotalTests
 {
+    [Theory]
+    [InlineData("quote", "create", true)]
+    [InlineData("quote", "upsert", true)]
+    [InlineData("quote", "update", false)]
+    [InlineData("quote", "delete", false)]
+    [InlineData("account", "upsert", false)]
+    public void RecoveryEligibilityUsesSameQuoteOperationsAsExecution(
+        string entity, string operation, bool expected)
+    {
+        Assert.Equal(expected,
+            PricingQuoteTotalEndpoints.IsPricingRecoveryOperation(entity, operation));
+    }
+
     [Fact]
     public void TrustedPricingAmountsOverrideAllTemplateAmountsAndSalesLineUsesSale()
     {

@@ -37,6 +37,28 @@ public sealed class PricingQuoteTotalTests
     }
 
     [Fact]
+    public void RefreshOfNotificationChoicesOnlyChangesTheTargetColumn()
+    {
+        var unrelated = new MetadataColumn("name", "String", true, true, true, false,
+            null, null, null, [], new Dictionary<int, string>(), []);
+        var notification = new MetadataColumn("new_notifrespuestacotizacion",
+            "Picklist", true, true, true, false,
+            null, null, null, [], new Dictionary<int, string>(), []);
+        var table = new MetadataTable("quote", "quotes", "quoteid", "name", false,
+            new Dictionary<int, string>(), [unrelated, notification], []);
+        var options = new[] {
+            new MetadataChoice(100000000, new Dictionary<int, string> { [1033] = "Ready" }) };
+        var refreshed = MetadataRefreshService.MergeSingleChoiceField(
+            table, "new_notifrespuestacotizacion", options);
+        Assert.Same(unrelated, refreshed.Columns[0]);
+        Assert.Empty(table.Columns[1].Choices);
+        Assert.Single(refreshed.Columns[1].Choices);
+        Assert.Equal(100000000, refreshed.Columns[1].Choices[0].Value);
+        Assert.Throws<InvalidOperationException>(() =>
+            MetadataRefreshService.MergeSingleChoiceField(table, "missing", options));
+    }
+
+    [Fact]
     public void PublishedQuoteNotificationMustUseExactIntegerPicklistMapping()
     {
         var valid = new IntegrationTemplate("quote", "create",

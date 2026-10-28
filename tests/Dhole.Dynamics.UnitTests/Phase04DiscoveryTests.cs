@@ -20,7 +20,8 @@ public sealed class Phase04DiscoveryTests
             Task.FromResult("test-token");
     }
 
-    private sealed class FixtureHandler(bool includeCustom = true, bool changedField = false) : HttpMessageHandler
+    private sealed class FixtureHandler(bool includeCustom = true, bool changedField = false,
+        bool globalChoiceWithEmptyLocal = false) : HttpMessageHandler
     {
         public List<Uri> Requests { get; } = [];
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -71,7 +72,10 @@ public sealed class Phase04DiscoveryTests
                        "IsValidForRead":true,"IsValidForCreate":true,"IsValidForUpdate":true,"SourceType":0},
                        {"LogicalName":"new_name","AttributeType":"String","IsValidForRead":true}]}
                     """,
-                var p when p.EndsWith("/Attributes(LogicalName='new_status')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata", StringComparison.Ordinal) => """
+                var p when p.EndsWith("/Attributes(LogicalName='new_status')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata", StringComparison.Ordinal) => globalChoiceWithEmptyLocal ? """
+                    {"OptionSet":{"Options":[]},"GlobalOptionSet":{"Options":[{"Value":100000000,
+                    "Label":{"LocalizedLabels":[{"LanguageCode":1033,"Label":"Enabled"}]}}]}}
+                    """ : """
                     {"OptionSet":{"Options":[{"Value":100000002,"Label":{
                       "LocalizedLabels":[{"LanguageCode":3082,"Label":"Embarcado"},
                       {"LanguageCode":1033,"Label":"Shipped"}]}}]}}
@@ -121,6 +125,19 @@ public sealed class Phase04DiscoveryTests
         Assert.Equal("Shipped", choice.Labels[1033]);
         Assert.Single(handler.Requests);
         Assert.Contains("/Attributes(LogicalName='new_status')/", handler.Requests[0].AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ChoiceLookupReadsGlobalOptionsEvenWhenLocalSetIsEmpty()
+    {
+        var handler = new FixtureHandler(globalChoiceWithEmptyLocal: true);
+        var reader = new DataverseMetadataDiscovery(new HttpClient(handler), new FakeTokens());
+        var choices = await reader.DiscoverChoicesAsync(
+            Organization, "new_shipments", "new_status", "Picklist", CancellationToken.None);
+        var choice = Assert.Single(choices);
+        Assert.Equal(100000000, choice.Value);
+        Assert.Equal("Enabled", choice.Labels[1033]);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]

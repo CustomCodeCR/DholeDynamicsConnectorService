@@ -298,7 +298,7 @@ public static class TemplateMapper
 
     private static bool IsResolvedPricingCurrency(
         IntegrationTemplate definition, TemplateMapping mapping, JsonElement current) =>
-        definition.EntityName == "quote" && definition.Operation == "create" &&
+        definition.EntityName == "quote" && definition.Operation is ("create" or "upsert") &&
         mapping.Source == "transactioncurrencyid" &&
         mapping.Target.StartsWith("transactioncurrencyid", StringComparison.OrdinalIgnoreCase) &&
         mapping.Target.EndsWith("@odata.bind", StringComparison.Ordinal) &&
@@ -307,7 +307,7 @@ public static class TemplateMapper
 
     private static bool IsOptionalPricingCustomerLookup(
         IntegrationTemplate definition, TemplateMapping mapping, TemplateStep step) =>
-        definition.EntityName=="quote" && definition.Operation=="create" &&
+        definition.EntityName=="quote" && definition.Operation is ("create" or "upsert") &&
         step.Op=="lookup_name" && step.Argument=="name" &&
         // msdyn_account is a supplemental lookup and may legitimately be
         // absent. The native quote customerid_account/contact is REQUIRED:

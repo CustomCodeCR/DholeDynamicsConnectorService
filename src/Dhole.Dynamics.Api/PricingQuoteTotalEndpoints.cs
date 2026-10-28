@@ -821,10 +821,14 @@ public static class PricingQuoteTotalEndpoints
                 var status = rejectedHeader.HttpStatus is >= 400 and < 500
                     ? rejectedHeader.HttpStatus.Value : 400;
                 var safeCode = SafeDataverseCode(rejectedHeader.Reference);
+                var textFailure = SafeDataverseTextFailure(rejectedHeader.Reference);
                 return ApiProblems.Create(http, status, "quote_header_dataverse_rejected",
                     "Dataverse rechazó la cabecera de la QUO (HTTP " + status +
                     "). No se intentó crear la línea de venta." +
-                    (safeCode is null ? "" : " Código Dataverse: " + safeCode));
+                    (safeCode is null ? "" : " Código Dataverse: " + safeCode) +
+                    (textFailure is null ? "" :
+                        ". Campo que excedió MaxLength: " + textFailure.Value.Field +
+                        " (máximo " + textFailure.Value.Max + " caracteres)."));
             }
             if (header is not WriteResult created || created.State != "succeeded")
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
@@ -946,11 +950,29 @@ public static class PricingQuoteTotalEndpoints
         const string prefix = "dataverse_code:";
         if (reference is null || !reference.StartsWith(prefix, StringComparison.Ordinal))
             return null;
-        var code = reference[prefix.Length..];
+        // A vetted optional suffix may carry the offending field and bound.
+        // Keep the legacy code-only shape unchanged for callers and ledgers.
+        var code = reference[prefix.Length..].Split(';', 2)[0];
         return code.Length is > 0 and <= 64 &&
             System.Text.RegularExpressions.Regex.IsMatch(code,
                 @"^(?:0x[0-9A-Fa-f]{1,16}|[A-Za-z][A-Za-z0-9_.-]{0,63})$")
             ? code : null;
+    }
+
+    private static (string Field, int Max)? SafeDataverseTextFailure(string? reference)
+    {
+        if (reference is null) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(reference,
+            @"^dataverse_code:0x80044331;field:([a-z][a-z0-9_]{0,79});max:([0-9]{1,7})$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        return match.Success &&
+            int.TryParse(match.Groups[2].Value,
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var max) &&
+            max is >= 1 and <= 1048576
+            ? (match.Groups[1].Value, max) : null;
     }
 
     internal static async Task<IResult> GrantQuoteTotal(

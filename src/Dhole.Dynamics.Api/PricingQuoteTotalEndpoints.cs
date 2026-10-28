@@ -441,11 +441,11 @@ public static class PricingQuoteTotalEndpoints
 
     // The fixed fields are required by the trusted Pricing payload. Keep
     // readiness and the one-time administrator grant in sync.
-    internal static string[] RequiredQuoteWriteFields() =>
+    public static string[] RequiredQuoteWriteFields() =>
         ["name", "description", "new_flete", QuoteResponseNotificationField,
          .. Enumerable.Range(1, 9).Select(n => "new_monto" + n)];
 
-    internal static string[] RequiredQuoteDetailCreateFields() =>
+    public static string[] RequiredQuoteDetailCreateFields() =>
         ["quoteid", "isproductoverridden", "ispriceoverridden",
          "productdescription", "quotedetailname", "quantity", "priceperunit"];
 

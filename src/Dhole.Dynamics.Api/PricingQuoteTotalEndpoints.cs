@@ -314,12 +314,13 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 connectionCode, "crear_oferta", ct, chargeQuota: false);
-            if (key.Operation != "create" || key.EntityName != "quote")
-                throw new ReadRejected(403, "quote_creation_key_required");
+            if (key.Operation is not ("create" or "upsert") || key.EntityName != "quote")
+                throw new ReadRejected(403, "quote_write_key_required");
             var allowed = ProductionQuoteRouteAllowed(gate);
             var grantStatus = allowed
                 ? await InspectQuoteGrantsAsync(
-                    key.Id, key.ConnectionId, connectionCode, templates, access, database, ct)
+                    key.Id, key.ConnectionId, connectionCode, key.Operation,
+                    templates, access, database, ct)
                 : new QuoteGrantStatus(false, ["production_writes_not_approved"]);
             var grantsReady = grantStatus.Ready;
             return Results.Ok(new
@@ -355,8 +356,9 @@ public static class PricingQuoteTotalEndpoints
     /// misleading opaque quote_grants_incomplete result.
     /// </summary>
     private static async Task<QuoteGrantStatus> InspectQuoteGrantsAsync(
-        Guid keyId, Guid connectionId, string code, TemplateRepository templates,
-        WriteAccessService access, NpgsqlDataSource database, CancellationToken ct)
+        Guid keyId, Guid connectionId, string code, string operation,
+        TemplateRepository templates, WriteAccessService access,
+        NpgsqlDataSource database, CancellationToken ct)
     {
         var missing = new HashSet<string>(StringComparer.Ordinal);
         WritePolicy? quote = null;
@@ -367,8 +369,8 @@ public static class PricingQuoteTotalEndpoints
         var definition = template?.History.FirstOrDefault(v =>
             v.Version == template.ActiveVersion)?.Definition;
         if (definition is null || definition.EntityName != "quote" ||
-            definition.Operation != "create")
-            missing.Add("crear_oferta.active_create_template");
+            definition.Operation != operation)
+            missing.Add("crear_oferta.active_template");
 
         var grants = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         await using (var db = await database.OpenConnectionAsync(ct))
@@ -400,13 +402,19 @@ public static class PricingQuoteTotalEndpoints
                 if (approved is null || !approved.Contains(field))
                     missing.Add(entity + "." + operation + ":" + field);
         }
-        Check("quote", "create",
+        Check("quote", operation,
             ["name", ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
         if (quote is not null)
             Check("quote", "read", [quote.Table.PrimaryIdAttribute]);
         Check("quotedetail", "create",
             ["quoteid", "isproductoverridden", "ispriceoverridden",
              "productdescription", "quotedetailname", "quantity", "priceperunit"]);
+        if (operation == "upsert")
+        {
+            Check("quotedetail", "read", ["quotedetailid", "quoteid", "quotedetailname"]);
+            Check("quotedetail", "update",
+                ["productdescription", "quotedetailname", "quantity", "priceperunit"]);
+        }
 
         if (definition is not null && quote is not null)
         {
@@ -477,8 +485,8 @@ public static class PricingQuoteTotalEndpoints
             var key = await keys.ValidateAndChargeAsync(
                 http.Request.Headers["X-Dhole-Api-Key"].ToString(),
                 request.ConnectionCode, "crear_oferta", ct, chargeQuota: false);
-            if (key.EntityName != "quote" || key.Operation != "create")
-                throw new ReadRejected(403, "quote_creation_key_required");
+            if (key.EntityName != "quote" || key.Operation is not ("create" or "upsert"))
+                throw new ReadRejected(403, "quote_write_key_required");
             var current = await templates.FindAsync(key.ConnectionId, "crear_oferta", ct);
             if (current?.ActiveVersion is not int version)
                 throw new ReadRejected(409, "crud_template_inactive");
@@ -486,7 +494,7 @@ public static class PricingQuoteTotalEndpoints
             [
                 new Claim("connector:issuer", TemplateApiKeyRepository.Issuer),
                 new Claim("client_id", key.ClientId),
-                new Claim("scope", "dynamics.records.create dynamics.records.read"),
+                new Claim("scope", "dynamics.records.create dynamics.records.upsert dynamics.records.read"),
                 new Claim("sub", key.Id.ToString("D"))
             ], "DholePricingKey"));
             // PreviewAsync applies the live metadata, the saved per-field
@@ -500,7 +508,7 @@ public static class PricingQuoteTotalEndpoints
             // Preview must enforce the same header write grant as the real
             // execution. A successful name lookup alone is not sufficient.
             var quotePolicy = await access.ResolveAsync(request.ConnectionCode, "quote", ct);
-            await access.PermitAsync(actor, quotePolicy, "create", preview.Fields, ct);
+            await access.PermitAsync(actor, quotePolicy, key.Operation, preview.Fields, ct);
             return Results.Ok(new
             {
                 valid = true,
@@ -630,7 +638,8 @@ public static class PricingQuoteTotalEndpoints
             // Never permit a provided IDTRA to become the Quote identity.
             var trustedInputs = new Dictionary<string, JsonElement>(request.Inputs,
                 StringComparer.Ordinal);
-            if (isUpsert)
+            if (isUpsert && definition.Inputs.Any(input =>
+                input.Name == key.KeyFields[0]))
                 trustedInputs[key.KeyFields[0]] = alternateKeys![key.KeyFields[0]];
 
             // Check the real tenant's MaxLength before any Quote POST. The

@@ -1515,19 +1515,6 @@ public static class PricingQuoteTotalEndpoints
     /// These trusted values override any caller/template-supplied amounts.
     /// Standard totalamount remains calculated from the quotedetail line.
     /// </summary>
-    // A Quote customer is a polymorphic Account/Contact relationship.
-    // Display names, supplemental msdyn_account and customeridtype are not
-    // substitutes for a bound, resolved customerid navigation property.
-    public static bool HasResolvedCustomer(
-        IReadOnlyDictionary<string, JsonElement> payload) =>
-        payload.Any(entry =>
-            (entry.Key.Equals("customerid_account@odata.bind",
-                StringComparison.OrdinalIgnoreCase) ||
-             entry.Key.Equals("customerid_contact@odata.bind",
-                StringComparison.OrdinalIgnoreCase)) &&
-            entry.Value.ValueKind == JsonValueKind.String &&
-            Guid.TryParse(entry.Value.GetString(), out var id) && id != Guid.Empty);
-
     public static IReadOnlyDictionary<string, JsonElement> WithExactQuoteAmounts(
         IReadOnlyDictionary<string, JsonElement> source,
         decimal totalSupplierCost, decimal totalSale)

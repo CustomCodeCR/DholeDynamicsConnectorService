@@ -61,7 +61,6 @@ public sealed class PricingQuoteTextLimitsTests
     }
 
     [Theory]
-    [InlineData("name", 45)]
     [InlineData("new_pol", 20)]
     [InlineData("new_poe", 20)]
     [InlineData("new_pod", 20)]
@@ -90,24 +89,41 @@ public sealed class PricingQuoteTextLimitsTests
         var name = new string('N', 120);
         var description = new string('D', 300);
         var definition = new IntegrationTemplate("quote", "create",
-            [new TemplateInput("name", "string"), new TemplateInput("description", "string")],
-            [new TemplateMapping("name", "name"),
+            [new TemplateInput("new_pol", "string"), new TemplateInput("description", "string")],
+            [new TemplateMapping("new_pol", "new_pol"),
              new TemplateMapping("description", "description")]);
         var input = new Dictionary<string, JsonElement>
         {
-            ["name"] = J(name), ["description"] = J(description)
+            ["new_pol"] = J(name), ["description"] = J(description)
         };
         var payload = new Dictionary<string, JsonElement>
         {
-            ["name"] = J(name), ["description"] = J(description)
+            ["new_pol"] = J(name), ["description"] = J(description)
         };
-        var bounds = new Dictionary<string, int> { ["name"] = 35, ["description"] = 80 };
+        var bounds = new Dictionary<string, int> { ["new_pol"] = 35, ["description"] = 80 };
         var prepared = PricingQuoteTextLimits.Prepare(definition, input, payload, bounds);
-        Assert.True(prepared["name"].GetString()!.Length <= 35);
+        Assert.True(prepared["new_pol"].GetString()!.Length <= 35);
         Assert.True(prepared["description"].GetString()!.Length <= 80);
         Assert.Contains("Detalle completo en Dhole", prepared["description"].GetString());
-        Assert.Equal(name, input["name"].GetString());
+        Assert.Equal(name, input["new_pol"].GetString());
         Assert.Equal(description, input["description"].GetString());
+    }
+
+    [Fact]
+    public void CompleteQuoteNameCannotBeSilentlyTruncated()
+    {
+        const string title =
+            "QUO-00000-000233 - Tarifa 1 x 40 High Cube - FOB - Qingdao, China To San Jose, Costa Rica Via Caldera - EL REINADO DE LAS LLANTAS";
+        var definition = new IntegrationTemplate("quote", "create",
+            [new TemplateInput("name", "string")],
+            [new TemplateMapping("name", "name")]);
+        var values = new Dictionary<string, JsonElement> { ["name"] = J(title) };
+        var bounds = new Dictionary<string, int> { ["name"] = 80 };
+        var error = Assert.Throws<ReadRejected>(() =>
+            PricingQuoteTextLimits.Prepare(definition, values, values, bounds));
+        Assert.Equal("quote_text_exceeds_dataverse_limit", error.Code);
+        Assert.Equal("name", error.LookupInput);
+        Assert.Equal(title, values["name"].GetString());
     }
 
     [Fact]

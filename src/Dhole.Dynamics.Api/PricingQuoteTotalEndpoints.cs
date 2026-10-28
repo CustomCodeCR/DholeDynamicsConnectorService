@@ -732,10 +732,25 @@ public static class PricingQuoteTotalEndpoints
                 await access.PermitAsync(actor, detail, "create", compiled.Fields, ct);
             }
 
-            // The prefix is common but the suffix is different for the two
-            // separate WriteLedger entries (header and sales line).
+            // Preflight quote-detail read/update grants BEFORE touching the
+            // header so unauthorized updates fail without partial changes.
+            if (isUpsert)
+            {
+                var detailRead = await readAccess.ResolveAsync(
+                    request.ConnectionCode, "quotedetail", ct);
+                await readAccess.PermitAsync(actor, detailRead,
+                    ["quotedetailid", "quotedetailname", "quoteid"], ct);
+                var updateCompiled = await WriteValueCompiler.CompileAsync(detail,
+                    BuildLineUpdate(request.TotalSaleAmount), (rel, id, token) =>
+                        access.EnsureLookupAsync(actor, detail, rel, id, token), ct);
+                await access.PermitAsync(actor, detail, "update", updateCompiled.Fields, ct);
+                var quoteRead = await readAccess.ResolveAsync(
+                    request.ConnectionCode, "quote", ct);
+                await readAccess.PermitAsync(actor, quoteRead,
+                    [quote.Table.PrimaryIdAttribute, key.KeyFields[0]], ct);
+            }
             var header = await templatesWriter.ExecuteAsync(actor, "crear_oferta",
-                new TemplateInputs(request.ConnectionCode, safeInputs),
+                new TemplateInputs(request.ConnectionCode, safeInputs, Keys: alternateKeys),
                 rawKey + "-header", ct, omitMissingQuoteCustomer: true,
                 trustedPricingSupplierCost: supplierCost, omitPricingQuoteTerms: true,
                 trustedPricingTotalSale: request.TotalSaleAmount);
@@ -752,12 +767,57 @@ public static class PricingQuoteTotalEndpoints
                     "). No se intentó crear la línea de venta." +
                     (safeCode is null ? "" : " Código Dataverse: " + safeCode));
             }
-            if (header is not WriteResult created || created.State != "succeeded" ||
-                created.RecordId is not Guid quoteId || quoteId == Guid.Empty)
+            if (header is not WriteResult created || created.State != "succeeded")
                 return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
                     null, null, "quote", false), statusCode: 409);
+            Guid quoteId;
+            if (created.RecordId is Guid returned && returned != Guid.Empty)
+                quoteId = returned;
+            else if (isUpsert)
+            {
+                // Dataverse PATCH can succeed without returning quoteid.
+                // Only a read against the registered alternate key can
+                // resolve it; a second header write is never issued.
+                var resolved = await reader.ByKeyAsync(actor, request.ConnectionCode,
+                    "quote", alternateKeys!, [quote.Table.PrimaryIdAttribute], ct);
+                if (!resolved.Item.TryGetProperty(quote.Table.PrimaryIdAttribute, out var id) ||
+                    id.ValueKind != JsonValueKind.String ||
+                    !Guid.TryParse(id.GetString(), out quoteId) || quoteId == Guid.Empty)
+                    throw new ReadRejected(409, "quote_upsert_id_unresolved");
+            }
+            else
+                return Results.Json(new PricingQuoteTotalResponse("requires_reconciliation",
+                    null, null, "quote", created.Replay), statusCode: 409);
 
             quoteConfirmedCreated = true;
+            if (isUpsert)
+            {
+                var existing = await transport.ReadQuoteDetailsAsync(detail, quoteId, ct);
+                if (existing.Count > 1 ||
+                    existing.Count == 1 &&
+                    existing[0].Name != "Total venta de tarifa Dhole")
+                    throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
+                var values = existing.Count == 0
+                    ? BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId,
+                        relation.ReferencingNavigation!)
+                    : BuildLineUpdate(request.TotalSaleAmount);
+                var line = existing.Count == 0
+                    ? await writer.CreateWithResolvedMetadataAsync(actor, detail,
+                        new GenericCreateRequest(request.ConnectionCode, values),
+                        rawKey + "-total", ct)
+                    : await writer.PatchAsync(actor, "quotedetail", existing[0].RecordId,
+                        new GenericPatchRequest(request.ConnectionCode, values),
+                        rawKey + "-total-update", existing[0].ETag, ct);
+                var lineId = line.RecordId ?? (existing.Count == 1
+                    ? existing[0].RecordId : Guid.Empty);
+                if (line.State != "succeeded" || lineId == Guid.Empty)
+                    return Results.Json(new PricingQuoteTotalResponse(
+                        "requires_reconciliation", quoteId, null, "total",
+                        created.Replay), statusCode: 409);
+                return Results.Ok(new PricingQuoteTotalResponse(
+                    "succeeded", quoteId, lineId, "completed",
+                    created.Replay && line.Replay, [lineId]));
+            }
             // A separate ledger key per detail ensures replays cannot create
             // duplicated lines. No caller may pass arbitrary quotedetail fields.
             var lineIds = new List<Guid>();
@@ -1306,6 +1366,21 @@ public static class PricingQuoteTotalEndpoints
 
     // The connector owns both the target field set and the resolved relationship.
     // Dataverse calculates totalamount; never accept it as a direct write.
+    // The legacy Pricing sales line is managed automatically; an existing
+    // line only updates its commercial values, never its parent relationship.
+    public static Dictionary<string, JsonElement> BuildLineUpdate(decimal totalSale)
+    {
+        if (totalSale < 0 || totalSale > 999999999999m)
+            throw new ArgumentOutOfRangeException(nameof(totalSale));
+        return new(StringComparer.Ordinal)
+        {
+            ["productdescription"] = JsonSerializer.SerializeToElement("Tarifa logística Dhole"),
+            ["quotedetailname"] = JsonSerializer.SerializeToElement("Total venta de tarifa Dhole"),
+            ["quantity"] = JsonSerializer.SerializeToElement(1m),
+            ["priceperunit"] = JsonSerializer.SerializeToElement(totalSale)
+        };
+    }
+
     public static Dictionary<string, JsonElement> BuildItemizedLine(
         PricingQuoteLine line, Guid quoteId, string relationship = "quoteid")
     {

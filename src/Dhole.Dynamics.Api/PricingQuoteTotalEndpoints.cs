@@ -328,7 +328,7 @@ public static class PricingQuoteTotalEndpoints
             var grantStatus = allowed
                 ? await InspectQuoteGrantsAsync(
                     key.Id, key.ConnectionId, connectionCode, key.Operation,
-                    templates, access, database, ct)
+                    key.KeyFields, templates, access, database, ct)
                 : new QuoteGrantStatus(false, ["production_writes_not_approved"]);
             var grantsReady = grantStatus.Ready;
             return Results.Ok(new
@@ -365,6 +365,7 @@ public static class PricingQuoteTotalEndpoints
     /// </summary>
     private static async Task<QuoteGrantStatus> InspectQuoteGrantsAsync(
         Guid keyId, Guid connectionId, string code, string operation,
+        IReadOnlyList<string> rateKeyFields,
         TemplateRepository templates, WriteAccessService access,
         NpgsqlDataSource database, CancellationToken ct)
     {
@@ -413,7 +414,13 @@ public static class PricingQuoteTotalEndpoints
         Check("quote", operation,
             ["name", ..Enumerable.Range(1,9).Select(n => "new_monto" + n)]);
         if (quote is not null)
-            Check("quote", "read", [quote.Table.PrimaryIdAttribute]);
+            Check("quote", "read", operation == "upsert"
+                ? [quote.Table.PrimaryIdAttribute, ..rateKeyFields]
+                : [quote.Table.PrimaryIdAttribute]);
+        if (operation == "upsert" &&
+            (rateKeyFields.Count != 1 ||
+             rateKeyFields[0] is not ("cr933_dholerateid" or "new_idtraasignado")))
+            missing.Add("crear_oferta.rate_alternate_key");
         Check("quotedetail", "create",
             ["quoteid", "isproductoverridden", "ispriceoverridden",
              "productdescription", "quotedetailname", "quantity", "priceperunit"]);

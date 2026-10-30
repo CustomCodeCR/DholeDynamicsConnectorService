@@ -92,6 +92,32 @@ public static class PricingQuoteTotalEndpoints
         return await cmd.ExecuteScalarAsync(ct) is true;
     }
 
+    private static async Task<bool> IsExistingDholeLineAsync(
+        NpgsqlDataSource source, Guid connectionId, Guid rateId,
+        Guid lineId, CancellationToken ct)
+    {
+        if (connectionId == Guid.Empty || rateId == Guid.Empty || lineId == Guid.Empty)
+            return false;
+        await using var db = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM dynamics.write_operations
+                WHERE connection_id=@connection AND issuer=@issuer
+                  AND entity_name='quotedetail' AND status='succeeded'
+                  AND record_id=@lineId
+                  AND idempotency_key LIKE @ratePrefix
+                  AND (idempotency_key LIKE '%-total'
+                    OR idempotency_key LIKE '%-total-update')
+            )
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connectionId);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("lineId", lineId);
+        cmd.Parameters.AddWithValue("ratePrefix",
+            "dhole-pricing-quote-" + rateId.ToString("N") + "-v%");
+        return await cmd.ExecuteScalarAsync(ct) is true;
+    }
+
     public static IEndpointRouteBuilder MapPricingQuoteTotalEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
@@ -1132,16 +1158,30 @@ public static class PricingQuoteTotalEndpoints
                 if (existing.Count == 1 &&
                     existing[0].Name != "Total venta de tarifa Dhole")
                 {
-                    if (!request.AdoptSingleUnmanagedLine)
-                        throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
-                    var lineWasReserved = await HasCurrentRevisionLineWriteAsync(
+                    // Dynamics can rename the quotedetail after a successful
+                    // managed write. Its immutable ledger record ID, not its
+                    // display name, determines ownership of the single line.
+                    var managed = await IsExistingDholeLineAsync(
                         http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
-                        key.ConnectionId, rawKey, ct);
-                    if (!CanAdoptSingleUnmanagedLine(
-                        request.AdoptSingleUnmanagedLine, isUpsert, created.Replay,
-                        foundByKey && existingQuoteId == quoteId,
-                        existing.Count, lineWasReserved))
-                        throw new ReadRejected(409, "quote_line_adoption_not_safe");
+                        key.ConnectionId, request.DholeRateId, existing[0].RecordId, ct);
+                    if (managed)
+                    {
+                        if (request.AdoptSingleUnmanagedLine)
+                            throw new ReadRejected(409, "quote_line_already_managed");
+                    }
+                    else
+                    {
+                        if (!request.AdoptSingleUnmanagedLine)
+                            throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
+                        var lineWasReserved = await HasCurrentRevisionLineWriteAsync(
+                            http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                            key.ConnectionId, rawKey, ct);
+                        if (!CanAdoptSingleUnmanagedLine(
+                            request.AdoptSingleUnmanagedLine, isUpsert, created.Replay,
+                            foundByKey && existingQuoteId == quoteId,
+                            existing.Count, lineWasReserved))
+                            throw new ReadRejected(409, "quote_line_adoption_not_safe");
+                    }
                 }
                 else if (request.AdoptSingleUnmanagedLine)
                     throw new ReadRejected(409, "quote_line_adoption_target_changed");

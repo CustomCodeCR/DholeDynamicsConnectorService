@@ -192,22 +192,38 @@ public static class PricingQuoteTotalEndpoints
             // Read the unique line of this already confirmed Quote instead
             // of interpreting the absent response ID as an unsent write.
             var liveConfirmed = false;
+            var existingSaleMatches = false;
+            Guid? existingLineId = null;
             var liveStatus = "not_verified";
-            if (headerOk && totalWritten && expectedSaleAmount is decimal expected)
+            if (headerOk && expectedSaleAmount is decimal expected)
             {
                 try
                 {
                     var detail = await access.ResolveAsync(connectionCode, "quotedetail", ct);
                     var lines = await transport.ReadQuoteDetailsAsync(
                         detail, header.RecordId!.Value, ct);
-                    if (detailKey == suffixes[2] &&
-                        verifiedLineId is null && lines.Count == 1 &&
-                        DataverseWriteTransport.MatchesPricingSale(
-                            lines, lines[0].RecordId, expected))
-                        verifiedLineId = lines[0].RecordId;
-                    liveConfirmed = verifiedLineId is Guid id &&
-                        DataverseWriteTransport.MatchesPricingSale(lines, id, expected);
+                    if (totalWritten)
+                    {
+                        if (detailKey == suffixes[2] &&
+                            verifiedLineId is null && lines.Count == 1 &&
+                            DataverseWriteTransport.MatchesPricingSale(
+                                lines, lines[0].RecordId, expected))
+                            verifiedLineId = lines[0].RecordId;
+                        liveConfirmed = verifiedLineId is Guid id &&
+                            DataverseWriteTransport.MatchesPricingSale(lines, id, expected);
+                    }
+                    else if (key.Operation == "upsert" &&
+                        !status.ContainsKey(suffixes[1]) &&
+                        !status.ContainsKey(suffixes[2]) && lines.Count == 1)
+                    {
+                        // The exact existing Quote already contains the desired
+                        // sale. An administrator may reconcile WITHOUT writing.
+                        existingSaleMatches = DataverseWriteTransport.MatchesPricingSale(
+                            lines, lines[0].RecordId, expected);
+                        if (existingSaleMatches) existingLineId = lines[0].RecordId;
+                    }
                     liveStatus = liveConfirmed ? "sale_verified" :
+                        existingSaleMatches ? "existing_sale_verified" :
                         lines.Count == 1 ? "sale_or_identity_mismatch" :
                         "line_count_mismatch";
                 }
@@ -221,7 +237,7 @@ public static class PricingQuoteTotalEndpoints
             return Results.Ok(new
             {
                 confirmed = headerOk && totalWritten && liveConfirmed,
-                liveConfirmed, liveStatus,
+                liveConfirmed, liveStatus, existingSaleMatches, existingLineId,
                 headerStatus = status.TryGetValue(suffixes[0], out var hs)
                     ? hs.State : "not_sent",
                 totalStatus = status.TryGetValue(detailKey, out var ts)

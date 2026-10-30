@@ -357,6 +357,31 @@ public sealed class PricingQuoteTotalTests
 
 
     [Fact]
+    public void ConfirmedQuoteLineUsesActualIdAndCommercialAmountNotDisplayName()
+    {
+        var id = Guid.NewGuid();
+        var legacyNamed = new DataverseWriteTransport.QuoteDetailSnapshot(
+            id, "Renamed by Dataverse", "W/\\\"1\\\"", 1m, 10495m);
+        Assert.True(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed], id, 10495m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed], Guid.NewGuid(), 10495m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed], id, 2067.56m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed, legacyNamed], id, 10495m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [], id, 10495m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed with { Quantity = null }], id, 10495m));
+        Assert.False(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed with { PricePerUnit = null }], id, 10495m));
+        Assert.True(DataverseWriteTransport.MatchesPricingSale(
+            [legacyNamed with { Quantity = 2m, PricePerUnit = 5247.50m }],
+            id, 10495m));
+    }
+
+    [Fact]
     public void ExistingQuoteLineUpdateKeepsOneTotalAndNeverRebindsParent()
     {
         const decimal newSale = 2750.25m;

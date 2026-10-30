@@ -926,6 +926,7 @@ public static class PricingQuoteTotalEndpoints
                     [quote.Table.PrimaryIdAttribute, key.KeyFields[0]], ct);
             }
             var foundByKey = false;
+            Guid? existingQuoteId = null;
             if (isUpsert)
             {
                 // A historical CREATE quote may not have the RateId alternate
@@ -941,6 +942,8 @@ public static class PricingQuoteTotalEndpoints
                         known.ValueKind == JsonValueKind.String &&
                         Guid.TryParse(known.GetString(), out var resolved) &&
                         resolved != Guid.Empty;
+                    if (foundByKey)
+                        existingQuoteId = Guid.Parse(known.GetString()!);
                 }
                 catch (ReadRejected ex) when (ex.Status == 404) { }
                 if (!foundByKey && await HasLegacyCreatedQuoteAsync(
@@ -1001,6 +1004,11 @@ public static class PricingQuoteTotalEndpoints
                     null, null, "quote", created.Replay), statusCode: 409);
 
             quoteConfirmedCreated = true;
+            // A replayed successful UPSERT must still resolve to the SAME
+            // live Quote via the registered RateId alternate key. If that link
+            // changed or disappeared, never attach a sale line to a stale ID.
+            if (isUpsert && created.Replay && existingQuoteId != quoteId)
+                throw new ReadRejected(409, "quote_upsert_replay_link_mismatch");
             if (isUpsert)
             {
                 var existing = await transport.ReadQuoteDetailsAsync(detail, quoteId, ct);

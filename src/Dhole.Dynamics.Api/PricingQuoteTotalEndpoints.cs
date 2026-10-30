@@ -49,7 +49,8 @@ public static class PricingQuoteTotalEndpoints
         IReadOnlyDictionary<string, JsonElement> Inputs,
         decimal? TotalCostAmount = null,
         string? CurrencyCode = null, Guid? CurrencyId = null,
-        IReadOnlyList<PricingQuoteLine>? Lines = null);
+        IReadOnlyList<PricingQuoteLine>? Lines = null,
+        bool AdoptSingleUnmanagedLine = false);
 
     public sealed record PricingQuoteTotalResponse(
         string State, Guid? RecordId, Guid? LineRecordId,
@@ -63,6 +64,33 @@ public static class PricingQuoteTotalEndpoints
         bool totalUpdateWasReserved) =>
         operation == "upsert" && headerSucceeded &&
         !totalWasReserved && !totalUpdateWasReserved;
+
+    public static bool CanAdoptSingleUnmanagedLine(
+        bool administratorApproved, bool isUpsert, bool headerReplayed,
+        bool rateLinkVerified, int existingLineCount, bool lineWriteWasReserved) =>
+        administratorApproved && isUpsert && headerReplayed && rateLinkVerified &&
+        existingLineCount == 1 && !lineWriteWasReserved;
+
+    // Check across integration clients (API key rotations included), not just
+    // the current key. An unknown reserved/ambiguous total write is never safe
+    // to replay as a new line or an adoption.
+    private static async Task<bool> HasCurrentRevisionLineWriteAsync(
+        NpgsqlDataSource source, Guid connectionId, string key, CancellationToken ct)
+    {
+        await using var db = await source.OpenConnectionAsync(ct);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM dynamics.write_operations
+                WHERE connection_id=@connection AND issuer=@issuer
+                  AND idempotency_key = ANY(@keys)
+            )
+            """, db);
+        cmd.Parameters.AddWithValue("connection", connectionId);
+        cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
+        cmd.Parameters.AddWithValue("keys", new[] {
+            key + "-total", key + "-total-update" });
+        return await cmd.ExecuteScalarAsync(ct) is true;
+    }
 
     public static IEndpointRouteBuilder MapPricingQuoteTotalEndpoints(this IEndpointRouteBuilder app)
     {
@@ -726,6 +754,8 @@ public static class PricingQuoteTotalEndpoints
                 throw new ReadRejected(403, "quote_write_key_required");
             if (itemized && key.Operation != "create")
                 throw new ReadRejected(403, "itemized_quote_requires_create");
+            if (request.AdoptSingleUnmanagedLine && (itemized || key.Operation != "upsert"))
+                throw new ReadRejected(403, "quote_line_adoption_requires_upsert");
             var isUpsert = key.Operation == "upsert";
             if (isUpsert && (key.KeyFields.Count != 1 ||
                 key.KeyFields[0] is not ("cr933_dholerateid" or "new_idtraasignado")))
@@ -1012,10 +1042,28 @@ public static class PricingQuoteTotalEndpoints
             if (isUpsert)
             {
                 var existing = await transport.ReadQuoteDetailsAsync(detail, quoteId, ct);
-                if (existing.Count > 1 ||
-                    existing.Count == 1 &&
+                // Never modify an unrelated/manual sales line through a normal
+                // revision replay. An administrator can explicitly adopt ONLY
+                // the single line of the already-linked Quote after reviewing it.
+                // ETag, one-line cardinality and idempotency still apply.
+                if (existing.Count > 1)
+                    throw new ReadRejected(409, "quote_line_multiple_requires_reconciliation");
+                if (existing.Count == 1 &&
                     existing[0].Name != "Total venta de tarifa Dhole")
-                    throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
+                {
+                    if (!request.AdoptSingleUnmanagedLine)
+                        throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
+                    var lineWasReserved = await HasCurrentRevisionLineWriteAsync(
+                        http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                        key.ConnectionId, rawKey, ct);
+                    if (!CanAdoptSingleUnmanagedLine(
+                        request.AdoptSingleUnmanagedLine, isUpsert, created.Replay,
+                        foundByKey && existingQuoteId == quoteId,
+                        existing.Count, lineWasReserved))
+                        throw new ReadRejected(409, "quote_line_adoption_not_safe");
+                }
+                else if (request.AdoptSingleUnmanagedLine)
+                    throw new ReadRejected(409, "quote_line_adoption_target_changed");
                 var values = existing.Count == 0
                     ? BuildLine(request.DholeRateId, request.TotalSaleAmount, quoteId,
                         relation.ReferencingNavigation!)

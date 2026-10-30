@@ -55,6 +55,15 @@ public static class PricingQuoteTotalEndpoints
         string State, Guid? RecordId, Guid? LineRecordId,
         string Stage, bool Replay, IReadOnlyList<Guid>? LineRecordIds = null);
 
+    // A header-only replay is safe ONLY for UPSERT. CREATE can produce a second
+    // Quote or quotedetail if the original operation has an unknown outcome.
+    // The same key/revision is replayed; no recovery generation is allocated.
+    public static bool CanResumeHeaderOnlyUpsert(
+        string operation, bool headerSucceeded, bool totalWasReserved,
+        bool totalUpdateWasReserved) =>
+        operation == "upsert" && headerSucceeded &&
+        !totalWasReserved && !totalUpdateWasReserved;
+
     public static IEndpointRouteBuilder MapPricingQuoteTotalEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/keyed/templates/crear_oferta/execute-with-total", Execute)
@@ -154,6 +163,9 @@ public static class PricingQuoteTotalEndpoints
                     ? ts.State : "not_sent",
                 quoteId = headerOk ? header.RecordId : null,
                 lineId = totalOk ? total.RecordId : null,
+                partialResumeSafe = CanResumeHeaderOnlyUpsert(
+                    key.Operation, headerOk, status.ContainsKey(suffixes[1]),
+                    status.ContainsKey(suffixes[2])),
                 noPostExecuted = true
             });
         }
@@ -1058,7 +1070,8 @@ public static class PricingQuoteTotalEndpoints
             // remediation must resume the total line with the SAME keys.
             return quoteConfirmedCreated
                 ? ApiProblems.Create(http, 409, "quote_total_partial_requires_reconciliation",
-                    "Quote header created; total line was not confirmed. Check idempotency ledger.")
+                    "Quote header created; total line was not confirmed. Check idempotency ledger. " +
+                    "Failure before quote line confirmation: " + ex.Code + ".")
                 : ApiProblems.Create(http, ex.Status, ex.Code,
                     "Pricing quote creation rejected by Dataverse connector policy.",
                     ex.LookupInput, ex.LookupSearchField);

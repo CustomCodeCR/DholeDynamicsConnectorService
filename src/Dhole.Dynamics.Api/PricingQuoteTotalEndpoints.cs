@@ -133,10 +133,15 @@ public static class PricingQuoteTotalEndpoints
     private static async Task<IResult> GetPricingWriteResult(
         string connectionCode, Guid dholeRateId, int revisionNumber,
         TemplateApiKeyRepository keys, NpgsqlDataSource database,
+        WriteAccessService access, DataverseWriteTransport transport,
+        decimal? expectedSaleAmount,
         HttpContext http, CancellationToken ct)
     {
         try
         {
+            if (expectedSaleAmount is decimal sale &&
+                (sale < 0 || sale > 999999999999m))
+                throw new ReadRejected(400, "quote_result_sale_invalid");
             if (connectionCode != "principal" || dholeRateId == Guid.Empty ||
                 revisionNumber is < 1 or > 999999999)
                 throw new ReadRejected(400, "quote_result_query_invalid");
@@ -182,9 +187,36 @@ public static class PricingQuoteTotalEndpoints
             var detailKey = status.ContainsKey(suffixes[2]) ? suffixes[2] : suffixes[1];
             var totalOk = status.TryGetValue(detailKey, out var total) &&
                 total.State == "succeeded" && total.RecordId is Guid t && t != Guid.Empty;
+            // A durable succeeded ledger entry proves dispatch, not the live
+            // quote amount. Re-read the exact related quotedetail, including
+            // quantity and unit price, before Pricing can mark the job complete.
+            // A failed read remains UNKNOWN, never proof of absence or success.
+            var liveConfirmed = false;
+            var liveStatus = "not_verified";
+            if (headerOk && totalOk && expectedSaleAmount is decimal expected)
+            {
+                try
+                {
+                    var detail = await access.ResolveAsync(connectionCode, "quotedetail", ct);
+                    var lines = await transport.ReadQuoteDetailsAsync(
+                        detail, header.RecordId!.Value, ct);
+                    liveConfirmed = DataverseWriteTransport.MatchesPricingSale(
+                        lines, total.RecordId!.Value, expected);
+                    liveStatus = liveConfirmed ? "sale_verified" :
+                        lines.Count == 1 ? "sale_or_identity_mismatch" :
+                        "line_count_mismatch";
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) when (ex is ReadRejected or HttpRequestException
+                    or TaskCanceledException or JsonException)
+                {
+                    liveStatus = "verification_unavailable";
+                }
+            }
             return Results.Ok(new
             {
-                confirmed = headerOk && totalOk,
+                confirmed = headerOk && totalOk && liveConfirmed,
+                liveConfirmed, liveStatus,
                 headerStatus = status.TryGetValue(suffixes[0], out var hs)
                     ? hs.State : "not_sent",
                 totalStatus = status.TryGetValue(detailKey, out var ts)
@@ -1085,9 +1117,8 @@ public static class PricingQuoteTotalEndpoints
                 // line was added concurrently: the Quote total would differ.
                 // Confirm the single managed line still belongs to this Quote.
                 var confirmedLines = await transport.ReadQuoteDetailsAsync(detail, quoteId, ct);
-                if (confirmedLines.Count != 1 ||
-                    confirmedLines[0].RecordId != lineId ||
-                    confirmedLines[0].Name != "Total venta de tarifa Dhole")
+                if (!DataverseWriteTransport.MatchesPricingSale(
+                    confirmedLines, lineId, request.TotalSaleAmount))
                     throw new ReadRejected(409, "quote_line_postwrite_verification_failed");
                 return Results.Ok(new PricingQuoteTotalResponse(
                     "succeeded", quoteId, lineId, "completed",

@@ -176,8 +176,21 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         req.Headers.TryAddWithoutValidation("OData-Version", "4.0");
         using var response = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)
-            throw new ReadRejected((int)response.StatusCode == 429 ? 429 : 502,
-                "quote_detail_lookup_failed");
+        {
+            // This GET occurs after a confirmed Quote header. Preserve a safe
+            // HTTP-specific diagnostic so operators can distinguish missing
+            // Dataverse read permissions from throttling/availability.
+            var reason = response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "quote_detail_read_unauthorized",
+                HttpStatusCode.Forbidden => "quote_detail_read_forbidden",
+                HttpStatusCode.NotFound => "quote_detail_lookup_not_found",
+                HttpStatusCode.TooManyRequests => "quote_detail_lookup_rate_limited",
+                _ => "quote_detail_lookup_failed"
+            };
+            throw new ReadRejected(response.StatusCode == HttpStatusCode.TooManyRequests
+                ? 429 : 502, reason);
+        }
         await response.Content.LoadIntoBufferAsync(128 * 1024, ct);
         using var doc = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync(ct));

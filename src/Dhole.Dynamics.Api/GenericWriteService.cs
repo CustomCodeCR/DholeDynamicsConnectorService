@@ -53,7 +53,7 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
         await access.PermitAsync(actor, policy, "update", body.Fields, ct);
         return await DispatchAsync(actor, policy, "update", key, [
             new WriteCommand("update", policy, ById(policy, id), body.Payload, IfMatch: etag)
-        ], ct);
+        ], ct, existingRecordId: id);
     }
 
     public async Task<WriteResult> DeleteAsync(ClaimsPrincipal actor, string entity, Guid id,
@@ -158,7 +158,7 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
 
     private async Task<WriteResult> DispatchAsync(ClaimsPrincipal actor, WritePolicy policy,
         string operation, string key, IReadOnlyList<WriteCommand> commands, CancellationToken ct,
-        string? confirmation = null)
+        string? confirmation = null, Guid? existingRecordId = null)
     {
         var issuer = actor.FindFirst("connector:issuer")?.Value ??
             throw new ReadRejected(403, "client_issuer_missing");
@@ -201,8 +201,15 @@ public sealed class GenericWriteService(WriteAccessService access, WriteLedger l
         }
         var state = outcome.Ambiguous || outcome.HttpStatus >= 500
             ? "ambiguous" : outcome.HttpStatus is >= 200 and < 300 ? "succeeded" : "rejected";
+        // PATCH returns HTTP 204 without an EntityId header in Dataverse.
+        // The target GUID is already verified and fixed in the PATCH route.
+        // Persist it on success so future read-only reconciliation can prove
+        // which existing line was updated, without another Dataverse write.
+        var recordId = state == "succeeded" && operation == "update" &&
+            existingRecordId is Guid target && target != Guid.Empty
+            ? target : outcome.RecordId;
         return await ledger.CompleteAsync(reservation.Id, policy.Connection.Id, client,
-            state, outcome.HttpStatus, outcome.RecordId, outcome.ETag,
+            state, outcome.HttpStatus, recordId, outcome.ETag,
             outcome.Reference, CancellationToken.None, outcome.RetryAfterSeconds);
     }
 

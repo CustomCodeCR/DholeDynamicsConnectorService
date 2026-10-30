@@ -185,23 +185,28 @@ public static class PricingQuoteTotalEndpoints
             var headerOk = status.TryGetValue(suffixes[0], out var header) &&
                 header.State == "succeeded" && header.RecordId is Guid h && h != Guid.Empty;
             var detailKey = status.ContainsKey(suffixes[2]) ? suffixes[2] : suffixes[1];
-            var totalOk = status.TryGetValue(detailKey, out var total) &&
-                total.State == "succeeded" && total.RecordId is Guid t && t != Guid.Empty;
-            // A durable succeeded ledger entry proves dispatch, not the live
-            // quote amount. Re-read the exact related quotedetail, including
-            // quantity and unit price, before Pricing can mark the job complete.
-            // A failed read remains UNKNOWN, never proof of absence or success.
+            var totalWritten = status.TryGetValue(detailKey, out var total) &&
+                total.State == "succeeded";
+            Guid? verifiedLineId = totalWritten ? total.RecordId : null;
+            // A 204 PATCH can succeed without returning a quotedetail GUID.
+            // Read the unique line of this already confirmed Quote instead
+            // of interpreting the absent response ID as an unsent write.
             var liveConfirmed = false;
             var liveStatus = "not_verified";
-            if (headerOk && totalOk && expectedSaleAmount is decimal expected)
+            if (headerOk && totalWritten && expectedSaleAmount is decimal expected)
             {
                 try
                 {
                     var detail = await access.ResolveAsync(connectionCode, "quotedetail", ct);
                     var lines = await transport.ReadQuoteDetailsAsync(
                         detail, header.RecordId!.Value, ct);
-                    liveConfirmed = DataverseWriteTransport.MatchesPricingSale(
-                        lines, total.RecordId!.Value, expected);
+                    if (detailKey == suffixes[2] &&
+                        verifiedLineId is null && lines.Count == 1 &&
+                        DataverseWriteTransport.MatchesPricingSale(
+                            lines, lines[0].RecordId, expected))
+                        verifiedLineId = lines[0].RecordId;
+                    liveConfirmed = verifiedLineId is Guid id &&
+                        DataverseWriteTransport.MatchesPricingSale(lines, id, expected);
                     liveStatus = liveConfirmed ? "sale_verified" :
                         lines.Count == 1 ? "sale_or_identity_mismatch" :
                         "line_count_mismatch";
@@ -215,14 +220,14 @@ public static class PricingQuoteTotalEndpoints
             }
             return Results.Ok(new
             {
-                confirmed = headerOk && totalOk && liveConfirmed,
+                confirmed = headerOk && totalWritten && liveConfirmed,
                 liveConfirmed, liveStatus,
                 headerStatus = status.TryGetValue(suffixes[0], out var hs)
                     ? hs.State : "not_sent",
                 totalStatus = status.TryGetValue(detailKey, out var ts)
                     ? ts.State : "not_sent",
                 quoteId = headerOk ? header.RecordId : null,
-                lineId = totalOk ? total.RecordId : null,
+                lineId = liveConfirmed ? verifiedLineId : null,
                 partialResumeSafe = CanResumeHeaderOnlyUpsert(
                     key.Operation, headerOk, status.ContainsKey(suffixes[1]),
                     status.ContainsKey(suffixes[2])),

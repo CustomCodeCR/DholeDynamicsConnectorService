@@ -8,6 +8,23 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Theory]
+    [InlineData(true, true, true, true, 1, false, true)]
+    [InlineData(false, true, true, true, 1, false, false)]
+    [InlineData(true, false, true, true, 1, false, false)]
+    [InlineData(true, true, false, true, 1, false, false)]
+    [InlineData(true, true, true, false, 1, false, false)]
+    [InlineData(true, true, true, true, 0, false, false)]
+    [InlineData(true, true, true, true, 2, false, false)]
+    [InlineData(true, true, true, true, 1, true, false)]
+    public void UnmanagedLineCanOnlyBeAdoptedWithExplicitApprovalAndNoExistingWrite(
+        bool approved, bool upsert, bool replay, bool linked,
+        int existingLineCount, bool reserved, bool expected)
+    {
+        Assert.Equal(expected, PricingQuoteTotalEndpoints.CanAdoptSingleUnmanagedLine(
+            approved, upsert, replay, linked, existingLineCount, reserved));
+    }
+
+    [Theory]
     [InlineData("upsert", true, false, false, true)]
     [InlineData("upsert", false, false, false, false)]
     [InlineData("upsert", true, true, false, false)]

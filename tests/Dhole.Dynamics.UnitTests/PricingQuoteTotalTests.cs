@@ -7,6 +7,21 @@ namespace Dhole.Dynamics.UnitTests;
 
 public sealed class PricingQuoteTotalTests
 {
+    [Theory]
+    [InlineData("upsert", true, false, false, true)]
+    [InlineData("upsert", false, false, false, false)]
+    [InlineData("upsert", true, true, false, false)]
+    [InlineData("upsert", true, false, true, false)]
+    [InlineData("create", true, false, false, false)]
+    [InlineData("update", true, false, false, false)]
+    public void OnlyConfirmedHeaderOnlyUpsertMayResumeOriginalRevision(
+        string operation, bool headerSucceeded, bool totalReserved,
+        bool totalUpdateReserved, bool expected)
+    {
+        Assert.Equal(expected, PricingQuoteTotalEndpoints.CanResumeHeaderOnlyUpsert(
+            operation, headerSucceeded, totalReserved, totalUpdateReserved));
+    }
+
 
     [Fact]
     public void AdminQuoteGrantCoversEveryFieldRequiredByQuoteReadiness()

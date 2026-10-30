@@ -305,7 +305,9 @@ public static class PricingQuoteTotalEndpoints
 
     private static async Task<IResult> GetQuoteSyncLedger(
         string code, Guid rateId, int revision, NpgsqlDataSource data,
-        ReadSearchService live, ClaimsPrincipal administrator, CancellationToken ct)
+        ReadSearchService live, WriteAccessService access,
+        DataverseWriteTransport transport,
+        ClaimsPrincipal administrator, CancellationToken ct)
     {
         if (code != "principal" || rateId == Guid.Empty || revision is < 1 or > 999999999)
             return Results.BadRequest(new { code = "invalid_quote_ledger_query" });
@@ -393,6 +395,31 @@ public static class PricingQuoteTotalEndpoints
         // requests. Reads are scoped to the two exact recorded identifiers.
         var liveHeader = await VerifyAsync("quote", headerId, "quoteid");
         var liveDetail = await VerifyAsync("quotedetail", detailId, "quotedetailid");
+        // An absent total ledger record does NOT mean the Quote lacks lines.
+        // Surface the bounded actual lines to administrators, without writes.
+        var actualLines = Array.Empty<object>();
+        var quoteLineLookupStatus = "no_confirmed_header";
+        if (headerId is Guid confirmedQuoteId && confirmedQuoteId != Guid.Empty)
+        {
+            try
+            {
+                var detailPolicy = await access.ResolveAsync(code, "quotedetail", ct);
+                var lines = await transport.ReadQuoteDetailsAsync(
+                    detailPolicy, confirmedQuoteId, ct);
+                actualLines = lines.Select(line => (object)new {
+                    recordId = line.RecordId, name = line.Name,
+                    quantity = line.Quantity, pricePerUnit = line.PricePerUnit,
+                    lineAmount = line.Quantity * line.PricePerUnit
+                }).ToArray();
+                quoteLineLookupStatus = "verified";
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is ReadRejected or HttpRequestException
+                or TaskCanceledException or JsonException)
+            {
+                quoteLineLookupStatus = "verification_unavailable";
+            }
+        }
 
         // The current revision can have NO write_operations while the same
         // RateId already owns a historical CREATE header from an earlier
@@ -470,6 +497,7 @@ public static class PricingQuoteTotalEndpoints
                 headerStatus = liveHeader.State,
                 detailExists = liveDetail.Exists,
                 detailStatus = liveDetail.State,
+                actualLines, quoteLineLookupStatus,
                 confirmed = liveHeader.Exists == true && liveDetail.Exists == true
             },
             noPostExecuted = true,

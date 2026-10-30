@@ -361,7 +361,7 @@ public sealed class PricingQuoteTotalTests
     {
         var id = Guid.NewGuid();
         var legacyNamed = new DataverseWriteTransport.QuoteDetailSnapshot(
-            id, "Renamed by Dataverse", "W/\\\"1\\\"", 1m, 10495m);
+            id, "Renamed by Dataverse", "etag", 1m, 10495m);
         Assert.True(DataverseWriteTransport.MatchesPricingSale(
             [legacyNamed], id, 10495m));
         Assert.False(DataverseWriteTransport.MatchesPricingSale(

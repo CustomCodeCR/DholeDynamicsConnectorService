@@ -1081,6 +1081,14 @@ public static class PricingQuoteTotalEndpoints
                     return Results.Json(new PricingQuoteTotalResponse(
                         "requires_reconciliation", quoteId, null, "total",
                         created.Replay), statusCode: 409);
+                // A successful HTTP write is insufficient if another sales
+                // line was added concurrently: the Quote total would differ.
+                // Confirm the single managed line still belongs to this Quote.
+                var confirmedLines = await transport.ReadQuoteDetailsAsync(detail, quoteId, ct);
+                if (confirmedLines.Count != 1 ||
+                    confirmedLines[0].RecordId != lineId ||
+                    confirmedLines[0].Name != "Total venta de tarifa Dhole")
+                    throw new ReadRejected(409, "quote_line_postwrite_verification_failed");
                 return Results.Ok(new PricingQuoteTotalResponse(
                     "succeeded", quoteId, lineId, "completed",
                     created.Replay && line.Replay, [lineId]));

@@ -145,7 +145,20 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
             max.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    public sealed record QuoteDetailSnapshot(Guid RecordId, string Name, string ETag);
+    public sealed record QuoteDetailSnapshot(
+        Guid RecordId, string Name, string ETag,
+        decimal? Quantity = null, decimal? PricePerUnit = null);
+
+    // Values obtained from Dataverse, not quote names, are the evidence that
+    // the exact commercial line already matches Pricing. Missing data fails closed.
+    public static bool MatchesPricingSale(
+        IReadOnlyList<QuoteDetailSnapshot> lines, Guid lineId, decimal expectedSale) =>
+        lineId != Guid.Empty && expectedSale >= 0 && lines.Count == 1 &&
+        lines[0].RecordId == lineId && lines[0].Quantity is decimal quantity &&
+        lines[0].PricePerUnit is decimal price &&
+        Math.Abs(decimal.Round(quantity * price, 2,
+            MidpointRounding.AwayFromZero) -
+            decimal.Round(expectedSale, 2, MidpointRounding.AwayFromZero)) <= 0.01m;
 
     /// <summary>
     /// Read-only, bounded lookup for Pricing's automatically managed total line.
@@ -163,7 +176,7 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
         if (!DataverseUrlValidator.TryNormalize(detail.Connection.DataverseUrl, out var normalized))
             throw new ReadRejected(400, "invalid_dataverse_host");
         var relative = "/api/data/v9.2/" + detail.Table.EntitySetName +
-            "?$select=quotedetailid,quotedetailname" +
+            "?$select=quotedetailid,quotedetailname,quantity,priceperunit" +
             "&$filter=_quoteid_value%20eq%20" + quoteId.ToString("D") + "&$top=3";
         var uri = new Uri(new Uri(normalized), relative);
         if (uri.Scheme != "https" || uri.Port != 443 ||
@@ -211,7 +224,14 @@ public sealed class DataverseWriteTransport(HttpClient http, IDataverseAccessTok
                 throw new ReadRejected(502, "quote_detail_incomplete");
             var etag = tag.GetString()!;
             GenericWriteService.RequireEtag(etag);
-            details.Add(new QuoteDetailSnapshot(detailId, title.GetString()!, etag));
+            decimal? quantity = item.TryGetProperty("quantity", out var q) &&
+                q.ValueKind == JsonValueKind.Number && q.TryGetDecimal(out var qValue)
+                ? qValue : null;
+            decimal? price = item.TryGetProperty("priceperunit", out var p) &&
+                p.ValueKind == JsonValueKind.Number && p.TryGetDecimal(out var pValue)
+                ? pValue : null;
+            details.Add(new QuoteDetailSnapshot(detailId, title.GetString()!, etag,
+                quantity, price));
         }
         return details;
     }

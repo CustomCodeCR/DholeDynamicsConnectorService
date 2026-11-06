@@ -58,7 +58,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and publish API by commit
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: src/Dhole.Dynamics.Api/Dockerfile
@@ -67,7 +67,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and publish migrator by commit
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: src/Dhole.Dynamics.Tools/Dockerfile
@@ -76,7 +76,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and publish admin UI by commit
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: web/Dockerfile

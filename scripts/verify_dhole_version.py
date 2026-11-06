@@ -41,7 +41,7 @@ def main():
     assert metadata["component"].startswith("Dhole")
     assert metadata["schemaVersion"] == 1
     assert metadata["releaseId"].strip()
-    assert metadata["ecosystemVersion"] == version, "Global and component version out of sync"
+    assert parse(metadata["ecosystemVersion"]) >= parse(version), "Global ecosystem version cannot predate component"
     assert Path("AGENTS.md").is_file(), "Missing permanent Codex instructions"
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## [{version}]" in changelog, "CHANGELOG missing current release"

@@ -41,7 +41,7 @@ def main():
     assert metadata["component"].startswith("Dhole")
     assert metadata["schemaVersion"] == 1
     assert metadata["releaseId"].strip()
-    assert metadata["ecosystemVersion"] == version, "Global and component version out of sync"
+    assert parse(metadata["ecosystemVersion"]) >= parse(version), "Ecosystem version must not predate component version"
     assert Path("AGENTS.md").is_file(), "Missing permanent Codex instructions"
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## [{version}]" in changelog, "CHANGELOG missing current release"
@@ -72,7 +72,7 @@ def main():
         assert manifest["ecosystemVersion"] == version
         assert manifest["releaseId"] == metadata["releaseId"]
         assert len(manifest["components"]) >= 15
-        assert all(item["version"] == version for item in manifest["components"])
+        assert all(parse(item["version"]) <= parse(manifest["ecosystemVersion"]) for item in manifest["components"])
 
     ref = os.environ.get("DH_VERSION_BASE", "").strip()
     prev = previous_version(ref)

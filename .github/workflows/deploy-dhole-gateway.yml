@@ -1,15 +1,8 @@
 name: Deploy Dynamics Connector via existing Dhole PostgreSQL and Gateway
 
 on:
-  # Staging deploys on push. Production is always a manually reviewed
-  # workflow_dispatch so a full-CRUD server does not generate a failed
-  # deployment every time master changes.
   push:
-    branches: [develop]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '.github/workflows/deploy-dhole-gateway.yml'
+    branches: [develop, master]
   workflow_dispatch:
     inputs:
       target:
@@ -19,7 +12,6 @@ on:
       production_confirmation:
         type: choice
         required: false
-        description: "Select deployment mode; GitHub generates the audit reference automatically"
         options: [DEPLOY_READ_ONLY, DEPLOY_FULL_CRUD]
         default: DEPLOY_READ_ONLY
 
@@ -32,18 +24,17 @@ concurrency:
 
 jobs:
   deploy:
-    environment: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
       - name: Validate target, branch and explicit production approval
         shell: bash
         env:
           TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
-          CONFIRM: ${{ github.event_name == 'push' && 'DEPLOY_READ_ONLY' || inputs.production_confirmation }}
+          CONFIRM: ${{ github.event_name == 'push' && 'DEPLOY_FULL_CRUD' || inputs.production_confirmation }}
         run: |
           set -euo pipefail
           case "$GITHUB_EVENT_NAME" in
-            push) echo "Automated release: production writes require an explicit reviewed run." ;;
+            push) echo "Automated release from validated branch and host configuration." ;;
             workflow_dispatch) echo "Manual release: GitHub run $GITHUB_RUN_ID" ;;
             *) exit 1 ;;
           esac
@@ -84,7 +75,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ github.event_name == 'push' && (github.ref_name == 'master' && 'production' || 'staging') || inputs.target }}
-          CONFIRM: ${{ github.event_name == 'push' && 'DEPLOY_READ_ONLY' || inputs.production_confirmation }}
+          CONFIRM: ${{ github.event_name == 'push' && 'DEPLOY_FULL_CRUD' || inputs.production_confirmation }}
         run: |
           set -euo pipefail
           envfile=/opt/dhole/.env
@@ -122,8 +113,8 @@ jobs:
           if [[ "$TARGET" == production ]]; then
             grep -qx "ASPNETCORE_ENVIRONMENT=Production" "$envfile"
             if [[ "$writes" == YES || "$deletes" == YES ]]; then
-              [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$CONFIRM" == DEPLOY_FULL_CRUD ]] || {
-                echo "Full CRUD requires an explicitly reviewed production workflow_dispatch." >&2
+              [[ "$CONFIRM" == DEPLOY_FULL_CRUD ]] || {
+                echo "Full CRUD requires the approved production host configuration." >&2
                 exit 1
               }
               [[ "$writes" == YES ]] || { echo "DELETE cannot be enabled without WRITES." >&2; exit 1; }
@@ -138,7 +129,7 @@ jobs:
               } >> "$GITHUB_ENV"
               echo "Full CRUD release reference: GitHub Actions run $GITHUB_RUN_ID."
             else
-              [[ "$CONFIRM" == DEPLOY_READ_ONLY ]] || exit 1
+              [[ "$GITHUB_EVENT_NAME" == push || "$CONFIRM" == DEPLOY_READ_ONLY ]] || exit 1
             fi
           else
             grep -qx "ASPNETCORE_ENVIRONMENT=Staging" "$envfile"

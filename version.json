@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeDynamicsConnectorService",
-  "version": "1.2.0",
-  "ecosystemVersion": "1.2.0",
-  "releaseId": "DH-20261105-VERSION-001"
+  "version": "1.2.1",
+  "ecosystemVersion": "1.3.1",
+  "releaseId": "DH-20261105-MONITOR-VERSIONS-001"
 }

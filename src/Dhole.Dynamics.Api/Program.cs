@@ -15,6 +15,13 @@ builder.Services.AddOpenApi("v1");
 builder.Services.AddOpenApi("admin-v1");
 
 var app = builder.Build();
+// Publish the deployed Dynamics Connector API assembly version.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Value?.StartsWith("/health", StringComparison.OrdinalIgnoreCase) == true)
+        context.Response.Headers["X-Dhole-Version"] = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+    await next();
+});
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseMiddleware<RequestDiagnosticsMiddleware>();

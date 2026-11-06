@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.1] - 2026-11-05
+
+- Informar versión desplegada del API Dynamics Connector mediante health checks.
+
 ## [1.2.0] - 2026-11-05
 
 - Fix high-severity vulnerabilities in Dynamics admin by upgrading vue-i18n and intlify dependencies to 11.4.16.

@@ -1,5 +1,7 @@
 # Changelog
 
+- F7 C14 (candidato parcial): PostgreSQL real de CI prueba constraint de trabajos Dynamics repetidos y un único Outbox usando esquema real sql/010 + sql/019, Actions #42507593928 PASS. Falta probar correo, Auth y entorno staging.
+
 - F6.10 (candidato): GET privilegiado `/api/admin/v1/operations/realtime/jobs/{id}` devuelve estado mínimo del job para recuperación REST tras SignalR, sin claves/ID de conexión, campos de Dataverse, dedupe o payload; Admin + SecurityAdmin intactos.
 
 ## [1.3.0] - 2026-11-08 (candidato F6.10, sin publicar)

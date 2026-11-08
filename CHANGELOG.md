@@ -1,5 +1,7 @@
 # Changelog
 
+- F6.10 (candidato): GET privilegiado `/api/admin/v1/operations/realtime/jobs/{id}` devuelve estado mínimo del job para recuperación REST tras SignalR, sin claves/ID de conexión, campos de Dataverse, dedupe o payload; Admin + SecurityAdmin intactos.
+
 ## [1.3.0] - 2026-11-08 (candidato F6.10, sin publicar)
 
 - F6.10: conector Dynamics/Dataverse incorpora Outbox PostgreSQL propio y migración SQL `019_realtime_job_outbox.sql` versionada con checksum; crea invalidaciones PII-free al encolar/repetir trabajos autorizados en la misma transacción.

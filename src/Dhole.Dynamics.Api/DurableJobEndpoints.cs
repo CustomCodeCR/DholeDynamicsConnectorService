@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Dhole.Dynamics.Contracts;
 using Microsoft.AspNetCore.RateLimiting;
+using Npgsql;
 
 namespace Dhole.Dynamics.Api;
 
@@ -14,6 +15,20 @@ public static class DurableJobEndpoints
             .WithGroupName("admin-v1");
         read.MapGet("/jobs",Jobs);
         read.MapGet("/jobs/{id:guid}",JobDetail);
+        // F6.10: only tenant-admin-allowed event invalidation checks.
+        // No job payload, tokens, connection settings or entity data returned.
+        read.MapGet("/realtime/jobs/{id:guid}", async (
+            Guid id, NpgsqlDataSource data, CancellationToken ct) =>
+        {
+            if (id == Guid.Empty) return Results.NotFound();
+            await using var db = await data.OpenConnectionAsync(ct);
+            await using var cmd = new NpgsqlCommand(
+                "SELECT EXISTS(SELECT 1 FROM dynamics.job_queue WHERE id=@id)", db);
+            cmd.Parameters.AddWithValue("id", id);
+            return (bool)(await cmd.ExecuteScalarAsync(ct) ?? false)
+                ? Results.Ok() : Results.NotFound();
+        }).RequireAuthorization("SecurityAdmin");
+
         read.MapGet("/sync/{code}",SyncConfigs);
         read.MapGet("/sync/{code}/checkpoints",Checkpoints);
         read.MapGet("/stats",Stats);

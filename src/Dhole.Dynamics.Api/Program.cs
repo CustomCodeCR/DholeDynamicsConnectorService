@@ -6,6 +6,7 @@ DholeRuntimeKeys.Apply(builder.Configuration);
 ReleaseDataProtection.Configure(builder.Services,builder.Configuration,builder.Environment);
 builder.Services.AddDholeApiSecurity(builder.Configuration, builder.Environment);
 builder.Services.AddDholeApiInfrastructure(builder.Configuration);
+builder.Services.AddHostedService<DynamicsRealtimeOutboxPublisher>();
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
 {
     context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier;

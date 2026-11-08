@@ -10,7 +10,7 @@ namespace Dhole.Dynamics.Api;
 /// PostgreSQL durable queue with lease fencing, connection isolation, redacted results and
 /// transactionally persisted checkpoint + change manifest. No arbitrary serialized job payloads.
 /// </summary>
-public sealed class DurableJobRepository(NpgsqlDataSource data)
+public sealed class DurableJobRepository(NpgsqlDataSource data, IConfiguration? realtimeFlags = null)
 {
     private static QueueJob Read(NpgsqlDataReader r) => new(
         r.GetGuid(0),r.GetGuid(1),r.GetString(2),r.GetString(3),r.GetString(4),
@@ -65,6 +65,7 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         QueueJob? item;
         await using(var r=await cmd.ExecuteReaderAsync(ct))
             item=await r.ReadAsync(ct)?Read(r):null;
+        var newlyCreated = item is not null;
         if(item is null)
         {
             // A different active dedupe key is not silently accepted as the caller's job.
@@ -82,6 +83,8 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
             if(item is null || item.Status=="dead")
                 throw new ReadRejected(409,"job_already_queued_or_dead");
         }
+        if (newlyCreated && DynamicsRealtimeJobEvent.IsEnabled(realtimeFlags))
+            await DynamicsRealtimeJobEvent.AppendAsync(db, tx, item.Id, connection, ct);
         await tx.CommitAsync(ct);
         return item;
     }
@@ -205,6 +208,8 @@ public sealed class DurableJobRepository(NpgsqlDataSource data)
         }
         if(changed is null)throw new ReadRejected(409,"job_not_dead_or_conflicting");
         await AuditAsync(db,tx,connection,actor,"job.replayed.manual",ct);
+        if (DynamicsRealtimeJobEvent.IsEnabled(realtimeFlags))
+            await DynamicsRealtimeJobEvent.AppendAsync(db, tx, changed.Id, connection, ct);
         await tx.CommitAsync(ct);
         return changed;
     }

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.2] - 2026-11-08 (candidato F9, sin publicar)
+
+- Sincroniza release global `rt-20261107-01` a `1.13.11` tras resolver los hallazgos de CI de Config, Reports y Gateway. Bump PATCH de DholeDynamicsConnectorService `1.3.1` a `1.3.2`, sin modificar REST, eventos, precios ni datos; flags realtime OFF y PR F9 aún DRAFT.
+
+
 ## [1.3.1] - 2026-11-08 (candidato F9, sin publicación)
 
 - Sincroniza metadatos de versión global del batch Dhole Realtime `rt-20261107-01` a `1.13.10`; actualización PATCH independiente de DholeDynamicsConnectorService `1.3.0` → `1.3.1`. No cambia contratos REST, datos, lógica de negocio ni flags; requiere gates F0–F8 y CI de SHA final antes de merge.

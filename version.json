@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeDynamicsConnectorService",
-  "version": "1.3.1",
-  "ecosystemVersion": "1.13.10",
+  "version": "1.3.2",
+  "ecosystemVersion": "1.13.11",
   "releaseId": "rt-20261107-01",
   "releaseStatus": "candidate-feature-branch-only"
 }

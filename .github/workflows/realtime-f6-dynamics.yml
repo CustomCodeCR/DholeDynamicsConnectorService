@@ -1,0 +1,65 @@
+name: Realtime F6.10 Dynamics job Outbox (isolated)
+on:
+  push:
+    branches: [feature/dhole-realtime-universal-rt-20261107-01]
+    paths:
+      - 'src/Dhole.Dynamics.Api/DynamicsRealtime*.cs'
+      - 'src/Dhole.Dynamics.Api/DurableJobRepository.cs'
+      - 'src/Dhole.Dynamics.Api/Program.cs'
+      - 'src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj'
+      - 'src/Dhole.Dynamics.Tools/DatabaseMigrator.cs'
+      - 'sql/019_realtime_job_outbox.sql'
+      - 'tests/Dhole.Dynamics.UnitTests/F6DynamicsRealtimeTests.cs'
+      - 'version.json'
+      - 'Directory.Build.targets'
+      - 'CHANGELOG.md'
+      - '.github/workflows/realtime-f6-dynamics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  dynamics-f6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: f6_dynamics_ci
+          POSTGRES_PASSWORD: ci_only_not_for_production
+          POSTGRES_DB: dhole_dynamics_f6
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U f6_dynamics_ci -d dhole_dynamics_f6"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate candidate global and component SemVer
+        run: python3 scripts/verify_dhole_version.py
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if grep -q 'name="github"' NuGet.Config; then
+            dotnet nuget update source github --username github-actions --password "$GITHUB_TOKEN" --store-password-in-clear-text --configfile NuGet.Config
+          fi
+      - name: Restore Dynamics safe unit test graph
+        run: dotnet restore tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj
+      - name: Build Dynamics API, postgres Outbox and migration
+        run: dotnet build tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj -c Release --no-restore
+      - name: Test private job event security and batch gating
+        run: dotnet test tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj -c Release --no-build --filter FullyQualifiedName~F6DynamicsRealtimeTests -- RunConfiguration.TreatNoTestsAsError=true
+      - name: Validate additive migration 019 on ephemeral PostgreSQL
+        run: |
+          set -euo pipefail
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA dynamics;
+          CREATE TABLE dynamics.connections(id uuid PRIMARY KEY);
+          CREATE TABLE dynamics.job_queue(id uuid PRIMARY KEY);
+          SQL
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 -f sql/019_realtime_job_outbox.sql
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dynamics' AND table_name='realtime_job_outbox'" | grep -qx '1'

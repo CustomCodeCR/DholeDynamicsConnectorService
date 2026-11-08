@@ -15,18 +15,33 @@ public static class DurableJobEndpoints
             .WithGroupName("admin-v1");
         read.MapGet("/jobs",Jobs);
         read.MapGet("/jobs/{id:guid}",JobDetail);
-        // F6.10: only tenant-admin-allowed event invalidation checks.
-        // No job payload, tokens, connection settings or entity data returned.
+        // F6.10: minimal authoritative status for REST reconciliation.
+        // Never expose Dataverse record data, job resource_key, dedupe key,
+        // actor, lease owner, payloads, credentials or connection identifiers.
+        // Retain Admin + SecurityAdmin policy for all realtime job snapshots.
         read.MapGet("/realtime/jobs/{id:guid}", async (
             Guid id, NpgsqlDataSource data, CancellationToken ct) =>
         {
             if (id == Guid.Empty) return Results.NotFound();
             await using var db = await data.OpenConnectionAsync(ct);
-            await using var cmd = new NpgsqlCommand(
-                "SELECT EXISTS(SELECT 1 FROM dynamics.job_queue WHERE id=@id)", db);
+            await using var cmd = new NpgsqlCommand("""
+                SELECT id, status, attempts, max_attempts, available_at,
+                       page_count, created_at
+                FROM dynamics.job_queue WHERE id=@id
+                """, db);
             cmd.Parameters.AddWithValue("id", id);
-            return (bool)(await cmd.ExecuteScalarAsync(ct) ?? false)
-                ? Results.Ok() : Results.NotFound();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return Results.NotFound();
+            return Results.Ok(new
+            {
+                Id = reader.GetGuid(0),
+                Status = reader.GetString(1),
+                Attempts = reader.GetInt32(2),
+                MaxAttempts = reader.GetInt32(3),
+                AvailableAt = reader.GetFieldValue<DateTimeOffset>(4),
+                PageCount = reader.GetInt32(5),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(6)
+            });
         }).RequireAuthorization("SecurityAdmin");
 
         read.MapGet("/sync/{code}",SyncConfigs);

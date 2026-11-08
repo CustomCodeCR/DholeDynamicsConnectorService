@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/Dhole.Dynamics.Api/DynamicsRealtime*.cs'
       - 'src/Dhole.Dynamics.Api/DurableJobRepository.cs'
+      - 'src/Dhole.Dynamics.Api/DurableJobEndpoints.cs'
       - 'src/Dhole.Dynamics.Api/Program.cs'
       - 'src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj'
       - 'src/Dhole.Dynamics.Tools/DatabaseMigrator.cs'

@@ -60,7 +60,59 @@ jobs:
           PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 <<'SQL'
           CREATE SCHEMA dynamics;
           CREATE TABLE dynamics.connections(id uuid PRIMARY KEY);
-          CREATE TABLE dynamics.job_queue(id uuid PRIMARY KEY);
+          CREATE TABLE dynamics.metadata_allowed_entities(
+            connection_id uuid NOT NULL REFERENCES dynamics.connections(id),
+            logical_name varchar(128) NOT NULL,
+            PRIMARY KEY(connection_id,logical_name)
+          );
           SQL
+          # Test against production queue uniqueness/lease rules, not a stub.
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 -f sql/010_durable_jobs.sql
           PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 -f sql/019_realtime_job_outbox.sql
           PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dynamics' AND table_name='realtime_job_outbox'" | grep -qx '1'
+
+      - name: F7 C14 candidate - duplicate Dynamics enqueue cannot create a second job or outbox event
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 <<'SQL'
+          DO $f7$
+          DECLARE
+            v_connection uuid := '12345678-0000-4000-8000-000000000001';
+            v_job uuid := '12345678-0000-4000-8000-000000000002';
+            v_id uuid := '12345678-0000-4000-8000-000000000003';
+            v_count int;
+            v_new_jobs int;
+          BEGIN
+            INSERT INTO dynamics.connections(id) VALUES(v_connection);
+            WITH created AS (
+              INSERT INTO dynamics.job_queue(id,connection_id,kind,resource_key,dedupe_key,created_by)
+              VALUES(v_job,v_connection,'metadata_refresh','','f7-idempotency-dynamics-0000001','f7-ci')
+              ON CONFLICT DO NOTHING RETURNING id
+            )
+            INSERT INTO dynamics.realtime_job_outbox(event_id,connection_id,job_id,payload_json)
+            SELECT v_id,v_connection,id,'{"eventId":"f7-synthetic"}'::jsonb FROM created;
+            GET DIAGNOSTICS v_new_jobs = ROW_COUNT;
+            IF v_new_jobs <> 1 THEN RAISE EXCEPTION 'Initial job/outbox insertion failed'; END IF;
+            -- Same business idempotency key repeated with distinct generated job.
+            WITH created AS (
+              INSERT INTO dynamics.job_queue(id,connection_id,kind,resource_key,dedupe_key,created_by)
+              VALUES('12345678-0000-4000-8000-000000000004',v_connection,
+                     'metadata_refresh','','f7-idempotency-dynamics-0000001','f7-ci')
+              ON CONFLICT DO NOTHING RETURNING id
+            )
+            INSERT INTO dynamics.realtime_job_outbox(event_id,connection_id,job_id,payload_json)
+            SELECT '12345678-0000-4000-8000-000000000005',v_connection,id,
+                   '{"eventId":"f7-synthetic-duplicate"}'::jsonb FROM created;
+            GET DIAGNOSTICS v_new_jobs = ROW_COUNT;
+            IF v_new_jobs <> 0 THEN RAISE EXCEPTION 'Duplicate job created a second outbox event'; END IF;
+            SELECT count(*) INTO v_count FROM dynamics.job_queue
+             WHERE connection_id=v_connection;
+            IF v_count <> 1 THEN RAISE EXCEPTION 'Duplicate job persisted'; END IF;
+            SELECT count(*) INTO v_count FROM dynamics.realtime_job_outbox
+             WHERE connection_id=v_connection;
+            IF v_count <> 1 THEN RAISE EXCEPTION 'Duplicate outbox event persisted'; END IF;
+          END
+          $f7$;
+          SQL
+          echo 'F7 C14 CANDIDATE: real PostgreSQL duplicate-job and Outbox constraints passed; email/staging NOT tested'

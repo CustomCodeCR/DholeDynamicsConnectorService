@@ -79,6 +79,10 @@ public sealed class ProductionWritePolicy
              (path.StartsWithSegments("/api/v1/keyed/saved-queries") &&
                 path.Value?.EndsWith("/execute",StringComparison.Ordinal)==true)))
             return false;
+        // A separately approved quote operation is limited to this exact POST.
+        // Generic Dataverse mutations remain gated by ProductionWrites approval.
+        if (string.Equals(path.Value, QuoteWithTotalPath, StringComparison.Ordinal))
+            return !HttpMethods.IsPost(request.Method) || !QuoteWritesApproved;
         if(path.StartsWithSegments("/api/v1"))
             return !WritesApproved || (HttpMethods.IsDelete(request.Method) && !DeletesApproved);
         if(path.StartsWithSegments("/api/dynamics/quotes"))

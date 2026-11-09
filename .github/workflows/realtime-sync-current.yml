@@ -1,0 +1,75 @@
+name: Sync realtime candidate with develop and master
+on:
+  push:
+    branches: [feature/rt-notificationshub-20261109-01]
+    paths: [.github/workflows/realtime-sync-current.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: realtime-branch-sync-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Incorporate latest develop and master into the candidate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Dhole Realtime Branch Sync'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin develop master
+          for target in develop master; do
+            if git merge-base --is-ancestor "origin/$target" HEAD; then
+              echo "$target already included"
+              continue
+            fi
+            git merge --no-commit --no-ff "origin/$target" || true
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            if [ -n "$conflicts" ]; then
+              printf '%s\n' "$conflicts"
+              # Version metadata is already bumped for the release candidate;
+              # preserve candidate's higher SemVer. Never discard business code.
+              for path in version.json Directory.Build.targets; do
+                if printf '%s\n' "$conflicts" | grep -Fxq "$path"; then
+                  git checkout --ours -- "$path"
+                  git add "$path"
+                fi
+              done
+              if printf '%s\n' "$conflicts" | grep -Fxq CHANGELOG.md; then
+                python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+          ours = subprocess.check_output(["git","show",":2:CHANGELOG.md"],text=True)
+          theirs = subprocess.check_output(["git","show",":3:CHANGELOG.md"],text=True)
+          def parts(text):
+              headers = list(re.finditer(r"(?m)^## [^\n]+\n",text))
+              return [(match.group().strip(),text[match.start():(headers[i+1].start() if i+1<len(headers) else len(text))]) for i,match in enumerate(headers)]
+          ours_parts = parts(ours)
+          theirs_parts = parts(theirs)
+          merged = {heading:body for heading,body in ours_parts}
+          for heading,body in theirs_parts:
+              if heading not in merged:
+                  merged[heading] = body
+              elif body.strip() not in merged[heading]:
+                  merged[heading] += "\n### Notas conservadas de master\n\n" + body.split("\n",1)[1]
+          output = "# Changelog\n\n" + "\n".join(merged.values()).rstrip()+"\n"
+          Path("CHANGELOG.md").write_text(output)
+          PY
+                git add CHANGELOG.md
+              fi
+              unresolved="$(git diff --name-only --diff-filter=U)"
+              if [ -n "$unresolved" ]; then
+                echo "::error::Code conflicts with $target: $unresolved. Nothing pushed."
+                exit 1
+              fi
+            fi
+            git commit -m "sync(realtime): incorporate latest $target into NotificationsHub candidate"
+          done
+          git push origin HEAD:feature/rt-notificationshub-20261109-01

@@ -62,13 +62,7 @@ public sealed class ProductionWritePolicy
         if(HttpMethods.IsGet(request.Method)||HttpMethods.IsHead(request.Method)||
             HttpMethods.IsOptions(request.Method))return false;
         var path=request.Path;
-        // Exact match only. The dedicated handler itself verifies the active
-        // crear_oferta API key, IDTRA mapping, read/create grants, request
-        // shape and two independent idempotency keys.
-        if(path.Value == QuoteWithTotalPath &&
-            HttpMethods.IsPost(request.Method))
-            return !QuoteWritesApproved;
-        // Authenticated and scoped preview: safe POST with no write.
+        // The keyed lookup preview performs bounded, scoped reads only.
         if (HttpMethods.IsPost(request.Method) &&
             path.Value == "/api/v1/keyed/templates/crear_oferta/validate-lookups")
             return false;

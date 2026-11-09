@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.6] - 2026-11-08 (Dhole realtime coordinated hardening)
+
+- PATCH 1.13.15 ecosystem release alignment with F2/F6 AOF read-only checks and F10 branch-preservation fix. Framework/connector candidate unchanged; realtime flags OFF and gates F6–F10 not formally approved.
+
+
 ## [1.3.5] - 2026-11-08 (F9 review candidate)
 
 - PATCH SemVer global 1.13.14 para excepción F3 en revisión de F9. Mantiene gates formales, flags OFF y prohibición de despliegue hasta verificar staging y durabilidad.

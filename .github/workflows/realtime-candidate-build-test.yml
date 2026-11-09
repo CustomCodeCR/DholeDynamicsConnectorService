@@ -3,8 +3,8 @@ on:
   push:
     branches:
       - feature/rt-notificationshub-20261109-01
-    paths:
-      - .github/workflows/realtime-candidate-build-test.yml
+  pull_request:
+    branches: [develop, master]
 permissions:
   contents: read
   packages: read

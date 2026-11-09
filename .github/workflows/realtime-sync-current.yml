@@ -64,6 +64,27 @@ jobs:
           PY
                 git add CHANGELOG.md
               fi
+              # Merge only known conflict files at hunk level. Current
+              # master wins overlaps; independent candidate additions remain.
+              for path in src/Dhole.Dynamics.Api/ProductionWritePolicy.cs src/Dhole.Dynamics.Api/ServiceRegistration.cs src/Dhole.Dynamics.Tools/DatabaseMigrator.cs; do
+                if printf '%s\\n' "$conflicts" | grep -Fxq "$path"; then
+                  if git cat-file -e ":1:$path" 2>/dev/null; then
+                    tempdir="$(mktemp -d)"
+                    git show ":1:$path" > "$tempdir/base"
+                    git show ":2:$path" > "$tempdir/ours"
+                    git show ":3:$path" > "$tempdir/theirs"
+                    git merge-file -p --theirs "$tempdir/ours" "$tempdir/base" "$tempdir/theirs" > "$path" || true
+                    rm -rf "$tempdir"
+                  else
+                    git checkout --theirs -- "$path"
+                  fi
+                  git add "$path"
+                fi
+              done
+              # GITHUB_TOKEN has no workflow-update permission in all repos.
+              # Keep the candidate workflow file state during Git sync.
+              # Production workflow changes are ported separately by the connector.
+              git restore --source=HEAD --staged --worktree -- .github/workflows
               unresolved="$(git diff --name-only --diff-filter=U)"
               if [ -n "$unresolved" ]; then
                 echo "::error::Code conflicts with $target: $unresolved. Nothing pushed."

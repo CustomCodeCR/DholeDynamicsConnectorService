@@ -1,0 +1,118 @@
+name: Realtime F6.10 Dynamics job Outbox (isolated)
+on:
+  push:
+    branches: [feature/dhole-realtime-universal-rt-20261107-01]
+    paths:
+      - 'src/Dhole.Dynamics.Api/DynamicsRealtime*.cs'
+      - 'src/Dhole.Dynamics.Api/DurableJobRepository.cs'
+      - 'src/Dhole.Dynamics.Api/DurableJobEndpoints.cs'
+      - 'src/Dhole.Dynamics.Api/Program.cs'
+      - 'src/Dhole.Dynamics.Api/Dhole.Dynamics.Api.csproj'
+      - 'src/Dhole.Dynamics.Tools/DatabaseMigrator.cs'
+      - 'sql/019_realtime_job_outbox.sql'
+      - 'tests/Dhole.Dynamics.UnitTests/F6DynamicsRealtimeTests.cs'
+      - 'version.json'
+      - 'Directory.Build.targets'
+      - 'CHANGELOG.md'
+      - '.github/workflows/realtime-f6-dynamics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  dynamics-f6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: f6_dynamics_ci
+          POSTGRES_PASSWORD: ci_only_not_for_production
+          POSTGRES_DB: dhole_dynamics_f6
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U f6_dynamics_ci -d dhole_dynamics_f6"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate candidate global and component SemVer
+        run: python3 scripts/verify_dhole_version.py
+      - name: Authenticate GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if grep -q 'name="github"' NuGet.Config; then
+            dotnet nuget update source github --username github-actions --password "$GITHUB_TOKEN" --store-password-in-clear-text --configfile NuGet.Config
+          fi
+      - name: Restore Dynamics safe unit test graph
+        run: dotnet restore tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj
+      - name: Build Dynamics API, postgres Outbox and migration
+        run: dotnet build tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj -c Release --no-restore
+      - name: Test private job event security and batch gating
+        run: dotnet test tests/Dhole.Dynamics.UnitTests/Dhole.Dynamics.UnitTests.csproj -c Release --no-build --filter FullyQualifiedName~F6DynamicsRealtimeTests -- RunConfiguration.TreatNoTestsAsError=true
+      - name: Validate additive migration 019 on ephemeral PostgreSQL
+        run: |
+          set -euo pipefail
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA dynamics;
+          CREATE TABLE dynamics.connections(id uuid PRIMARY KEY);
+          CREATE TABLE dynamics.metadata_allowed_entities(
+            connection_id uuid NOT NULL REFERENCES dynamics.connections(id),
+            logical_name varchar(128) NOT NULL,
+            PRIMARY KEY(connection_id,logical_name)
+          );
+          SQL
+          # Test against production queue uniqueness/lease rules, not a stub.
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 -f sql/010_durable_jobs.sql
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 -f sql/019_realtime_job_outbox.sql
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dynamics' AND table_name='realtime_job_outbox'" | grep -qx '1'
+
+      - name: F7 C14 candidate - duplicate Dynamics enqueue cannot create a second job or outbox event
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=ci_only_not_for_production psql -h 127.0.0.1 -U f6_dynamics_ci -d dhole_dynamics_f6 -v ON_ERROR_STOP=1 <<'SQL'
+          DO $f7$
+          DECLARE
+            v_connection uuid := '12345678-0000-4000-8000-000000000001';
+            v_job uuid := '12345678-0000-4000-8000-000000000002';
+            v_id uuid := '12345678-0000-4000-8000-000000000003';
+            v_count int;
+            v_new_jobs int;
+          BEGIN
+            INSERT INTO dynamics.connections(id) VALUES(v_connection);
+            WITH created AS (
+              INSERT INTO dynamics.job_queue(id,connection_id,kind,resource_key,dedupe_key,created_by)
+              VALUES(v_job,v_connection,'metadata_refresh','','f7-idempotency-dynamics-0000001','f7-ci')
+              ON CONFLICT DO NOTHING RETURNING id
+            )
+            INSERT INTO dynamics.realtime_job_outbox(event_id,connection_id,job_id,payload_json)
+            SELECT v_id,v_connection,id,'{"eventId":"f7-synthetic"}'::jsonb FROM created;
+            GET DIAGNOSTICS v_new_jobs = ROW_COUNT;
+            IF v_new_jobs <> 1 THEN RAISE EXCEPTION 'Initial job/outbox insertion failed'; END IF;
+            -- Same business idempotency key repeated with distinct generated job.
+            WITH created AS (
+              INSERT INTO dynamics.job_queue(id,connection_id,kind,resource_key,dedupe_key,created_by)
+              VALUES('12345678-0000-4000-8000-000000000004',v_connection,
+                     'metadata_refresh','','f7-idempotency-dynamics-0000001','f7-ci')
+              ON CONFLICT DO NOTHING RETURNING id
+            )
+            INSERT INTO dynamics.realtime_job_outbox(event_id,connection_id,job_id,payload_json)
+            SELECT '12345678-0000-4000-8000-000000000005',v_connection,id,
+                   '{"eventId":"f7-synthetic-duplicate"}'::jsonb FROM created;
+            GET DIAGNOSTICS v_new_jobs = ROW_COUNT;
+            IF v_new_jobs <> 0 THEN RAISE EXCEPTION 'Duplicate job created a second outbox event'; END IF;
+            SELECT count(*) INTO v_count FROM dynamics.job_queue
+             WHERE connection_id=v_connection;
+            IF v_count <> 1 THEN RAISE EXCEPTION 'Duplicate job persisted'; END IF;
+            SELECT count(*) INTO v_count FROM dynamics.realtime_job_outbox
+             WHERE connection_id=v_connection;
+            IF v_count <> 1 THEN RAISE EXCEPTION 'Duplicate outbox event persisted'; END IF;
+          END
+          $f7$;
+          SQL
+          echo 'F7 C14 CANDIDATE: real PostgreSQL duplicate-job and Outbox constraints passed; email/staging NOT tested'

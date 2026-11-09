@@ -1,0 +1,37 @@
+name: Realtime release candidate - .NET build and tests
+on:
+  push:
+    branches:
+      - feature/rt-notificationshub-20261109-01
+  pull_request:
+    branches: [develop, master]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Authenticate private NuGet package source when configured
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f NuGet.Config ] && grep -qi 'key="github"' NuGet.Config; then
+            dotnet nuget update source github --username "$GITHUB_ACTOR" --password "$GITHUB_TOKEN" --store-password-in-clear-text --configfile NuGet.Config
+          fi
+      - name: Restore release solution
+        run: |
+          if [ -f NuGet.Config ]; then
+            dotnet restore 'DholeDynamicsConnectorService.slnx' --configfile NuGet.Config
+          else
+            dotnet restore 'DholeDynamicsConnectorService.slnx'
+          fi
+      - name: Compile release solution
+        run: dotnet build 'DholeDynamicsConnectorService.slnx' --configuration Release --no-restore
+      - name: Run release solution tests
+        run: dotnet test 'DholeDynamicsConnectorService.slnx' --configuration Release --no-build --verbosity normal

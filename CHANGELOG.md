@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.5] - 2026-11-08 (F9 review candidate)
+
+- PATCH SemVer global 1.13.14 para excepción F3 en revisión de F9. Mantiene gates formales, flags OFF y prohibición de despliegue hasta verificar staging y durabilidad.
+
+
 ## [1.3.4] - 2026-11-08 (candidato F3)
 
 - Sincronización PATCH de la versión global 1.13.13 correspondiente al ensayo WSS/Traefik de DholeApiGateway; sin nuevas modificaciones funcionales ni despliegue.

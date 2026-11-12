@@ -1864,7 +1864,7 @@ public static class PricingQuoteTotalEndpoints
         cmd.Parameters.AddWithValue("issuer", TemplateApiKeyRepository.Issuer);
         cmd.Parameters.AddWithValue("client", clientId);
         cmd.Parameters.AddWithValue("keys", expectedKeys.SelectMany(k =>
-            new[] { k + "-header", k + "-total" }).ToArray());
+            new[] { k + "-header", k + "-total", k + "-total-update" }).ToArray());
         var rows = new Dictionary<string, (string Entity, string Status, int? Http,
             Guid? Record, bool ManuallyConfirmedNoEffect)>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);

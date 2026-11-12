@@ -8,6 +8,61 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Theory]
+    [InlineData("upsert", true, true, "not_sent", false, true)]
+    [InlineData("upsert", true, true, "reserved", true, true)]
+    [InlineData("upsert", true, true, "ambiguous", true, true)]
+    [InlineData("upsert", true, true, "reserved", false, false)]
+    [InlineData("upsert", true, false, "reserved", true, false)]
+    [InlineData("create", true, true, "reserved", true, false)]
+    [InlineData("upsert", false, true, "reserved", true, false)]
+    [InlineData("upsert", true, true, "succeeded", true, false)]
+    public void AgedUncertainTotalRequiresUniqueVerifiedDholeSale(
+        string operation, bool header, bool matches, string state,
+        bool aged, bool expected)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var started = aged ? now.AddMinutes(-6) : now.AddMinutes(-1);
+        Assert.Equal(expected,
+            PricingQuoteTotalEndpoints.CanReconcileSingleExistingSale(
+                operation, header, matches, state, null, started, now));
+        if (state != "not_sent")
+            Assert.False(PricingQuoteTotalEndpoints.CanReconcileSingleExistingSale(
+                operation, header, matches, state, Guid.NewGuid(), started, now));
+    }
+
+    [Theory]
+    [InlineData("Total venta de tarifa Dhole", 1, 10395, true)]
+    [InlineData("Tarifa logística Dhole", 1, 10395, true)]
+    [InlineData("Tarifa manual", 1, 10395, false)]
+    [InlineData("Tarifa logística Dhole", 2, 10395, false)]
+    [InlineData("Tarifa logística Dhole", 1, 10394, false)]
+    public void ExistingDholeSaleRequiresExactIdentityQuantityAndAmount(
+        string label, decimal quantity, decimal unitPrice, bool expected)
+    {
+        var line = new DataverseWriteTransport.QuoteDetailSnapshot(
+            Guid.NewGuid(), label, "W/\"123\"", quantity, unitPrice);
+        Assert.Equal(expected,
+            PricingQuoteTotalEndpoints.IsRecognizedDholeSaleLine(line, 10395m));
+    }
+
+    [Theory]
+    [InlineData("quote", "rejected", 400, false, true)]
+    [InlineData("quote", "reconciled", null, true, true)]
+    [InlineData("quote", "reconciled", null, false, false)]
+    [InlineData("quote", "reserved", null, false, false)]
+    [InlineData("quote", "ambiguous", 409, false, false)]
+    [InlineData("quote", "succeeded", 201, false, false)]
+    [InlineData("quotedetail", "reconciled", null, true, false)]
+    public void ManualNoEffectRecoveryNeverTreatsAnAmbiguousHeaderAsRejected(
+        string entity, string state, int? http, bool manual, bool expected)
+    {
+        Assert.Equal(expected, PricingQuoteTotalEndpoints.CanRecoverPriorHeader(
+            entity, state, http, null, manual));
+        Assert.False(PricingQuoteTotalEndpoints.CanRecoverPriorHeader(
+            entity, state, http, Guid.NewGuid(), manual));
+    }
+
+    [Theory]
     [InlineData(true, true, true, true, 1, false, true)]
     [InlineData(false, true, true, true, 1, false, false)]
     [InlineData(true, false, true, true, 1, false, false)]

@@ -8,6 +8,29 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Theory]
+    [InlineData("upsert", true, true, "not_sent", false, true)]
+    [InlineData("upsert", true, true, "reserved", true, true)]
+    [InlineData("upsert", true, true, "ambiguous", true, true)]
+    [InlineData("upsert", true, true, "reserved", false, false)]
+    [InlineData("upsert", true, false, "reserved", true, false)]
+    [InlineData("create", true, true, "reserved", true, false)]
+    [InlineData("upsert", false, true, "reserved", true, false)]
+    [InlineData("upsert", true, true, "succeeded", true, false)]
+    public void AgedUncertainTotalRequiresUniqueVerifiedDholeSale(
+        string operation, bool header, bool matches, string state,
+        bool aged, bool expected)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var started = aged ? now.AddMinutes(-6) : now.AddMinutes(-1);
+        Assert.Equal(expected,
+            PricingQuoteTotalEndpoints.CanReconcileSingleExistingSale(
+                operation, header, matches, state, null, started, now));
+        if (state != "not_sent")
+            Assert.False(PricingQuoteTotalEndpoints.CanReconcileSingleExistingSale(
+                operation, header, matches, state, Guid.NewGuid(), started, now));
+    }
+
+    [Theory]
     [InlineData("Total venta de tarifa Dhole", 1, 10395, true)]
     [InlineData("Tarifa logística Dhole", 1, 10395, true)]
     [InlineData("Tarifa manual", 1, 10395, false)]

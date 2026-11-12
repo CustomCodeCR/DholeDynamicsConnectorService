@@ -71,6 +71,26 @@ public static class PricingQuoteTotalEndpoints
         administratorApproved && isUpsert && headerReplayed && rateLinkVerified &&
         existingLineCount == 1 && !lineWriteWasReserved;
 
+    // A read-only reconciliation may accept a *Dhole-labelled* line that
+    // already matches the accepted immutable sale. Never treat a manually
+    // named line with a coincidentally equal amount as managed.
+    public static bool IsRecognizedDholeSaleLine(
+        DataverseWriteTransport.QuoteDetailSnapshot line, decimal expectedSale) =>
+        line.Name is "Total venta de tarifa Dhole" or "Tarifa logística Dhole" &&
+        line.Quantity == 1m && line.PricePerUnit is decimal price &&
+        expectedSale >= 0 && Math.Abs(decimal.Round(price, 2) -
+            decimal.Round(expectedSale, 2)) <= 0.01m;
+
+    // Only a manually reconciled reserved/ambiguous write, with NO record ID
+    // and auditable confirmation of no Dataverse effect, may use a new
+    // recovery generation. Never infer no effect from a timeout or HTTP 409.
+    public static bool CanRecoverPriorHeader(
+        string entity, string status, int? httpStatus, Guid? recordId,
+        bool manualNoEffectConfirmed) =>
+        entity == "quote" && recordId is null &&
+        (status == "rejected" && httpStatus is >= 400 and < 500 ||
+         status == "reconciled" && manualNoEffectConfirmed);
+
     // Check across integration clients (API key rotations included), not just
     // the current key. An unknown reserved/ambiguous total write is never safe
     // to replay as a new line or an adoption.
@@ -244,8 +264,10 @@ public static class PricingQuoteTotalEndpoints
                     {
                         // The exact existing Quote already contains the desired
                         // sale. An administrator may reconcile WITHOUT writing.
-                        existingSaleMatches = DataverseWriteTransport.MatchesPricingSale(
-                            lines, lines[0].RecordId, expected);
+                        existingSaleMatches =
+                            IsRecognizedDholeSaleLine(lines[0], expected) &&
+                            DataverseWriteTransport.MatchesPricingSale(
+                                lines, lines[0].RecordId, expected);
                         if (existingSaleMatches) existingLineId = lines[0].RecordId;
                     }
                     liveStatus = liveConfirmed ? "sale_verified" :
@@ -349,7 +371,8 @@ public static class PricingQuoteTotalEndpoints
         await using var cmd = new NpgsqlCommand("""
             SELECT w.idempotency_key, w.entity_name, w.status,
                    w.http_status, w.record_id,
-                   w.response->>'reference'
+                   w.response->>'reference', w.id,
+                   w.response->>'state'
             FROM dynamics.write_operations w
             INNER JOIN dynamics.connections c ON c.id = w.connection_id
             WHERE c.code = @code
@@ -375,7 +398,13 @@ public static class PricingQuoteTotalEndpoints
             var recordId = rows.IsDBNull(4) ? (Guid?)null : rows.GetGuid(4);
             var reference = rows.IsDBNull(5) ? null : rows.GetString(5);
             var providerCode = SafeDataverseCode(reference);
-            var item = new { status, httpStatus, recordId, providerCode };
+            var operationId = rows.GetGuid(6);
+            var manuallyConfirmedNotApplied = status == "reconciled" &&
+                recordId is null && rows.IsDBNull(7) == false &&
+                rows.GetString(7) == "reconciled" &&
+                !string.IsNullOrWhiteSpace(reference);
+            var item = new { status, httpStatus, recordId, providerCode,
+                operationId, manuallyConfirmedNotApplied };
             var slot = isHeader ? "header" : "total";
             if (!entries.ContainsKey(slot) || key == keys[2])
                 entries[slot] = item;
@@ -498,10 +527,12 @@ public static class PricingQuoteTotalEndpoints
             rateId, revisionNumber = revision,
             header = entries.GetValueOrDefault("header") ??
                 (object)new { status = "not_sent", httpStatus = (int?)null,
-                    recordId = (Guid?)null, providerCode = (string?)null },
+                    recordId = (Guid?)null, providerCode = (string?)null,
+                    operationId = (Guid?)null, manuallyConfirmedNotApplied = false },
             total = entries.GetValueOrDefault("total") ??
                 (object)new { status = "not_sent", httpStatus = (int?)null,
-                    recordId = (Guid?)null, providerCode = (string?)null },
+                    recordId = (Guid?)null, providerCode = (string?)null,
+                    operationId = (Guid?)null, manuallyConfirmedNotApplied = false },
             legacy = new
             {
                 hasPriorSuccessfulCreate = legacyHeaders.Count > 0,
@@ -1155,6 +1186,22 @@ public static class PricingQuoteTotalEndpoints
                 // ETag, one-line cardinality and idempotency still apply.
                 if (existing.Count > 1)
                     throw new ReadRejected(409, "quote_line_multiple_requires_reconciliation");
+                // QUO-613: the immutable RateId already points to exactly
+                // one recognized Dhole sales line with the accepted total.
+                // Complete the revision by verified read, not by a duplicate
+                // CREATE/PATCH. A reserved line write is NEVER auto-reconciled.
+                if (!request.AdoptSingleUnmanagedLine && created.Replay &&
+                    foundByKey && existingQuoteId == quoteId &&
+                    existing.Count == 1 &&
+                    IsRecognizedDholeSaleLine(existing[0], request.TotalSaleAmount) &&
+                    DataverseWriteTransport.MatchesPricingSale(existing,
+                        existing[0].RecordId, request.TotalSaleAmount) &&
+                    !await HasCurrentRevisionLineWriteAsync(
+                        http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
+                        key.ConnectionId, rawKey, ct))
+                    return Results.Ok(new PricingQuoteTotalResponse(
+                        "succeeded", quoteId, existing[0].RecordId,
+                        "completed", true, [existing[0].RecordId]));
                 if (existing.Count == 1 &&
                     existing[0].Name != "Total venta de tarifa Dhole")
                 {
@@ -1807,7 +1854,8 @@ public static class PricingQuoteTotalEndpoints
             .Select(i => baseKey + (i == 0 ? "" : "-r" + i)).ToArray();
         await using var db = await source.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("""
-            SELECT idempotency_key, entity_name, status, http_status, record_id
+            SELECT idempotency_key, entity_name, status, http_status, record_id,
+                   response->>'state', response->>'reference'
             FROM dynamics.write_operations
             WHERE connection_id = @connection AND issuer = @issuer
               AND idempotency_key = ANY(@keys)
@@ -1817,7 +1865,8 @@ public static class PricingQuoteTotalEndpoints
         cmd.Parameters.AddWithValue("client", clientId);
         cmd.Parameters.AddWithValue("keys", expectedKeys.SelectMany(k =>
             new[] { k + "-header", k + "-total" }).ToArray());
-        var rows = new Dictionary<string, (string Entity, string Status, int? Http, Guid? Record)>();
+        var rows = new Dictionary<string, (string Entity, string Status, int? Http,
+            Guid? Record, bool ManuallyConfirmedNoEffect)>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -1825,17 +1874,22 @@ public static class PricingQuoteTotalEndpoints
             if (!rows.TryAdd(k, (
                 reader.GetString(1), reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetInt32(3),
-                reader.IsDBNull(4) ? null : reader.GetGuid(4))))
+                reader.IsDBNull(4) ? null : reader.GetGuid(4),
+                !reader.IsDBNull(5) && reader.GetString(5) == "reconciled" &&
+                !reader.IsDBNull(6) &&
+                !string.IsNullOrWhiteSpace(reader.GetString(6)))))
                 return false;
         }
-        // Every preceding header must be a confirmed 4xx rejection, never
-        // reserved, succeeded, reconciled, ambiguous or unknown. No total
-        // write may have been dispatched. Old ledger rows remain immutable.
+        // Every prior generation must have a proven 4xx no-write rejection
+        // OR an explicit SecurityAdmin reconciliation confirming no effect.
+        // Reserved/ambiguous operations never qualify, and no sale line may
+        // have been sent under either create or update keys.
         return expectedKeys.All(k =>
             rows.TryGetValue(k + "-header", out var header) &&
-            header.Entity == "quote" && header.Status == "rejected" &&
-            header.Http is >= 400 and < 500 && header.Record is null &&
-            !rows.ContainsKey(k + "-total"));
+            CanRecoverPriorHeader(header.Entity, header.Status, header.Http,
+                header.Record, header.ManuallyConfirmedNoEffect) &&
+            !rows.ContainsKey(k + "-total") &&
+            !rows.ContainsKey(k + "-total-update"));
     }
 
     // Shared guard for both ways of writing the same Pricing quote.

@@ -71,6 +71,19 @@ public static class PricingQuoteTotalEndpoints
         administratorApproved && isUpsert && headerReplayed && rateLinkVerified &&
         existingLineCount == 1 && !lineWriteWasReserved;
 
+    // Some Dataverse tenants expose the Dhole product description as the sales
+    // line title. Resume only an exactly matching, single line on the already
+    // linked RateId; an unknown prior total write must still be reconciled.
+    public static bool CanResumeLegacyDholeSaleLine(
+        string? lineName, decimal? quantity, decimal? pricePerUnit,
+        decimal expectedSale, bool headerReplayed, bool rateLinkVerified,
+        bool lineWriteReserved) =>
+        headerReplayed && rateLinkVerified && !lineWriteReserved &&
+        lineName == "Tarifa logística Dhole" && quantity == 1m &&
+        pricePerUnit is decimal actual && expectedSale >= 0 &&
+        Math.Abs(decimal.Round(actual, 2, MidpointRounding.AwayFromZero) -
+            decimal.Round(expectedSale, 2, MidpointRounding.AwayFromZero)) <= 0.01m;
+
     // Check across integration clients (API key rotations included), not just
     // the current key. An unknown reserved/ambiguous total write is never safe
     // to replay as a new line or an adoption.
@@ -1171,15 +1184,19 @@ public static class PricingQuoteTotalEndpoints
                     }
                     else
                     {
-                        if (!request.AdoptSingleUnmanagedLine)
-                            throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
                         var lineWasReserved = await HasCurrentRevisionLineWriteAsync(
                             http.RequestServices.GetRequiredService<NpgsqlDataSource>(),
                             key.ConnectionId, rawKey, ct);
-                        if (!CanAdoptSingleUnmanagedLine(
+                        var rateLinkVerified = foundByKey && existingQuoteId == quoteId;
+                        var legacyDholeLine = CanResumeLegacyDholeSaleLine(
+                            existing[0].Name, existing[0].Quantity,
+                            existing[0].PricePerUnit, request.TotalSaleAmount,
+                            created.Replay, rateLinkVerified, lineWasReserved);
+                        if (!legacyDholeLine && !request.AdoptSingleUnmanagedLine)
+                            throw new ReadRejected(409, "quote_line_unmanaged_requires_reconciliation");
+                        if (!legacyDholeLine && !CanAdoptSingleUnmanagedLine(
                             request.AdoptSingleUnmanagedLine, isUpsert, created.Replay,
-                            foundByKey && existingQuoteId == quoteId,
-                            existing.Count, lineWasReserved))
+                            rateLinkVerified, existing.Count, lineWasReserved))
                             throw new ReadRejected(409, "quote_line_adoption_not_safe");
                     }
                 }
@@ -1256,9 +1273,14 @@ public static class PricingQuoteTotalEndpoints
                 ? ApiProblems.Create(http, 409, "quote_total_partial_requires_reconciliation",
                     "Quote header created; total line was not confirmed. Check idempotency ledger. " +
                     "Failure before quote line confirmation: " + ex.Code + ".")
-                : ApiProblems.Create(http, ex.Status, ex.Code,
-                    "Pricing quote creation rejected by Dataverse connector policy.",
-                    ex.LookupInput, ex.LookupSearchField);
+                : ex.Code == "write_pending_reconciliation"
+                    ? ApiProblems.Create(http, 409, "quote_header_pending_requires_reconciliation",
+                        "An earlier header operation is reserved or ambiguous. Verify the " +
+                        "same RateId in Dataverse and reconcile its idempotency ledger " +
+                        "before any new write. No quote or line was resent.")
+                    : ApiProblems.Create(http, ex.Status, ex.Code,
+                        "Pricing quote creation rejected by Dataverse connector policy.",
+                        ex.LookupInput, ex.LookupSearchField);
         }
         catch (HttpRequestException)
         {

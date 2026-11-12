@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeDynamicsConnectorService",
-  "version": "1.4.0",
-  "ecosystemVersion": "1.14.0",
-  "releaseId": "rt-20261107-01",
-  "releaseStatus": "candidate-notificationshub-staging-not-deployed"
+  "version": "1.4.1",
+  "ecosystemVersion": "1.43.4",
+  "releaseId": "DH-20261112-DYNAMICS-QUO-613-619-118",
+  "releaseStatus": "candidate-ci-and-staging-pending"
 }

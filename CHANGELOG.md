@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1] - 2026-11-12
+
+- PATCH DH-20261112-DYNAMICS-QUO-613-619-119: recupera la única línea comercial legacy «Tarifa logística Dhole» cuando un UPSERT ya confirmado y repetido apunta al mismo RateId, cantidad 1, venta exacta y sin escritura total reservada. Actualiza por ETag y confirma una sola línea; no crea otro quotedetail.
+- Para la QUO-00000-000619, diferencia explícitamente la reserva de cabecera pendiente (`quote_header_pending_requires_reconciliation`); exige verificación del ledger y del RateId antes de cualquier reintento. Nunca transforma `reserved/ambiguous` en escritura nueva automáticamente.
+- Componente 1.4.0 → 1.4.1, ecosistema 1.43.6; conserva los contratos REST, SignalR y la idempotencia. CI/staging y conciliación de registros reales pendientes; producción no autorizada.
+
+
 ## [1.4.0] - 2026-11-09 (NotificationsHub universal realtime pilot; candidate)
 
 - MINOR: retain domain Outbox/REST producer and scoped access under the existing NotificationsHub delivery model; CustomCodeFramework untouched.

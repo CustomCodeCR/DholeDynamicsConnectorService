@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1] - 2026-11-12
+
+- PATCH DH-20261112-DYNAMICS-QUO-613-619-118: reconoce una única línea de venta Dhole con cantidad 1 e importe igual a la revisión aceptada mediante lectura de Dataverse y RateId verificado (QUO-00000-000613), sin otra escritura ni pérdida del ledger.
+- Rehabilita exclusivamente la recuperación con nueva generación de idempotencia cuando una operación de cabecera reservada/ambigua se ha conciliado MANUALMENTE como no aplicada por SecurityAdmin; jamás interpreta ausencia de recordId, timeout o HTTP 409 como prueba (QUO-00000-000619).
+- Expone el ID de operación en el diagnóstico administrativo para poder auditar y conciliar la clave exacta. Mantiene guardas de línea enviada y estado 409, sin duplicados automáticos.
+- Versión 1.4.0 → 1.4.1; ecosistema 1.43.6. CI/staging y comprobación real de Dataverse pendientes; no despliegue productivo autorizado.
+
 ## [1.4.0] - 2026-11-09 (NotificationsHub universal realtime pilot; candidate)
 
 - MINOR: retain domain Outbox/REST producer and scoped access under the existing NotificationsHub delivery model; CustomCodeFramework untouched.

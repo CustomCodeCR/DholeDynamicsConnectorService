@@ -81,6 +81,21 @@ public static class PricingQuoteTotalEndpoints
         expectedSale >= 0 && Math.Abs(decimal.Round(price, 2) -
             decimal.Round(expectedSale, 2)) <= 0.01m;
 
+    // This is an explicitly requested, read-only verification. A disputed
+    // quotedetail operation must have remained unresolved beyond the worker's
+    // lease horizon, and the already-linked Quote must have exactly one
+    // identifiable Dhole line equal to the immutable accepted sale. Never
+    // generate or replay a Dataverse write from this proof.
+    public static bool CanReconcileSingleExistingSale(
+        string operation, bool verifiedHeader, bool singleLiveMatch,
+        string? totalStatus, Guid? recordedLineId,
+        DateTimeOffset? lineStartedAt, DateTimeOffset now) =>
+        operation == "upsert" && verifiedHeader && singleLiveMatch &&
+        (totalStatus == "not_sent" ||
+         (totalStatus is "reserved" or "ambiguous") &&
+         recordedLineId is null && lineStartedAt is DateTimeOffset started &&
+         started <= now.AddMinutes(-5));
+
     // Only a manually reconciled reserved/ambiguous write, with NO record ID
     // and auditable confirmation of no Dataverse effect, may use a new
     // recovery generation. Never infer no effect from a timeout or HTTP 409.
@@ -201,11 +216,12 @@ public static class PricingQuoteTotalEndpoints
                 "-v" + revisionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var suffixes = new[] { prefix + "-header", prefix + "-total",
                 prefix + "-total-update" };
-            var status = new Dictionary<string, (string State, Guid? RecordId)>(
+            var status = new Dictionary<string,
+                (string State, Guid? RecordId, DateTimeOffset StartedAt)>(
                 StringComparer.Ordinal);
             await using var db = await database.OpenConnectionAsync(ct);
             await using var cmd = new NpgsqlCommand("""
-                SELECT idempotency_key,entity_name,operation,status,record_id
+                SELECT idempotency_key,entity_name,operation,status,record_id,started_at
                 FROM dynamics.write_operations
                 WHERE connection_id=@connection AND issuer=@issuer
                   AND oauth_client_id=@client
@@ -225,7 +241,8 @@ public static class PricingQuoteTotalEndpoints
                 if (rows.GetString(1) != expectedEntity ||
                     rows.GetString(2) != expectedOperation ||
                     !status.TryAdd(idem, (rows.GetString(3),
-                        rows.IsDBNull(4) ? null : rows.GetGuid(4))))
+                        rows.IsDBNull(4) ? null : rows.GetGuid(4),
+                        rows.GetFieldValue<DateTimeOffset>(5))))
                     throw new ReadRejected(409, "quote_result_ledger_ambiguous");
             }
             var headerOk = status.TryGetValue(suffixes[0], out var header) &&
@@ -239,6 +256,7 @@ public static class PricingQuoteTotalEndpoints
             // of interpreting the absent response ID as an unsent write.
             var liveConfirmed = false;
             var existingSaleMatches = false;
+            var existingLineReconciliationSafe = false;
             Guid? existingLineId = null;
             var liveStatus = "not_verified";
             if (headerOk && expectedSaleAmount is decimal expected)
@@ -258,16 +276,25 @@ public static class PricingQuoteTotalEndpoints
                         liveConfirmed = verifiedLineId is Guid id &&
                             DataverseWriteTransport.MatchesPricingSale(lines, id, expected);
                     }
-                    else if (key.Operation == "upsert" &&
-                        !status.ContainsKey(suffixes[1]) &&
-                        !status.ContainsKey(suffixes[2]) && lines.Count == 1)
+                    else if (key.Operation == "upsert" && lines.Count == 1 &&
+                        !status.ContainsKey(suffixes[2]))
                     {
-                        // The exact existing Quote already contains the desired
-                        // sale. An administrator may reconcile WITHOUT writing.
-                        existingSaleMatches =
-                            IsRecognizedDholeSaleLine(lines[0], expected) &&
+                        // QUO-613: a line operation can remain reserved or
+                        // ambiguous even when Dataverse already has the exact
+                        // one-line sale. Never create another line to "fix" it.
+                        // Only an admin-triggered read-only reconciliation may
+                        // establish a complete Pricing sync for this case.
+                        var liveMatches = IsRecognizedDholeSaleLine(lines[0], expected) &&
                             DataverseWriteTransport.MatchesPricingSale(
                                 lines, lines[0].RecordId, expected);
+                        var ledgerState = status.TryGetValue(suffixes[1], out var lineWrite)
+                            ? lineWrite.State : "not_sent";
+                        existingLineReconciliationSafe = CanReconcileSingleExistingSale(
+                            key.Operation, headerOk, liveMatches, ledgerState,
+                            status.ContainsKey(suffixes[1]) ? lineWrite.RecordId : null,
+                            status.ContainsKey(suffixes[1]) ? lineWrite.StartedAt : null,
+                            DateTimeOffset.UtcNow);
+                        existingSaleMatches = existingLineReconciliationSafe;
                         if (existingSaleMatches) existingLineId = lines[0].RecordId;
                     }
                     liveStatus = liveConfirmed ? "sale_verified" :
@@ -286,6 +313,7 @@ public static class PricingQuoteTotalEndpoints
             {
                 confirmed = headerOk && totalWritten && liveConfirmed,
                 liveConfirmed, liveStatus, existingSaleMatches, existingLineId,
+                existingLineReconciliationSafe,
                 headerStatus = status.TryGetValue(suffixes[0], out var hs)
                     ? hs.State : "not_sent",
                 totalStatus = status.TryGetValue(detailKey, out var ts)

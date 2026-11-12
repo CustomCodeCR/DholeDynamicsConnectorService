@@ -8,6 +8,22 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Theory]
+    [InlineData("Tarifa logística Dhole", 1, 10395, 10395, true, true, false, true)]
+    [InlineData("Tarifa logística Dhole", 1, 10395, 10395, false, true, false, false)]
+    [InlineData("Tarifa logística Dhole", 1, 10395, 10395, true, false, false, false)]
+    [InlineData("Tarifa logística Dhole", 1, 10395, 10395, true, true, true, false)]
+    [InlineData("Tarifa logística Dhole", 1, 10394, 10395, true, true, false, false)]
+    [InlineData("Tarifa logística Dhole", 2, 10395, 10395, true, true, false, false)]
+    [InlineData("Línea ajena", 1, 10395, 10395, true, true, false, false)]
+    public void OnlyVerifiedExistingDholeSaleCanResumeWithoutExplicitAdoption(
+        string name, int quantity, int price, int sale, bool replay,
+        bool linked, bool reserved, bool expected)
+    {
+        Assert.Equal(expected, PricingQuoteTotalEndpoints.CanResumeLegacyDholeSaleLine(
+            name, quantity, price, sale, replay, linked, reserved));
+    }
+
+    [Theory]
     [InlineData(true, true, true, true, 1, false, true)]
     [InlineData(false, true, true, true, 1, false, false)]
     [InlineData(true, false, true, true, 1, false, false)]

@@ -8,6 +8,38 @@ namespace Dhole.Dynamics.UnitTests;
 public sealed class PricingQuoteTotalTests
 {
     [Theory]
+    [InlineData("Total venta de tarifa Dhole", 1, 10395, true)]
+    [InlineData("Tarifa logística Dhole", 1, 10395, true)]
+    [InlineData("Tarifa manual", 1, 10395, false)]
+    [InlineData("Tarifa logística Dhole", 2, 10395, false)]
+    [InlineData("Tarifa logística Dhole", 1, 10394, false)]
+    public void ExistingDholeSaleRequiresExactIdentityQuantityAndAmount(
+        string label, decimal quantity, decimal unitPrice, bool expected)
+    {
+        var line = new DataverseWriteTransport.QuoteDetailSnapshot(
+            Guid.NewGuid(), label, "W/\"123\"", quantity, unitPrice);
+        Assert.Equal(expected,
+            PricingQuoteTotalEndpoints.IsRecognizedDholeSaleLine(line, 10395m));
+    }
+
+    [Theory]
+    [InlineData("quote", "rejected", 400, false, true)]
+    [InlineData("quote", "reconciled", null, true, true)]
+    [InlineData("quote", "reconciled", null, false, false)]
+    [InlineData("quote", "reserved", null, false, false)]
+    [InlineData("quote", "ambiguous", 409, false, false)]
+    [InlineData("quote", "succeeded", 201, false, false)]
+    [InlineData("quotedetail", "reconciled", null, true, false)]
+    public void ManualNoEffectRecoveryNeverTreatsAnAmbiguousHeaderAsRejected(
+        string entity, string state, int? http, bool manual, bool expected)
+    {
+        Assert.Equal(expected, PricingQuoteTotalEndpoints.CanRecoverPriorHeader(
+            entity, state, http, null, manual));
+        Assert.False(PricingQuoteTotalEndpoints.CanRecoverPriorHeader(
+            entity, state, http, Guid.NewGuid(), manual));
+    }
+
+    [Theory]
     [InlineData(true, true, true, true, 1, false, true)]
     [InlineData(false, true, true, true, 1, false, false)]
     [InlineData(true, false, true, true, 1, false, false)]

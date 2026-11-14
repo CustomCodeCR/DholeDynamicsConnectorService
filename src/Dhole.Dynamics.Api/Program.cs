@@ -53,5 +53,26 @@ app.MapSyncChangeEndpoints();
 if (app.Environment.IsDevelopment())
     app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
 
+// Dhole API Manager: authenticated runtime inventory, not a public proxy.
+app.MapGet("/api/internal/third-party-route-catalog", (HttpContext http) =>
+{
+    var allowed = http.User.Identity?.IsAuthenticated == true &&
+        http.User.Claims.Where(c => c.Type is "scope" or "scp" or "scopes")
+            .SelectMany(c => c.Value.Split([' ', ',', ';'], StringSplitOptions.RemoveEmptyEntries))
+            .Contains("integrations.thirdparty.manage", StringComparer.OrdinalIgnoreCase);
+    if (!allowed) return (IResult)Results.StatusCode(StatusCodes.Status403Forbidden);
+    var routes = new List<object>();
+    foreach (var source in ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources)
+        foreach (var endpoint in source.Endpoints.OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>())
+        {
+            var methods = endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods;
+            if (methods is null || endpoint.RoutePattern.RawText is not { } path) continue;
+            foreach (var method in methods)
+                if (method is "GET" or "POST" or "PUT" or "PATCH" or "DELETE")
+                    routes.Add(new { method, path = "/" + path.TrimStart('/') });
+        }
+    return (IResult)Results.Ok(routes);
+}).ExcludeFromDescription();
+
 app.Run();
 public partial class Program { }

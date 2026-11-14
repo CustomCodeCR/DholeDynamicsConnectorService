@@ -1,3 +1,8 @@
+## [1.5.0] - 2026-11-14 (API Manager discovery)
+
+- MINOR: inventario administrativo de rutas HTTP de Dynamics Connector, protegido por JWT y alcance integrations.thirdparty.manage, sin alterar OAuth ni operaciones Dataverse.
+- Global Dhole 1.56.0.
+
 # Changelog
 
 ## [1.4.1] - 2026-11-12

@@ -2,8 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeDynamicsConnectorService",
-  "version": "1.4.1",
-  "ecosystemVersion": "1.43.6",
-  "releaseId": "DH-20261112-DYNAMICS-QUO-613-619-118",
-  "releaseStatus": "candidate-ci-and-staging-pending"
+  "version": "1.5.0",
+  "ecosystemVersion": "1.56.0",
+  "releaseId": "DH-20261114-API-MANAGER-ROUTE-DISCOVERY-143",
+  "releaseStatus": "candidate-ci-and-staging-pending",
+  "businessReleaseId": "DH-20261114-API-MANAGER-ROUTE-DISCOVERY-143"
 }

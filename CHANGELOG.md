@@ -1,3 +1,7 @@
+## [1.5.0] - 2026-11-14 (API Manager route discovery)
+
+- Admin JWT+scope-protected runtime REST route catalogue; no public routes enabled.
+
 # Changelog
 
 ## [1.4.1] - 2026-11-12
